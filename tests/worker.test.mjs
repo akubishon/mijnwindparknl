@@ -2,8 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../worker/index.js', import.meta.url), 'utf8');
-const env = { WPF_PUBLIC_CLIENT_KEY: 'fixture-client', WPF_FIREBASE_API_KEY: 'fixture-api' };
-async function fresh() { return (await import(`data:text/javascript;base64,${Buffer.from(source + '\n// ' + Math.random()).toString('base64')}`)).default; }
+const env = { SITE_PASSWORD:'fixture-site-password', WPF_PUBLIC_CLIENT_KEY: 'fixture-client', WPF_FIREBASE_API_KEY: 'fixture-api' };
+async function rawFresh() { return (await import(`data:text/javascript;base64,${Buffer.from(source + '\n// ' + Math.random()).toString('base64')}`)).default; }
+async function fresh(){
+ const worker=await rawFresh();
+ const login=await worker.fetch(new Request('https://fixture.test/auth/site',{method:'POST',headers:{Origin:'https://fixture.test','Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({password:env.SITE_PASSWORD})}),env);
+ const cookie=login.headers.get('Set-Cookie').split(';')[0];
+ return {fetch(request,settings){const headers=new Headers(request.headers);if(!headers.has('Cookie'))headers.set('Cookie',cookie);return worker.fetch(new Request(request,{headers}),settings);}};
+}
 const get = (worker, route) => worker.fetch(new Request('https://fixture.test' + route), env);
 test('serves the app and validates requests before contacting upstream', async () => {
   const worker=await fresh();let calls=0;const prior=global.fetch;global.fetch=async()=>{calls++;throw Error('Unexpected request');};
@@ -245,4 +251,42 @@ test('brand style is standard on every page and former trial links redirect',asy
  const font=await get(worker,'/assets/tasa-orbiter.ttf');assert.equal(font.status,200);assert.equal(font.headers.get('Content-Type'),'font/ttf');
  const bytes=new Uint8Array(await font.arrayBuffer());assert.deepEqual([...bytes.slice(0,4)],[0,1,0,0]);assert.ok(bytes.length>10000);
  assert.match(await (await get(worker,'/favicon.svg')).text(),/#0C2340/);
+});
+
+test('site gate blocks every page, data endpoint and asset before any upstream request',async()=>{
+ const worker=await rawFresh();const prior=global.fetch;let calls=0;global.fetch=async()=>{calls++;throw Error('must not fetch');};
+ try{
+  for(const path of ['/','/beabuorren','/elektrolyser','/onderzoek','/proefstijl','/favicon.svg','/assets/tasa-orbiter.ttf']){
+   const r=await get(worker,path);assert.equal(r.status,401,path);const html=await r.text();assert.match(html,/<label for="password">Wachtwoord<\/label>/);assert.doesNotMatch(html,/<style>|<button|<h1|<p[ >]/);assert.doesNotMatch(html,/const |<script>|Fryslân|Beabuorren|brandFont/);assert.equal(r.headers.get('Cache-Control'),'no-store');
+  }
+  for(const path of ['/api/live','/api/history?day=2026-10-14','/api/wind?day=2026-10-13','/api/research/day?day=2026-10-13','/api/stations','/api/catalog'])assert.equal((await get(worker,path)).status,401,path);
+  assert.equal(calls,0);
+  const unset=await worker.fetch(new Request('https://fixture.test/'),{});assert.equal(unset.status,503);assert.doesNotMatch(await unset.text(),/Fryslân/);
+ }finally{global.fetch=prior;}
+});
+
+test('site login issues a secure session, rejects forged/expired/rotated sessions and permits logout',async()=>{
+ const worker=await rawFresh(),base='https://fixture.test';
+ const login=(password,next='/onderzoek',origin=base)=>worker.fetch(new Request(base+'/auth/site',{method:'POST',headers:{Origin:origin,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({password,next})}),env);
+ assert.equal((await login('wrong')).status,401);
+ assert.equal((await login(env.SITE_PASSWORD,'/','https://evil.test')).status,403);
+ const r=await login(env.SITE_PASSWORD);assert.equal(r.status,303);assert.equal(r.headers.get('Location'),'/onderzoek');const setCookie=r.headers.get('Set-Cookie');
+ assert.match(setCookie,/Secure; HttpOnly; SameSite=Strict; Max-Age=43200/);assert.match(setCookie,/^__Host-site_session=/);
+ const cookie=setCookie.split(';')[0],request=path=>new Request(base+path,{headers:{Cookie:cookie}});
+ const page=await worker.fetch(request('/onderzoek'),env);assert.equal(page.status,200);assert.equal(page.headers.get('Cache-Control'),'no-store');
+ assert.equal((await worker.fetch(request('/'),{...env,SITE_PASSWORD:'rotated'})).status,401);
+ assert.equal((await worker.fetch(new Request(base+'/',{headers:{Cookie:cookie.slice(0,-1)+(cookie.endsWith('0')?'1':'0')}}),env)).status,401);
+ assert.equal((await worker.fetch(new Request(base+'/',{headers:{Cookie:cookie.replace(/=\d+\./,'=1000000000000.')}}),env)).status,401);
+ const logout=await worker.fetch(new Request(base+'/auth/logout',{method:'POST',headers:{Origin:base,Cookie:cookie}}),env);assert.equal(logout.status,303);assert.match(logout.headers.get('Set-Cookie'),/Max-Age=0/);
+ const implicitResearch=await worker.fetch(new Request(base+'/api/research/auth',{method:'POST',headers:{Origin:base,Cookie:cookie},body:'{}'}),{...env,RESEARCH_PASSWORD:'fixture-research'});assert.equal(implicitResearch.status,200);assert.ok((await implicitResearch.json()).token);
+ const redirected=await login(env.SITE_PASSWORD,'//evil.test');assert.equal(redirected.headers.get('Location'),'/');
+});
+
+test('site gate uses the existing research secret when no site-specific secret is configured and throttles guesses',async()=>{
+ const worker=await rawFresh();const settings={RESEARCH_PASSWORD:'fixture-research'};
+ const login=password=>worker.fetch(new Request('https://fixture.test/auth/site',{method:'POST',headers:{Origin:'https://fixture.test','CF-Connecting-IP':'192.0.2.7'},body:new URLSearchParams({password})}),settings);
+ const r=await login(settings.RESEARCH_PASSWORD);assert.equal(r.status,303);
+ const cookie=r.headers.get('Set-Cookie').split(';')[0];assert.equal((await worker.fetch(new Request('https://fixture.test/',{headers:{Cookie:cookie}}),settings)).status,200);
+ for(let n=0;n<5;n++)assert.equal((await login('wrong')).status,401);
+ assert.equal((await login(settings.RESEARCH_PASSWORD)).status,429);
 });

@@ -17,9 +17,60 @@ async function researchAllowed(request,env){
  const bytes=new Uint8Array(signature.match(/../g).map(x=>parseInt(x,16)));
  return crypto.subtle.verify('HMAC',await researchKey(env.RESEARCH_PASSWORD),bytes,encoder.encode('research:'+expires));
 }
+const siteAttempts=new Map();
+const siteSecret=env=>env.SITE_PASSWORD||env.RESEARCH_PASSWORD;
+async function siteSession(secret){
+ const expires=String(Date.now()+12*3600000);
+ const signature=await crypto.subtle.sign('HMAC',await researchKey(secret),encoder.encode('site:'+expires));
+ return expires+'.'+Array.from(new Uint8Array(signature),b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function siteAllowed(request,env){
+ const secret=siteSecret(env);if(!secret)return false;
+ const cookie=(request.headers.get('Cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith('__Host-site_session='));
+ const [expires,signature]=(cookie?.slice('__Host-site_session='.length)||'').split('.');
+ if(!/^\d{13}$/.test(expires||'')||Number(expires)<Date.now()||Number(expires)>Date.now()+12*3600000||!/^[a-f0-9]{64}$/.test(signature||''))return false;
+ return crypto.subtle.verify('HMAC',await researchKey(secret),new Uint8Array(signature.match(/../g).map(s=>parseInt(s,16))),encoder.encode('site:'+expires));
+}
+const escapeHtml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function safeNext(value){if(typeof value!=='string'||!value.startsWith('/')||value.startsWith('//')||value.includes('\\')||/[\r\n]/.test(value))return '/';const u=new URL(value,'https://site.invalid');return u.origin==='https://site.invalid'&&!u.pathname.startsWith('/auth/')?u.pathname+u.search:'/';}
+function loginPage(message='',next='/',status=401){
+ const html=`<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Wachtwoord</title></head><body><form method="post" action="/auth/site"><input type="hidden" name="next" value="${escapeHtml(safeNext(next))}"><label for="password">Wachtwoord</label> <input id="password" type="password" name="password" required maxlength="1024" autocomplete="current-password" autofocus${message?` title="${escapeHtml(message)}" aria-description="${escapeHtml(message)}" aria-invalid="true"`:''}></form></body></html>`;
+ return new Response(html,{status,headers:{...securityHeaders,'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow'}});
+}
+async function gateRequest(request,env,url){
+ const secret=siteSecret(env);
+ if(url.pathname==='/auth/logout'&&request.method==='POST'){
+  if(request.headers.get('Origin')!==url.origin)return answer({error:'Ongeldige aanvraag.'},403);
+  return new Response(null,{status:303,headers:{...securityHeaders,Location:'/','Cache-Control':'no-store','Set-Cookie':'__Host-site_session=; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=0'}});
+ }
+ if(url.pathname==='/auth/site'&&request.method==='POST'){
+  if(request.headers.get('Origin')!==url.origin)return answer({error:'Ongeldige aanvraag.'},403);
+  if(!secret)return loginPage('Toegang is nog niet ingesteld. Neem contact op met de beheerder.','/',503);
+  const ip=request.headers.get('CF-Connecting-IP')||'unknown',now=Date.now();
+  const previous=siteAttempts.get(ip);const attempts=previous&&previous.until>now?previous:{count:0,until:now+900000};
+  if(attempts.count>=5)return loginPage('Te veel pogingen. Probeer over 15 minuten opnieuw.','/',429);
+  if(siteAttempts.size>=10000&&!siteAttempts.has(ip))return loginPage('Probeer het later opnieuw.','/',429);
+  if(siteAttempts.size>1000)for(const [key,value] of siteAttempts)if(value.until<=now)siteAttempts.delete(key);
+  attempts.count++;siteAttempts.set(ip,attempts);
+  if(Number(request.headers.get('Content-Length')||0)>8192)return loginPage('Ongeldige aanvraag.','/',400);
+  let input;try{const body=await request.text();if(body.length>8192)throw Error();input=new URLSearchParams(body);}catch{return loginPage('Ongeldige aanvraag.','/',400);}
+  const password=input.get('password'),next=safeNext(input.get('next'));
+  if(typeof password!=='string'||password.length>1024)return loginPage('Onjuist wachtwoord.',next);
+  const expected=new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(secret))),actual=new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(password)));
+  let difference=0;for(let i=0;i<expected.length;i++)difference|=expected[i]^actual[i];
+  if(difference)return loginPage('Onjuist wachtwoord.',next);
+  siteAttempts.delete(ip);
+  return new Response(null,{status:303,headers:{...securityHeaders,Location:next,'Cache-Control':'no-store','Set-Cookie':`__Host-site_session=${await siteSession(secret)}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=43200`}});
+ }
+ if(await siteAllowed(request,env))return null;
+ if(url.pathname.startsWith('/api/'))return answer({error:'Voer eerst het websitewachtwoord in.'},401);
+ return loginPage(secret?'':'Toegang is nog niet ingesteld. Neem contact op met de beheerder.',url.pathname+url.search,secret?401:503);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const gate=await gateRequest(request,env,url);if(gate)return gate;
     if(url.pathname==='/api/research/auth'&&request.method==='POST'){
       if(request.headers.get('Origin')!==url.origin)return answer({error:'Ongeldige aanvraag.'},403);
       if(!env.RESEARCH_PASSWORD)return answer({error:'Onderzoek is vergrendeld: het wachtwoord is nog niet ingesteld.'},503);
@@ -29,6 +80,7 @@ export default {
       attempts.count++;authAttempts.set(ip,attempts);if(authAttempts.size>1000)authAttempts.delete(authAttempts.keys().next().value);
       if(Number(request.headers.get('Content-Length')||0)>4096)return answer({error:'Ongeldige aanvraag.'},400);
       let input;try{const body=await request.text();if(body.length>4096)throw Error();input=JSON.parse(body);}catch{return answer({error:'Ongeldige aanvraag.'},400);}
+      if(input.password===undefined)return answer({token:await researchToken(env.RESEARCH_PASSWORD)});
       if(typeof input.password!=='string'||input.password.length>1024)return answer({error:'Onjuist wachtwoord.'},401);
       const expected=new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(env.RESEARCH_PASSWORD)));
       const actual=new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(input.password)));
@@ -40,7 +92,7 @@ export default {
     if ((url.pathname === '/assets/tasa-orbiter.ttf' || url.pathname === '/proefstijl/font.ttf')) return new Response(Uint8Array.from(atob(brandFont),c=>c.charCodeAt(0)), {headers:{...securityHeaders,'Content-Type':'font/ttf','Cache-Control':'public, max-age=86400'}});
     const formerTrialPages={'/proefstijl':'/','/proefstijl/beabuorren':'/beabuorren','/proefstijl/elektrolyser':'/elektrolyser','/proefstijl/onderzoek':'/onderzoek'};
     if(Object.hasOwn(formerTrialPages,url.pathname))return new Response(null,{status:302,headers:{...securityHeaders,Location:formerTrialPages[url.pathname]+url.search,'Cache-Control':'no-store'}});
-    if (url.pathname === '/' || url.pathname === '/beabuorren' || url.pathname === '/elektrolyser' || url.pathname === '/onderzoek') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
+    if (url.pathname === '/' || url.pathname === '/beabuorren' || url.pathname === '/elektrolyser' || url.pathname === '/onderzoek') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
     if (url.pathname === '/favicon.svg') return new Response(favicon, { headers: { ...securityHeaders, 'Content-Type': 'image/svg+xml' } });
     try {
       if(url.pathname==='/api/electrolyser'||url.pathname==='/api/research/day') {
