@@ -154,3 +154,11 @@ test('combined electrolyser supply aligns both parks and includes BoP',async()=>
  const worker=await fresh();assert.equal((await get(worker,'/elektrolyser')).status,200);
  assert.equal((await get(worker,'/api/electrolyser?day=2026-02-30')).status,400);
 });
+
+test('most frequent power groups one-MW bands and ignores missing model data',async()=>{
+ const {mostFrequentPower}=await import('../src/electrolysis.mjs');
+ const list=[12.1,12.9,null,15.1,12.3].map((powerMW,i)=>({powerMW,start:new Date(Date.UTC(2026,0,1,0,i*10)).toISOString(),end:new Date(Date.UTC(2026,0,1,0,(i+1)*10)).toISOString()}));
+ assert.deepEqual(mostFrequentPower(list),{lowerMW:12,upperMW:13,lineMW:12.5,minutes:30,availableMinutes:40,tiedBands:1});
+ assert.equal(mostFrequentPower([]),null);
+ const tied=mostFrequentPower([list[0],list[3]]);assert.equal(tied.lowerMW,12);assert.equal(tied.tiedBands,2);
+});

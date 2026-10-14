@@ -19,3 +19,17 @@ export function combinedSupply(fryslan, beabuorren) {
     return {start,end:x?.end||y.end,powerMW:valid?(x.powerMW*.1+y.powerMW)/1.1:null};
   });
 }
+
+// Group near-equal model outputs instead of treating each decimal as a new value.
+export function mostFrequentPower(intervals) {
+  const buckets=new Map();let availableMinutes=0;
+  for(const i of intervals){
+    const v=i.powerMW,start=Date.parse(i.start),end=Date.parse(i.end);
+    if(typeof v!=='number'||!Number.isFinite(v)||v<0||end-start!==600000)continue;
+    const band=Math.floor(v);buckets.set(band,(buckets.get(band)||0)+10);availableMinutes+=10;
+  }
+  if(!buckets.size)return null;
+  const [lowerMW,minutes]=[...buckets].sort((a,b)=>b[1]-a[1]||a[0]-b[0])[0];
+  const tiedBands=[...buckets].filter(([,n])=>n===minutes).length;
+  return {lowerMW,upperMW:lowerMW+1,lineMW:lowerMW+.5,minutes,availableMinutes,tiedBands};
+}
