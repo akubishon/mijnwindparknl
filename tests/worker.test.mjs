@@ -91,7 +91,7 @@ test('KNMI request uses Worker-compatible redirect mode and returns model hours'
     assert.ok(String(url).startsWith('https://api.dataplatform.knmi.nl/'));
     assert.equal(options.redirect,'manual');
     assert.equal(options.headers.Authorization,'fixture-knmi');
-    return Response.json({parameters:{ff:{unit:{symbol:{value:'m/s'}}}},coverages:[{'eumetnet:locationId':'0-20000-0-06258',domain:{axes:{t:{values:stamps}}},ranges:{ff:{values}}}]});
+    return Response.json({parameters:{ff:{unit:{symbol:{value:'m/s'}}}},coverages:[{'eumetnet:locationId':'0-20000-0-06267',domain:{axes:{t:{values:stamps}}},ranges:{ff:{values}}}]});
   };
   try {
     const r=await worker.fetch(new Request('https://fixture.test/api/wind?day=2026-10-13'),{...env,KNMI_EDR_API_KEY:'fixture-knmi'});

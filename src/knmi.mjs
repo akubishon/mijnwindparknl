@@ -2,7 +2,7 @@ const windCache = new Map();
 const localParts = stamp => Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone:'Europe/Amsterdam',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23' }).formatToParts(new Date(stamp)).map(p=>[p.type,p.value]));
 export function modelHours(raw, day) {
   const coverage=raw.coverages?.[0];
-  if(raw.coverages?.length!==1 || coverage?.['eumetnet:locationId']!=='0-20000-0-06258' || raw.parameters?.ff?.unit?.symbol?.value!=='m/s')throw Error('Invalid KNMI data');
+  if(raw.coverages?.length!==1 || coverage?.['eumetnet:locationId']!=='0-20000-0-06267' || raw.parameters?.ff?.unit?.symbol?.value!=='m/s')throw Error('Invalid KNMI data');
   const stamps=coverage.domain?.axes?.t?.values || [], values=coverage.ranges?.ff?.values || [];
   if(stamps.length!==values.length)throw Error('Invalid KNMI time axis');
   const samples=stamps.map((stamp,i)=>({t:Date.parse(stamp)-300000,v:typeof values[i]==='number'&&Number.isFinite(values[i])&&values[i]>=0?values[i]:null}));
@@ -36,10 +36,10 @@ export async function readWind(day, env) {
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),20000);
     let r;
-    try { r=await fetch('https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations/locations/0-20000-0-06258?'+query,{headers:{Authorization:env.KNMI_EDR_API_KEY.trim(),Accept:'application/json'},redirect:'manual',signal:controller.signal}); } catch(e) { console.error('KNMI_FETCH_FAILED',e?.name||'Error');throw Error('KNMI_CONNECTION'); } finally {clearTimeout(timer);}
+    try { r=await fetch('https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations/locations/0-20000-0-06267?'+query,{headers:{Authorization:env.KNMI_EDR_API_KEY.trim(),Accept:'application/json'},redirect:'manual',signal:controller.signal}); } catch(e) { console.error('KNMI_FETCH_FAILED',e?.name||'Error');throw Error('KNMI_CONNECTION'); } finally {clearTimeout(timer);}
     if(!r.ok){console.error('KNMI_HTTP_STATUS',r.status);throw Error(r.status===401||r.status===403?'KNMI_AUTH':'KNMI_UNAVAILABLE');}
     const hours=modelHours(await r.json(),day);
-    return {day,station:'Houtribdijk',hours};
+    return {day,station:'Stavoren',hours};
   })();
   windCache.set(day,{promise,expires:Date.now()+300000});promise.catch(()=>windCache.delete(day));
   if(windCache.size>100)windCache.delete(windCache.keys().next().value);
