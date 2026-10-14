@@ -301,3 +301,14 @@ test('technical capacity comparison reports marginal capture, hydrogen and runti
  assert.equal(compareCapacities({...base,energyMWh:0},larger,50).energyChangePct,null);
  assert.equal(compareCapacities(base,base),null);assert.equal(compareCapacities(larger,base),null);
 });
+
+test('expansion chart compares fixed steps and normalises the shorter final extension',async()=>{
+ const {expansionSteps}=await import('../src/electrolysis.mjs');
+ const row=(capacityMW,energyMWh)=>({capacityMW,energyMWh,operatingHours:10,captureFraction:energyMWh/200});
+ const rows=[row(1,10),row(5,40),row(7.5,50),row(10,70),row(15,60),row(20,90),row(25,120),row(30,145),row(35,165),row(40,180),row(44.25,200)];
+ const steps=expansionSteps(rows);
+ assert.equal(steps[0].base.capacityMW,5);assert.equal(steps[0].larger.capacityMW,10);assert.equal(steps[0].extraEnergyPerMW,6);
+ assert.equal(steps[1].extraEnergyPerMW,-2);
+ assert.equal(steps.at(-1).extraMW,4.25);assert.ok(Math.abs(steps.at(-1).extraEnergyPerMW-20/4.25)<1e-10);
+ assert.equal(rows.length,11);assert.ok(steps.slice(0,-1).every(r=>r.extraMW===5));assert.deepEqual(expansionSteps([]),[]);
+});

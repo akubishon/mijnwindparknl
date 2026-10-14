@@ -92,3 +92,12 @@ export function compareCapacities(base, larger, kWhPerKg=NaN){
     extraEnergyPerMW:energyDeltaMWh/extraMW,
     hydrogenDeltaKg:hydrogenKg(larger.energyMWh,kWhPerKg)!==null?hydrogenKg(larger.energyMWh,kWhPerKg)-hydrogenKg(base.energyMWh,kWhPerKg):null};
 }
+
+// Fixed five-MW comparisons, with the explicitly labelled shorter final step.
+export function expansionSteps(rows){
+  if(!rows?.length)return [];
+  const sizes=rows.filter(r=>r.capacityMW>=5&&r.capacityMW%5===0);
+  const largest=rows[rows.length-1];
+  if(sizes.length&&largest.capacityMW>sizes[sizes.length-1].capacityMW)sizes.push(largest);
+  return sizes.slice(1).map((larger,i)=>({base:sizes[i],larger,...compareCapacities(sizes[i],larger)}));
+}
