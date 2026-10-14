@@ -232,3 +232,16 @@ test('research rejects invalid percentage operating limits without substituting 
  const {researchResults}=await import('../src/electrolysis.mjs');
  for(const [min,max] of [[-1,100],[0,0],[90,80],[0,101],[NaN,100],[0,Infinity]])assert.equal(researchResults([],min,max),null);
 });
+
+test('brand style preview has four isolated routes and a locally served licensed font',async()=>{
+ const worker=await fresh();
+ for(const path of ['/','/beabuorren','/elektrolyser','/onderzoek','/proefstijl','/proefstijl/beabuorren','/proefstijl/elektrolyser','/proefstijl/onderzoek']){
+  const response=await get(worker,path);assert.equal(response.status,200,path);
+  assert.match(response.headers.get('Content-Security-Policy'),/font-src 'self'/);
+ }
+ assert.equal((await get(worker,'/proefstijl/onbekend')).status,404);
+ const font=await get(worker,'/proefstijl/font.ttf');assert.equal(font.status,200);assert.equal(font.headers.get('Content-Type'),'font/ttf');
+ const bytes=new Uint8Array(await font.arrayBuffer());assert.deepEqual([...bytes.slice(0,4)],[0,1,0,0]);assert.ok(bytes.length>10000);
+ assert.match(await (await get(worker,'/proefstijl/favicon.svg')).text(),/#0C2340/);
+ assert.match(await (await get(worker,'/favicon.svg')).text(),/#183c37/);
+});
