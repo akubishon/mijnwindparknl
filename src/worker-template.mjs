@@ -37,7 +37,12 @@ export default {
         return answer({ powerKW: data.power, timestamp: new Date(data.timestamp).toISOString(), windSpeed: finite(data.windspeed) ? data.windspeed : null, windDirection: finite(data.winddirection) ? data.winddirection : null, sourceError: data.error ? 'De bron meldt een fout.' : null, receivedAt: new Date().toISOString() });
       }
       return answer({ error: 'Not found' }, 404);
-    } catch {
+    } catch (error) {
+      if(url.pathname==='/api/wind') {
+        const code=error?.message;
+        console.error('KNMI_REQUEST_FAILED', ['KNMI_AUTH','KNMI_CONNECTION','KNMI_UNAVAILABLE','Invalid KNMI data','Invalid KNMI time axis'].includes(code)?code:error?.name||'Error');
+        if(code==='KNMI_AUTH')return answer({error:'KNMI weigert de API-sleutel. Controleer of dit een EDR-sleutel is.'},502);
+      }
       // Do not expose upstream URLs, tokens, or response bodies to visitors.
       return answer({ error: 'De gegevensbron is tijdelijk niet beschikbaar. Probeer het opnieuw.' }, 502);
     }

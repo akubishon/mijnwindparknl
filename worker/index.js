@@ -90,8 +90,11 @@ async function readWind(day, env) {
     // The UTC interval includes both possible Dutch day boundaries, including DST.
     const base=Date.parse(day+'T00:00:00Z');
     const query=new URLSearchParams({'datetime':`${new Date(base-3*3600000).toISOString()}/${new Date(base+25*3600000).toISOString()}`,'parameter-name':'ff'});
-    const r=await fetch('https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations/locations/0-20000-0-06258?'+query,{headers:{Authorization:env.KNMI_EDR_API_KEY,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(20000)});
-    if(!r.ok)throw Error('KNMI_UNAVAILABLE');
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),20000);
+    let r;
+    try { r=await fetch('https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations/locations/0-20000-0-06258?'+query,{headers:{Authorization:env.KNMI_EDR_API_KEY.trim(),Accept:'application/json'},redirect:'error',signal:controller.signal}); } catch(e) { console.error('KNMI_FETCH_FAILED',e?.name||'Error');throw Error('KNMI_CONNECTION'); } finally {clearTimeout(timer);}
+    if(!r.ok){console.error('KNMI_HTTP_STATUS',r.status);throw Error(r.status===401||r.status===403?'KNMI_AUTH':'KNMI_UNAVAILABLE');}
     const hours=modelHours(await r.json(),day);
     return {day,station:'Houtribdijk',hours};
   })();
@@ -137,7 +140,12 @@ export default {
         return answer({ powerKW: data.power, timestamp: new Date(data.timestamp).toISOString(), windSpeed: finite(data.windspeed) ? data.windspeed : null, windDirection: finite(data.winddirection) ? data.winddirection : null, sourceError: data.error ? 'De bron meldt een fout.' : null, receivedAt: new Date().toISOString() });
       }
       return answer({ error: 'Not found' }, 404);
-    } catch {
+    } catch (error) {
+      if(url.pathname==='/api/wind') {
+        const code=error?.message;
+        console.error('KNMI_REQUEST_FAILED', ['KNMI_AUTH','KNMI_CONNECTION','KNMI_UNAVAILABLE','Invalid KNMI data','Invalid KNMI time axis'].includes(code)?code:error?.name||'Error');
+        if(code==='KNMI_AUTH')return answer({error:'KNMI weigert de API-sleutel. Controleer of dit een EDR-sleutel is.'},502);
+      }
       // Do not expose upstream URLs, tokens, or response bodies to visitors.
       return answer({ error: 'De gegevensbron is tijdelijk niet beschikbaar. Probeer het opnieuw.' }, 502);
     }
