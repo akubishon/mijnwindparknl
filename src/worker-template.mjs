@@ -1,4 +1,5 @@
 /* __DATA_CLIENT__ */
+/* __WIND_CLIENT__ */
 const page = /* __PAGE__ */;
 const favicon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#183c37"/><path d="M32 31v23M32 31L18 11M32 31l25-3M32 31L18 49" stroke="#c8ed79" stroke-width="5" stroke-linecap="round"/></svg>';
 const securityHeaders = { 'Content-Security-Policy': /* __CSP__ */, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'same-origin', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=()' };
@@ -11,6 +12,12 @@ export default {
     if (url.pathname === '/') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
     if (url.pathname === '/favicon.svg') return new Response(favicon, { headers: { ...securityHeaders, 'Content-Type': 'image/svg+xml' } });
     try {
+      if (url.pathname === '/api/wind') {
+        const day=url.searchParams.get('day');
+        if(!validDay(day))return answer({error:'Kies een geldige datum.'},400);
+        if(!env.KNMI_EDR_API_KEY)return answer({error:'KNMI-windgegevens zijn nog niet gekoppeld.'},503);
+        return answer(await readWind(day,env));
+      }
       if (url.pathname === '/api/history') {
         const day = url.searchParams.get('day');
         if (!validDay(day)) return answer({ error: 'Kies een geldige datum.' }, 400);

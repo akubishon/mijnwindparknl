@@ -4,3 +4,5 @@
 .intro{padding:26px 0 22px}.intro h1{font-size:clamp(25px,3vw,34px);letter-spacing:-.8px;margin:0 0 8px}.intro p{margin:0;color:#526354}.topbar{height:78px}.metric-note,.aside-note,.data-note,.calendar-note,.chart-header p,.chart-caption{color:#596951}.metric-label,.card-eyebrow{color:#596951}.zone,footer{color:#596951}
 
 .intro{padding:26px 0 22px}.intro h1{font-size:clamp(25px,3vw,34px);letter-spacing:-.8px;margin:0 0 8px}.intro p{margin:0;color:#526354}.topbar{height:78px}.metric-note,.aside-note,.data-note,.calendar-note,.chart-header p,.chart-caption{color:#596951}.metric-label,.card-eyebrow{color:#596951}.zone,footer{color:#596951}
+
+.wind-note{font-size:11px;color:#526354;line-height:1.6}.wind-line{display:inline-block;width:20px;height:3px;background:#2677a1;vertical-align:middle;margin-right:6px}
