@@ -9,14 +9,16 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method !== 'GET') return answer({ error: 'Method not allowed' }, 405);
-    if (url.pathname === '/') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
+    if (url.pathname === '/' || url.pathname === '/beabuorren') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
     if (url.pathname === '/favicon.svg') return new Response(favicon, { headers: { ...securityHeaders, 'Content-Type': 'image/svg+xml' } });
     try {
       if (url.pathname === '/api/wind') {
         const day=url.searchParams.get('day');
         if(!validDay(day))return answer({error:'Kies een geldige datum.'},400);
         if(!env.KNMI_EDR_API_KEY)return answer({error:'KNMI-windgegevens zijn nog niet gekoppeld.'},503);
-        return answer(await readWind(day,env));
+        let options;
+        try {options=modelOptions(url.searchParams);}catch{return answer({error:'Ongeldige modelinstellingen. Controleer de waarden en de volgorde van de windsnelheidsgrenzen.'},400);}
+        return answer(await readWind(day,env,options));
       }
       if (url.pathname === '/api/history') {
         const day = url.searchParams.get('day');

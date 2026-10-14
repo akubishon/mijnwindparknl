@@ -99,3 +99,14 @@ test('KNMI request uses Worker-compatible redirect mode and returns model hours'
     const d=await r.json();assert.equal(d.hours.length,24);assert.ok(d.hours.every(h=>h.modelMWh>0));
   } finally {global.fetch=prior;}
 });
+
+test('model settings reject invalid values and Beabuorren uses its own turbine curve', async()=>{
+  const {modelOptions,modelHours}=await import('../src/knmi.mjs');
+  for(const q of ['height=0','alpha=NaN','station=../../secret','wake=2','cutIn=9&ratedSpeed=8','park=unknown'])assert.throws(()=>modelOptions(new URLSearchParams(q)));
+  const o=modelOptions(new URLSearchParams('park=beabuorren&height=10&wake=0&seasonal=0'));
+  assert.equal(o.height,10);assert.equal(o.ratedKW,1300);assert.equal(o.alpha,.2);
+  const values=Array(180).fill(8),stamps=values.map((_,i)=>new Date(Date.parse('2026-10-12T21:00:00Z')+i*600000).toISOString());
+  const raw={parameters:{ff:{unit:{symbol:{value:'m/s'}}}},coverages:[{'eumetnet:locationId':o.stationId,domain:{axes:{t:{values:stamps}}},ranges:{ff:{values}}}]};
+  modelHours(raw,'2026-10-13',o).forEach(h=>assert.ok(Math.abs(h.modelMWh-3.528)<1e-9));
+  const worker=await fresh();assert.equal((await get(worker,'/beabuorren')).status,200);
+});
