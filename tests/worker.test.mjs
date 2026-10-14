@@ -183,3 +183,29 @@ test('research is blocked without a password and tokens cannot be forged',async(
  const rotated=await worker.fetch(new Request(base+'/api/research/day?day=bad',{headers:{Authorization:'Bearer '+token}}),{...settings,RESEARCH_PASSWORD:'different'});assert.equal(rotated.status,401);
  assert.equal((await worker.fetch(new Request(base+'/api/research/auth',{method:'POST',headers:{Origin:base},body:'{}'}),env)).status,503);
 });
+
+test('research distinguishes captured supply from average loading and leaves missing hours out', async()=>{
+ const {researchResults}=await import('../src/electrolysis.mjs');
+ const intervals=[0,6,null,12,-2].map((powerMW,i)=>({powerMW,start:new Date(Date.UTC(2026,0,1,0,i*10)).toISOString(),end:new Date(Date.UTC(2026,0,1,0,(i+1)*10)).toISOString()}));
+ const result=researchResults(intervals),row=result.rows.find(r=>r.capacityMW===10);
+ assert.equal(result.availableHours,.5); // Missing and invalid data are not zero production.
+ assert.equal(result.supplyEnergyMWh,3);
+ assert.equal(result.supplyHours,1/3);
+ assert.ok(Math.abs(row.energyMWh-8/3)<1e-10);
+ assert.ok(Math.abs(row.captureFraction-8/9)<1e-10);
+ assert.ok(Math.abs(row.utilisation-8/15)<1e-10);
+ const zero=researchResults([intervals[0]]);
+ assert.equal(zero.supplyEnergyMWh,0);assert.equal(zero.rows[0].captureFraction,0);
+});
+
+test('hydrogen estimate uses kWh per kg without applying BoP twice', async()=>{
+ const {hydrogenKg,combinedSupply,researchResults}=await import('../src/electrolysis.mjs');
+ const i={start:'2026-01-01T00:00:00Z',end:'2026-01-01T00:10:00Z'};
+ const supply=combinedSupply([{...i,powerMW:110}],[{...i,powerMW:0}]);
+ assert.equal(supply[0].powerMW,10);
+ const row=researchResults(supply).rows.find(r=>r.capacityMW===10);
+ assert.ok(Math.abs(hydrogenKg(row.energyMWh,50)-100/3)<1e-10);
+ assert.equal(hydrogenKg(53540.70503972581,50),1070814.1007945163);
+ for(const bad of [0,-1,NaN,Infinity])assert.equal(hydrogenKg(1,bad),null);
+ assert.equal(hydrogenKg(0,50),0);
+});

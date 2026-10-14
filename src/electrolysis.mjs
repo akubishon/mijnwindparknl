@@ -35,16 +35,25 @@ export function mostFrequentPower(intervals) {
 }
 
 export function researchResults(intervals) {
-  const valid=intervals.filter(i=>typeof i.powerMW==='number'&&Number.isFinite(i.powerMW)&&Date.parse(i.end)-Date.parse(i.start)===600000);
+  const valid=intervals.filter(i=>typeof i.powerMW==='number'&&Number.isFinite(i.powerMW)&&i.powerMW>=0&&Date.parse(i.end)-Date.parse(i.start)===600000);
   if(!valid.length)return null;
   const availableHours=valid.length/6;
+  const supplyEnergyMWh=valid.reduce((sum,i)=>sum+i.powerMW/6,0);
+  const supplyHours=valid.filter(i=>i.powerMW>0).length/6;
   const descending=valid.map(i=>i.powerMW).sort((a,b)=>b-a);
   const reliable=fraction=>descending[Math.max(0,Math.ceil(descending.length*fraction)-1)];
   const sizes=[1,2,3,4,5,7.5,10,12.5,15,17.5,20,22.5,25,27.5,30,32.5,35,37.5,40,42.5,44,44.25];
   const rows=sizes.map(capacityMW=>{
     const energyMWh=valid.reduce((sum,i)=>sum+Math.min(capacityMW,Math.max(0,i.powerMW))/6,0);
     const stats=runtimeStats(intervals,capacityMW);
-    return {capacityMW,energyMWh,equivalentFullLoadHours:energyMWh/capacityMW,utilisation:energyMWh/(capacityMW*availableHours),fullLoadHours:stats.totalMinutes/60,longestHours:stats.longestMinutes/60};
+    return {capacityMW,energyMWh,captureFraction:supplyEnergyMWh>0?energyMWh/supplyEnergyMWh:0,equivalentFullLoadHours:energyMWh/capacityMW,utilisation:energyMWh/(capacityMW*availableHours),fullLoadHours:stats.totalMinutes/60,longestHours:stats.longestMinutes/60};
   });
-  return {availableHours,power90:reliable(.9),power50:reliable(.5),rows};
+  return {availableHours,supplyEnergyMWh,supplyHours,power90:reliable(.9),power50:reliable(.5),rows};
+}
+
+// kWh/kg is the electricity consumed at the electrolyser, excluding BoP already
+// removed from the supply. A constant specific consumption is an explicit scenario.
+export function hydrogenKg(energyMWh, kWhPerKg) {
+  if(!Number.isFinite(energyMWh)||energyMWh<0||!Number.isFinite(kWhPerKg)||kWhPerKg<=0)return null;
+  return energyMWh*1000/kWhPerKg;
 }

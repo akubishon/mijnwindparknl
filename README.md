@@ -38,3 +38,11 @@ Only the newest live snapshot is confirmed. During a short check, source timesta
 ## Verification
 
 Worker tests cover request validation, authentication, calendar filtering, hourly normalization, caching, live field projection, missing data, and upstream failures. Real API checks verified history years, recorded days, daily readings, and live snapshots. Browser interaction QA is unavailable on this host. See `../docs/graph-access.md` and `../analysis/live-cadence.json` for reverse-engineering evidence.
+
+## Simple electrolyser research
+
+`/onderzoek` guides users through (1) capacity comparison, (2) an optional hydrogen estimate, and (3) a follow-up question about capture, production or average loading. Source: `src/research.tsx`; calculations: `src/electrolysis.mjs`. Research password protection and the existing data endpoints remain in place.
+
+Supply is `(0.1 × Fryslân + Beabuorren) / 1.1`, using the default Stavoren KNMI models. For each valid ten-minute interval, consumed power is capped at the selected electrolyser capacity. Capture is consumed energy / total supply energy after BoP; average loading is consumed energy / (capacity × hours with data). Missing hours are excluded and reported explicitly; no annual extrapolation is made. Every nonzero input power can be used in this simplified model, without minimum load, startup time or storage.
+
+Hydrogen is optional: `energyMWh × 1000 / kWhPerKg`. The user-entered consumption must exclude BoP because it has already been removed from supply. The value 50 is an explicitly selected example, not a device guarantee. CSV exports contain capture and loading as percentages, period/data coverage and assumptions, and hydrogen only when a valid consumption scenario is active. CSV uses a UTF-8 BOM, semicolons and decimal commas for Dutch Excel. Results are not persisted across page reloads.
