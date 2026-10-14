@@ -1,9 +1,8 @@
 /* __DATA_CLIENT__ */
 /* __WIND_CLIENT__ */
 const page = /* __PAGE__ */;
-const trialFont = /* __TRIAL_FONT__ */;
-const trialFavicon='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M0 0h48a16 16 0 0 1 16 16v48H0z" fill="#0C2340"/><path d="M32 31v23M32 31L18 11M32 31l25-3M32 31L18 49" stroke="#00A6DE" stroke-width="5"/></svg>';
-const favicon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#183c37"/><path d="M32 31v23M32 31L18 11M32 31l25-3M32 31L18 49" stroke="#c8ed79" stroke-width="5" stroke-linecap="round"/></svg>';
+const brandFont = /* __BRAND_FONT__ */;
+const favicon='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M0 0h48a16 16 0 0 1 16 16v48H0z" fill="#0C2340"/><path d="M32 31v23M32 31L18 11M32 31l25-3M32 31L18 49" stroke="#00A6DE" stroke-width="5"/></svg>';
 const securityHeaders = { 'Content-Security-Policy': /* __CSP__ */, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'same-origin', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=()' };
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 const answer = (value, status = 200) => Response.json(value, { status, headers: { ...securityHeaders, 'Cache-Control': 'no-store' } });
@@ -38,9 +37,10 @@ export default {
       authAttempts.delete(ip);return answer({token:await researchToken(env.RESEARCH_PASSWORD)});
     }
     if (request.method !== 'GET') return answer({ error: 'Method not allowed' }, 405);
-    if (url.pathname === '/proefstijl/font.ttf') return new Response(Uint8Array.from(atob(trialFont),c=>c.charCodeAt(0)), {headers:{...securityHeaders,'Content-Type':'font/ttf','Cache-Control':'public, max-age=86400'}});
-    if (url.pathname === '/proefstijl/favicon.svg') return new Response(trialFavicon, {headers:{...securityHeaders,'Content-Type':'image/svg+xml'}});
-    if (url.pathname === '/' || url.pathname === '/beabuorren' || url.pathname === '/elektrolyser' || url.pathname === '/onderzoek' || ['/proefstijl','/proefstijl/beabuorren','/proefstijl/elektrolyser','/proefstijl/onderzoek'].includes(url.pathname)) return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
+    if ((url.pathname === '/assets/tasa-orbiter.ttf' || url.pathname === '/proefstijl/font.ttf')) return new Response(Uint8Array.from(atob(brandFont),c=>c.charCodeAt(0)), {headers:{...securityHeaders,'Content-Type':'font/ttf','Cache-Control':'public, max-age=86400'}});
+    const formerTrialPages={'/proefstijl':'/','/proefstijl/beabuorren':'/beabuorren','/proefstijl/elektrolyser':'/elektrolyser','/proefstijl/onderzoek':'/onderzoek'};
+    if(Object.hasOwn(formerTrialPages,url.pathname))return new Response(null,{status:302,headers:{...securityHeaders,Location:formerTrialPages[url.pathname]+url.search,'Cache-Control':'no-store'}});
+    if (url.pathname === '/' || url.pathname === '/beabuorren' || url.pathname === '/elektrolyser' || url.pathname === '/onderzoek') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
     if (url.pathname === '/favicon.svg') return new Response(favicon, { headers: { ...securityHeaders, 'Content-Type': 'image/svg+xml' } });
     try {
       if(url.pathname==='/api/electrolyser'||url.pathname==='/api/research/day') {
