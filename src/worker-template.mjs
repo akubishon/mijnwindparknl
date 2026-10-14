@@ -5,14 +5,42 @@ const favicon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><re
 const securityHeaders = { 'Content-Security-Policy': /* __CSP__ */, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'same-origin', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=()' };
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 const answer = (value, status = 200) => Response.json(value, { status, headers: { ...securityHeaders, 'Cache-Control': 'no-store' } });
+const authAttempts=new Map();
+const encoder=new TextEncoder();
+async function researchKey(secret){return crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign','verify']);}
+async function researchToken(secret){const expires=String(Date.now()+2*3600000);const key=await researchKey(secret);const signature=await crypto.subtle.sign('HMAC',key,encoder.encode('research:'+expires));return expires+'.'+Array.from(new Uint8Array(signature),b=>b.toString(16).padStart(2,'0')).join('');}
+async function researchAllowed(request,env){
+ if(!env.RESEARCH_PASSWORD)return false;
+ const token=(request.headers.get('Authorization')||'').replace(/^Bearer /,'');const [expires,signature]=token.split('.');
+ if(!/^\d{13}$/.test(expires||'')||Number(expires)<Date.now()||Number(expires)>Date.now()+2*3600000||!/^([a-f0-9]{64})$/.test(signature||''))return false;
+ const bytes=new Uint8Array(signature.match(/../g).map(x=>parseInt(x,16)));
+ return crypto.subtle.verify('HMAC',await researchKey(env.RESEARCH_PASSWORD),bytes,encoder.encode('research:'+expires));
+}
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if(url.pathname==='/api/research/auth'&&request.method==='POST'){
+      if(request.headers.get('Origin')!==url.origin)return answer({error:'Ongeldige aanvraag.'},403);
+      if(!env.RESEARCH_PASSWORD)return answer({error:'Onderzoek is vergrendeld: het wachtwoord is nog niet ingesteld.'},503);
+      const ip=request.headers.get('CF-Connecting-IP')||'unknown',now=Date.now();
+      const previous=authAttempts.get(ip);const attempts=previous&&previous.until>now?previous:{count:0,until:now+900000};
+      if(attempts.count>=5)return answer({error:'Te veel pogingen. Probeer over 15 minuten opnieuw.'},429);
+      attempts.count++;authAttempts.set(ip,attempts);if(authAttempts.size>1000)authAttempts.delete(authAttempts.keys().next().value);
+      if(Number(request.headers.get('Content-Length')||0)>4096)return answer({error:'Ongeldige aanvraag.'},400);
+      let input;try{const body=await request.text();if(body.length>4096)throw Error();input=JSON.parse(body);}catch{return answer({error:'Ongeldige aanvraag.'},400);}
+      if(typeof input.password!=='string'||input.password.length>1024)return answer({error:'Onjuist wachtwoord.'},401);
+      const expected=new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(env.RESEARCH_PASSWORD)));
+      const actual=new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(input.password)));
+      let difference=0;for(let i=0;i<expected.length;i++)difference|=expected[i]^actual[i];
+      if(difference)return answer({error:'Onjuist wachtwoord.'},401);
+      authAttempts.delete(ip);return answer({token:await researchToken(env.RESEARCH_PASSWORD)});
+    }
     if (request.method !== 'GET') return answer({ error: 'Method not allowed' }, 405);
     if (url.pathname === '/' || url.pathname === '/beabuorren' || url.pathname === '/elektrolyser' || url.pathname === '/onderzoek') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
     if (url.pathname === '/favicon.svg') return new Response(favicon, { headers: { ...securityHeaders, 'Content-Type': 'image/svg+xml' } });
     try {
-      if(url.pathname==='/api/electrolyser') {
+      if(url.pathname==='/api/electrolyser'||url.pathname==='/api/research/day') {
+        if(url.pathname==='/api/research/day'&&!await researchAllowed(request,env))return answer({error:'Voer het onderzoekwachtwoord in.'},401);
         const day=url.searchParams.get('day');if(!validDay(day))return answer({error:'Kies een geldige datum.'},400);
         let a,b;try {a=modelOptions(new URLSearchParams({park:'fryslan',station:url.searchParams.get('fryslanStation')||'0-20000-0-06267'}));b=modelOptions(new URLSearchParams({park:'beabuorren',station:url.searchParams.get('beabuorrenStation')||'0-20000-0-06267'}));}catch{return answer({error:'Ongeldig meetstation.'},400);}
         if(!env.KNMI_EDR_API_KEY)return answer({error:'KNMI is nog niet gekoppeld.'},503);

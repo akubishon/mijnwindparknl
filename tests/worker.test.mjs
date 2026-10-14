@@ -171,3 +171,15 @@ test('period research counts utilisation, duration curve and runs across midnigh
  assert.equal(researchResults([]),null);
  const worker=await fresh();assert.equal((await get(worker,'/onderzoek')).status,200);
 });
+
+test('research is blocked without a password and tokens cannot be forged',async()=>{
+ const worker=await fresh(),base='https://fixture.test',settings={...env,RESEARCH_PASSWORD:'fixture-long-research-password'};
+ assert.equal((await worker.fetch(new Request(base+'/api/research/day?day=2026-10-13'),settings)).status,401);
+ const login=password=>worker.fetch(new Request(base+'/api/research/auth',{method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify({password})}),settings);
+ assert.equal((await login('wrong')).status,401);
+ const response=await login(settings.RESEARCH_PASSWORD);assert.equal(response.status,200);const {token}=await response.json();
+ const valid=await worker.fetch(new Request(base+'/api/research/day?day=bad',{headers:{Authorization:'Bearer '+token}}),settings);assert.equal(valid.status,400);
+ const forged=await worker.fetch(new Request(base+'/api/research/day?day=bad',{headers:{Authorization:'Bearer '+token.slice(0,-1)+(token.endsWith('0')?'1':'0')}}),settings);assert.equal(forged.status,401);
+ const rotated=await worker.fetch(new Request(base+'/api/research/day?day=bad',{headers:{Authorization:'Bearer '+token}}),{...settings,RESEARCH_PASSWORD:'different'});assert.equal(rotated.status,401);
+ assert.equal((await worker.fetch(new Request(base+'/api/research/auth',{method:'POST',headers:{Origin:base},body:'{}'}),env)).status,503);
+});
