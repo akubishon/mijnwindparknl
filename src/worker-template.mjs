@@ -95,6 +95,14 @@ export default {
     if (url.pathname === '/' || url.pathname === '/beabuorren' || url.pathname === '/elektrolyser' || url.pathname === '/onderzoek') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
     if (url.pathname === '/favicon.svg') return new Response(favicon, { headers: { ...securityHeaders, 'Content-Type': 'image/svg+xml' } });
     try {
+      if(url.pathname==='/api/atlas/catalogue'){
+        if(!env.WINDPARK_CATALOG_TOKEN)return answer({error:'Waterstofatlas is nog niet gekoppeld.'},503);
+        const r=await fetch('https://waterstofatlas.nl/api/integrations/mijnwindpark/catalogue',{headers:{Authorization:'Bearer '+env.WINDPARK_CATALOG_TOKEN},redirect:'error'});
+        if(!r.ok)return answer({error:'Waterstofatlas is tijdelijk niet beschikbaar.'},502);
+        const data=await r.json();
+        if(data.schemaVersion!==1||!Array.isArray(data.models)||data.models.length>500)return answer({error:'Onbekend catalogusformaat.'},502);
+        return answer(data);
+      }
       if(url.pathname==='/api/electrolyser'||url.pathname==='/api/research/day') {
         if(url.pathname==='/api/research/day'&&!await researchAllowed(request,env))return answer({error:'Voer het onderzoekwachtwoord in.'},401);
         const day=url.searchParams.get('day');if(!validDay(day))return answer({error:'Kies een geldige datum.'},400);

@@ -312,3 +312,25 @@ test('expansion chart compares fixed steps and normalises the shorter final exte
  assert.equal(steps.at(-1).extraMW,4.25);assert.ok(Math.abs(steps.at(-1).extraEnergyPerMW-20/4.25)<1e-10);
  assert.equal(rows.length,11);assert.ok(steps.slice(0,-1).every(r=>r.extraMW===5));assert.deepEqual(expansionSteps([]),[]);
 });
+
+test('atlas model calculation uses gross system supply and never deducts generic BoP twice',async()=>{
+ const {atlasDraft,evaluateAtlasConfiguration}=await import('../src/atlas.mjs');
+ const interval={start:'2026-01-01T00:00:00Z',end:'2026-01-01T00:10:00Z',powerMW:10};
+ const c={modules:'1',powerMW:'11',kWhPerKg:'50',minimumPct:'0',maximumPct:'100'};
+ const r=evaluateAtlasConfiguration([interval,{...interval,powerMW:null}],c);
+ assert.ok(Math.abs(r.hydrogenKg-110/3)<1e-10);assert.equal(r.availableHours,1/6);assert.ok(Math.abs(r.energyMWh-11/6)<1e-10);
+ assert.equal(evaluateAtlasConfiguration([interval],{...c,minimumPct:''}),null);
+ assert.equal(evaluateAtlasConfiguration([interval],{...c,modules:'1.5'}),null);
+ assert.equal(evaluateAtlasConfiguration([interval],{...c,minimumPct:'90',maximumPct:'80'}),null);
+ const draft=atlasDraft({id:'test',values:{power:'2–5 MW',systemEnergy:'50–55 kWh/kg',minimum:'20% van nominale H₂-productie'}});
+ assert.equal(draft.powerMW,'');assert.equal(draft.kWhPerKg,'');assert.equal(draft.minimumPct,'');
+});
+
+test('atlas catalogue stays behind site login and proxy credentials are server-only',async()=>{
+ const raw=await rawFresh();assert.equal((await get(raw,'/api/atlas/catalogue')).status,401);
+ const worker=await fresh();const prior=global.fetch;global.fetch=async(url,options)=>{
+  assert.equal(url,'https://waterstofatlas.nl/api/integrations/mijnwindpark/catalogue');assert.equal(options.headers.Authorization,'Bearer fixture-atlas-secret');assert.equal(options.redirect,'error');
+  return Response.json({schemaVersion:1,revision:'fixture',models:[]});
+ };
+ try{const r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),{...env,WINDPARK_CATALOG_TOKEN:'fixture-atlas-secret'});assert.equal(r.status,200);assert.doesNotMatch(await r.text(),/fixture-atlas-secret/);}finally{global.fetch=prior;}
+});
