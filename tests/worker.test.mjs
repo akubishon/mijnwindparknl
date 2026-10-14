@@ -37,5 +37,5 @@ test('authenticates once, filters calendar keys, normalizes energy and projects 
 });
 test('returns a recoverable error without exposing credentials when upstream fails',async()=>{
   const worker=await fresh(), prior=global.fetch;global.fetch=async()=>new Response('sensitive-upstream-response',{status:403});
-  try {const response=await get(worker,'/api/live');assert.equal(response.status,502);const body=await response.text();assert.doesNotMatch(body,/fixture|sensitive|token|key/);assert.match(body,/retry/i);}finally{global.fetch=prior;}
+  try {const response=await get(worker,'/api/live');assert.equal(response.status,502);const body=await response.text();assert.doesNotMatch(body,/fixture|sensitive|token|key/);assert.match(body,/opnieuw/i);}finally{global.fetch=prior;}
 });

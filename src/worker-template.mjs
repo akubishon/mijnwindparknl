@@ -11,14 +11,14 @@ export default {
     try {
       if (url.pathname === '/api/history') {
         const day = url.searchParams.get('day');
-        if (!validDay(day)) return answer({ error: 'Choose a valid date.' }, 400);
+        if (!validDay(day)) return answer({ error: 'Kies een geldige datum.' }, 400);
         const [y, m, d] = day.split('-').map(Number);
         const data = await read(`historical-data/${y}/${m}/${d}/data`, { env });
         return answer({ day, hours: series(data), totals: data?.['calculated-values'] || null, available: data !== null });
       }
       if (url.pathname === '/api/catalog') {
         const year = url.searchParams.get('year'), month = url.searchParams.get('month');
-        if ((year && !/^\d{4}$/.test(year)) || (month && (!year || !/^\d{1,2}$/.test(month) || Number(month) < 1 || Number(month) > 12))) return answer({ error: 'Invalid calendar selection.' }, 400);
+        if ((year && !/^\d{4}$/.test(year)) || (month && (!year || !/^\d{1,2}$/.test(month) || Number(month) < 1 || Number(month) > 12))) return answer({ error: 'Ongeldige kalenderselectie.' }, 400);
         const reference = 'historical-data' + (year ? '/' + Number(year) : '') + (month ? '/' + Number(month) : '');
         return answer({ values: keys(await read(reference, { shallow: true, ttl: 60000, env })) });
       }
@@ -30,7 +30,7 @@ export default {
       return answer({ error: 'Not found' }, 404);
     } catch {
       // Do not expose upstream URLs, tokens, or response bodies to visitors.
-      return answer({ error: 'The data service is temporarily unavailable. Please retry.' }, 502);
+      return answer({ error: 'De gegevensbron is tijdelijk niet beschikbaar. Probeer het opnieuw.' }, 502);
     }
   },
 };
