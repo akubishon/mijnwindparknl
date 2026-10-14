@@ -12,6 +12,7 @@ export default {
     if (url.pathname === '/' || url.pathname === '/beabuorren') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
     if (url.pathname === '/favicon.svg') return new Response(favicon, { headers: { ...securityHeaders, 'Content-Type': 'image/svg+xml' } });
     try {
+      if(url.pathname==='/api/stations'){const park=url.searchParams.get('park')||'fryslan';if(!['fryslan','beabuorren'].includes(park))return answer({error:'Ongeldig windpark.'},400);return answer({stations:stationsByDistance(park)});}
       if (url.pathname === '/api/wind') {
         const day=url.searchParams.get('day');
         if(!validDay(day))return answer({error:'Kies een geldige datum.'},400);
