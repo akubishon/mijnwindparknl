@@ -39,3 +39,45 @@ test('returns a recoverable error without exposing credentials when upstream fai
   const worker=await fresh(), prior=global.fetch;global.fetch=async()=>new Response('sensitive-upstream-response',{status:403});
   try {const response=await get(worker,'/api/live');assert.equal(response.status,502);const body=await response.text();assert.doesNotMatch(body,/fixture|sensitive|token|key/);assert.match(body,/opnieuw/i);}finally{global.fetch=prior;}
 });
+
+test('security policy permits the bundled script and blocks framing', async () => {
+  const { createHash } = await import('node:crypto');
+  const worker = await fresh();
+  const page = await get(worker, '/');
+  const html = await page.text();
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const hash = createHash('sha256').update(script).digest('base64');
+  const policy = page.headers.get('Content-Security-Policy');
+  assert.ok(policy.includes(`script-src 'sha256-${hash}'`));
+  assert.ok(policy.includes("frame-ancestors 'none'"));
+  assert.ok(policy.includes("connect-src 'self'"));
+  assert.equal(page.headers.get('X-Frame-Options'), 'DENY');
+  const invalid = await get(worker, '/api/history?day=%3Cscript%3E');
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.headers.get('X-Content-Type-Options'), 'nosniff');
+});
+
+test('filters unexpected upstream fields and rejects malformed live readings', async () => {
+  const worker = await fresh(), prior = global.fetch;
+  let malformed = false;
+  global.fetch = async url => {
+    if (String(url).includes('/auth/public-key')) return Response.json({token:'fixture-custom-token'});
+    if (String(url).includes('signInWithCustomToken')) return Response.json({idToken:'fixture-id-token'});
+    if (String(url).includes('live-data/park')) return Response.json(malformed
+      ? {power:'script',timestamp:'invalid'}
+      : {power:10,timestamp:'2026-10-14T12:00:00Z',windspeed:{secret:'hidden'},winddirection:'text'});
+    return Response.json({'energy-produced':{'0':100,'24':900,'bad':1},'calculated-values':{production:100,secret:'hidden'}});
+  };
+  try {
+    const history = await (await get(worker, '/api/history?day=2026-10-14')).json();
+    assert.deepEqual(history.hours, [{hour:0,kWh:100}]);
+    assert.deepEqual(history.totals, {production:100});
+    const live = await (await get(worker, '/api/live')).json();
+    assert.equal(live.windSpeed, null);
+    assert.equal(live.windDirection, null);
+    assert.doesNotMatch(JSON.stringify(live), /sensitive|hidden/);
+    malformed = true;
+    const next = await fresh();
+    assert.equal((await get(next, '/api/live')).status, 502);
+  } finally { global.fetch = prior; }
+});

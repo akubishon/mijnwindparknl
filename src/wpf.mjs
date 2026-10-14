@@ -46,11 +46,11 @@ export function validDay(day) {
   return !Number.isNaN(+d) && d.toISOString().slice(0, 10) === day;
 }
 export function keys(data) {
-  return Object.keys(data || {}).filter(k => /^\d+$/.test(k)).map(Number).sort((a, b) => a - b);
+  return Object.keys(data || {}).filter(k => /^\d+$/.test(k) && Number.isSafeInteger(Number(k))).map(Number).sort((a, b) => a - b);
 }
 export function series(data) {
   const raw = data?.['energy-produced'];
   if (!raw || typeof raw !== 'object') return [];
-  return Object.entries(raw).filter(([i, v]) => /^\d+$/.test(i) && typeof v === 'number' && Number.isFinite(v))
+  return Object.entries(raw).filter(([i, v]) => /^\d+$/.test(i) && Number(i) >= 0 && Number(i) < 24 && typeof v === 'number' && Number.isFinite(v))
     .map(([i, v]) => ({ hour: Number(i), kWh: v })).sort((a, b) => a.hour - b.hour);
 }
