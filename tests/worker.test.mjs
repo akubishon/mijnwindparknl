@@ -133,3 +133,11 @@ test('ten-minute model intervals stay within Dutch day boundaries and retain mis
   assert.equal(p.intervals.at(-1).end,'2026-10-13T22:00:00.000Z');
   assert.ok(p.intervals.some(i=>i.powerMW===null));
 });
+
+test('10 percent allocation applies to every production interval', async()=>{
+ const {runtimeStats}=await import('../src/electrolysis.mjs');
+ const intervals=[{start:'2026-01-01T00:00:00Z',end:'2026-01-01T00:10:00Z',powerMW:382.7}];
+ assert.deepEqual(runtimeStats(intervals,38.27,.1),{totalMinutes:10,longestMinutes:10});
+ assert.deepEqual(runtimeStats(intervals,44,.1),{totalMinutes:0,longestMinutes:0});
+ assert.deepEqual(runtimeStats([{...intervals[0],powerMW:10.4}],5.73,.1),{totalMinutes:0,longestMinutes:0});
+});
