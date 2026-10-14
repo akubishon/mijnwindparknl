@@ -209,3 +209,26 @@ test('hydrogen estimate uses kWh per kg without applying BoP twice', async()=>{
  for(const bad of [0,-1,NaN,Infinity])assert.equal(hydrogenKg(1,bad),null);
  assert.equal(hydrogenKg(0,50),0);
 });
+
+test('research operating limits include minimum equality, cap input and distinguish nominal full load',async()=>{
+ const {researchResults}=await import('../src/electrolysis.mjs');
+ const intervals=[0,1,2,8,10,null,2].map((powerMW,i)=>({powerMW,start:new Date(Date.UTC(2026,0,1,0,i*10)).toISOString(),end:new Date(Date.UTC(2026,0,1,0,(i+1)*10)).toISOString()}));
+ const result=researchResults(intervals,20,80),row=result.rows.find(r=>r.capacityMW===10);
+ assert.equal(result.availableHours,1);
+ assert.equal(row.minimumMW,2);assert.equal(row.maximumMW,8);
+ assert.ok(Math.abs(row.energyMWh-20/6)<1e-10);
+ assert.equal(row.operatingHours,4/6);assert.equal(row.longestOperatingHours,3/6);
+ assert.equal(row.upperLimitHours,2/6);assert.equal(row.fullLoadHours,0);
+ assert.equal(row.belowMinimumEnergyMWh,1/6);assert.equal(row.aboveMaximumEnergyMWh,2/6);
+ assert.ok(Math.abs(row.energyMWh+row.belowMinimumEnergyMWh+row.aboveMaximumEnergyMWh-result.supplyEnergyMWh)<1e-10);
+ assert.ok(result.rows.find(r=>r.capacityMW===20).energyMWh<row.energyMWh); // Larger need not capture more with a scaled minimum load.
+ assert.equal(researchResults(intervals,80,80).rows.find(r=>r.capacityMW===10).operatingHours,2/6);
+ const defaultRow=researchResults(intervals).rows.find(r=>r.capacityMW===10);
+ assert.equal(defaultRow.belowMinimumEnergyMWh,0);assert.equal(defaultRow.operatingHours,5/6);
+ assert.equal(defaultRow.fullLoadHours,1/6);
+});
+
+test('research rejects invalid percentage operating limits without substituting defaults',async()=>{
+ const {researchResults}=await import('../src/electrolysis.mjs');
+ for(const [min,max] of [[-1,100],[0,0],[90,80],[0,101],[NaN,100],[0,Infinity]])assert.equal(researchResults([],min,max),null);
+});
