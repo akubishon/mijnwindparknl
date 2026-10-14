@@ -97,8 +97,8 @@ export default {
     try {
       if(url.pathname==='/api/atlas/catalogue'){
         if(!env.WINDPARK_CATALOG_TOKEN)return answer({error:'Waterstofatlas is nog niet gekoppeld.'},503);
-        const r=await fetch('https://waterstofatlas.nl/api/integrations/mijnwindpark/catalogue',{headers:{Authorization:'Bearer '+env.WINDPARK_CATALOG_TOKEN},redirect:'error'});
-        if(!r.ok)return answer({error:'Waterstofatlas is tijdelijk niet beschikbaar.'},502);
+        const r=await fetch('https://waterstofatlas.nl/api/integrations/mijnwindpark/catalogue',{headers:{Authorization:'Bearer '+env.WINDPARK_CATALOG_TOKEN},redirect:'manual'});
+        if(!r.ok){console.error('ATLAS_CATALOG_UPSTREAM_STATUS',r.status);return answer({error:'Waterstofatlas is tijdelijk niet beschikbaar.'},502);}
         const data=await r.json();
         if(data.schemaVersion!==1||!Array.isArray(data.models)||data.models.length>500)return answer({error:'Onbekend catalogusformaat.'},502);
         return answer(data);
