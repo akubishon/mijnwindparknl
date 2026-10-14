@@ -1,0 +1,11 @@
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { build } from 'esbuild';
+const result = await build({ entryPoints: ['src/client.tsx'], bundle: true, write: false, minify: true, format: 'iife', target: ['es2022'], jsx: 'automatic', define: { 'process.env.NODE_ENV': '"production"' } });
+const client = result.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
+const css = readFileSync('src/styles.css', 'utf8').replace('@import "tailwindcss";', '');
+const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Explore hourly wind energy and follow live power at Windpark Fryslân."><title>Fryslân · Production explorer</title><link rel="icon" href="/favicon.svg"><style>${css}</style></head><body><div id="root"><p style="padding:40px;font-family:sans-serif">Loading the Fryslân production explorer…</p></div><noscript>Enable JavaScript to browse production data.</noscript><script>${client}</script></body></html>`;
+const dataClient = readFileSync('src/wpf.mjs', 'utf8').replaceAll('export ', '');
+const worker = readFileSync('src/worker-template.mjs', 'utf8').replace('/* __DATA_CLIENT__ */', () => dataClient).replace('/* __PAGE__ */', () => JSON.stringify(html));
+mkdirSync('worker', { recursive: true });
+writeFileSync('worker/index.js', worker);
+console.log('Composed the standalone app worker.');
