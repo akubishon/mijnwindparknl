@@ -9,9 +9,16 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method !== 'GET') return answer({ error: 'Method not allowed' }, 405);
-    if (url.pathname === '/' || url.pathname === '/beabuorren') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
+    if (url.pathname === '/' || url.pathname === '/beabuorren' || url.pathname === '/elektrolyser') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
     if (url.pathname === '/favicon.svg') return new Response(favicon, { headers: { ...securityHeaders, 'Content-Type': 'image/svg+xml' } });
     try {
+      if(url.pathname==='/api/electrolyser') {
+        const day=url.searchParams.get('day');if(!validDay(day))return answer({error:'Kies een geldige datum.'},400);
+        let a,b;try {a=modelOptions(new URLSearchParams({park:'fryslan',station:url.searchParams.get('fryslanStation')||'0-20000-0-06267'}));b=modelOptions(new URLSearchParams({park:'beabuorren',station:url.searchParams.get('beabuorrenStation')||'0-20000-0-06267'}));}catch{return answer({error:'Ongeldig meetstation.'},400);}
+        if(!env.KNMI_EDR_API_KEY)return answer({error:'KNMI is nog niet gekoppeld.'},503);
+        const [fryslan,beabuorren]=await Promise.all([readWind(day,env,a),readWind(day,env,b)]);
+        return answer({day,intervals:combinedSupply(fryslan.intervals,beabuorren.intervals)});
+      }
       if(url.pathname==='/api/stations'){const park=url.searchParams.get('park')||'fryslan';if(!['fryslan','beabuorren'].includes(park))return answer({error:'Ongeldig windpark.'},400);return answer({stations:stationsByDistance(park)});}
       if (url.pathname === '/api/wind') {
         const day=url.searchParams.get('day');

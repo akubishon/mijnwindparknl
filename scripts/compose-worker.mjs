@@ -9,8 +9,9 @@ const dataClient = readFileSync('src/wpf.mjs', 'utf8').replaceAll('export ', '')
 const scriptHash = createHash('sha256').update(client).digest('base64');
 const policy = `default-src 'none'; script-src 'sha256-${scriptHash}'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'; frame-ancestors 'none'`;
 const stationCatalog = readFileSync('src/stations.json', 'utf8');
+const electrolyserClient=readFileSync('src/electrolysis.mjs','utf8').replaceAll('export ', '');
 const windClient = readFileSync('src/knmi.mjs', 'utf8').replace("import stationCatalog from './stations.json' with { type: 'json' };", 'const stationCatalog = '+stationCatalog+';').replaceAll('export ', '');
-const worker = readFileSync('src/worker-template.mjs', 'utf8').replace('/* __DATA_CLIENT__ */', () => dataClient).replace('/* __WIND_CLIENT__ */', () => windClient).replace('/* __STATIONS__ */', () => stationCatalog).replace('/* __PAGE__ */', () => JSON.stringify(html)).replace('/* __CSP__ */', () => JSON.stringify(policy));
+const worker = readFileSync('src/worker-template.mjs', 'utf8').replace('/* __DATA_CLIENT__ */', () => dataClient).replace('/* __WIND_CLIENT__ */', () => windClient+'\n'+electrolyserClient).replace('/* __STATIONS__ */', () => stationCatalog).replace('/* __PAGE__ */', () => JSON.stringify(html)).replace('/* __CSP__ */', () => JSON.stringify(policy));
 mkdirSync('worker', { recursive: true });
 writeFileSync('worker/index.js', worker);
 console.log('Composed the standalone app worker.');

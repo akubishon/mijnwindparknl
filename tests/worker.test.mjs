@@ -141,3 +141,16 @@ test('10 percent allocation applies to every production interval', async()=>{
  assert.deepEqual(runtimeStats(intervals,44,.1),{totalMinutes:0,longestMinutes:0});
  assert.deepEqual(runtimeStats([{...intervals[0],powerMW:10.4}],5.73,.1),{totalMinutes:0,longestMinutes:0});
 });
+
+test('combined electrolyser supply aligns both parks and includes BoP',async()=>{
+ const {combinedSupply,runtimeStats}=await import('../src/electrolysis.mjs');
+ const a=[{start:'2026-01-01T00:00:00Z',end:'2026-01-01T00:10:00Z',powerMW:382.7},{start:'2026-01-01T00:10:00Z',end:'2026-01-01T00:20:00Z',powerMW:382.7}];
+ const b=[{...a[0],powerMW:10.4}];
+ const supply=combinedSupply(a,b);
+ assert.ok(Math.abs(supply[0].powerMW-48.67/1.1)<1e-9);
+ assert.equal(supply[1].powerMW,null);
+ assert.deepEqual(runtimeStats(supply,44),{totalMinutes:10,longestMinutes:10});
+ assert.deepEqual(runtimeStats(supply,44.3),{totalMinutes:0,longestMinutes:0});
+ const worker=await fresh();assert.equal((await get(worker,'/elektrolyser')).status,200);
+ assert.equal((await get(worker,'/api/electrolyser?day=2026-02-30')).status,400);
+});

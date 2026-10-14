@@ -10,3 +10,12 @@ export function runtimeStats(intervals, thresholdMW, share=1) {
   }
   return {totalMinutes:total,longestMinutes:longest};
 }
+
+export function combinedSupply(fryslan, beabuorren) {
+  const a=new Map(fryslan.map(i=>[i.start,i])),b=new Map(beabuorren.map(i=>[i.start,i]));
+  return [...new Set([...a.keys(),...b.keys()])].sort().map(start=>{
+    const x=a.get(start),y=b.get(start);
+    const valid=x&&y&&x.end===y.end&&typeof x.powerMW==='number'&&Number.isFinite(x.powerMW)&&typeof y.powerMW==='number'&&Number.isFinite(y.powerMW);
+    return {start,end:x?.end||y.end,powerMW:valid?(x.powerMW*.1+y.powerMW)/1.1:null};
+  });
+}
