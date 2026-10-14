@@ -16,7 +16,7 @@ export function modelOptions(params) {
   if(!(o.cutIn<o.ratedSpeed&&o.ratedSpeed<o.cutOut))throw Error('INVALID_MODEL_OPTIONS');
   return o;
 }
-export function modelHours(raw, day, options=modelOptions(new URLSearchParams())) {
+export function modelHours(raw, day, options=modelOptions(new URLSearchParams()), includeIntervals=false) {
   const coverage=raw.coverages?.[0];
   if(raw.coverages?.length!==1 || coverage?.['eumetnet:locationId']!==options.stationId || raw.parameters?.ff?.unit?.symbol?.value!=='m/s')throw Error('Invalid KNMI data');
   const stamps=coverage.domain?.axes?.t?.values || [], values=coverage.ranges?.ff?.values || [];
@@ -34,6 +34,7 @@ export function modelHours(raw, day, options=modelOptions(new URLSearchParams())
     const [v0,p0]=beabuorrenCurve[i-1], [v1,p1]=beabuorrenCurve[i];
     return (p0+(p1-p0)*(v-v0)/(v1-v0))*options.ratedKW/1300;
   };
+  const parkPower=v=>{if(v===null)return null;const hub=v*(options.height/10)**alpha, unperturbed=turbine(hub);return (options.wake&&unperturbed>0?turbine(hub*(1-options.wakePercent/100)):unperturbed)*(options.park==='beabuorren'?8:89)/1000;};
   const buckets=Array.from({length:24},()=>({sum:0,count:0,missing:0}));
   let index=0;
   for(let t=base-3*3600000;t<base+25*3600000;t+=60000){
@@ -44,10 +45,12 @@ export function modelHours(raw, day, options=modelOptions(new URLSearchParams())
     else if(index>0&&index<samples.length){const a=samples[index-1],b=samples[index];if(a.v!==null&&b.v!==null&&b.t-a.t<=600000)v=a.v+(b.v-a.v)*(t-a.t)/(b.t-a.t);}
     const bucket=buckets[Number(p.hour)];bucket.count++;
     if(v===null){bucket.missing++;continue;}
-    const hub=v*(options.height/10)**alpha, unperturbed=turbine(hub);
-    bucket.sum+=(options.wake&&unperturbed>0?turbine(hub*(1-options.wakePercent/100)):unperturbed)*(options.park==='beabuorren'?8:89)/1000;
+    bucket.sum+=parkPower(v);
   }
-  return buckets.map((b,hour)=>({hour,modelMWh:b.count&&!b.missing?b.sum/60:null,minutes:b.count,missingMinutes:b.missing}));
+  const hours=buckets.map((b,hour)=>({hour,modelMWh:b.count&&!b.missing?b.sum/60:null,minutes:b.count,missingMinutes:b.missing}));
+  if(!includeIntervals)return hours;
+  const intervals=samples.filter(s=>{const p=localParts(s.t);return `${p.year}-${p.month}-${p.day}`===day&&s.t+300000<=Date.now();}).map(s=>({start:new Date(s.t-300000).toISOString(),end:new Date(s.t+300000).toISOString(),powerMW:parkPower(s.v)}));
+  return {hours,intervals};
 }
 export async function readWind(day, env, options=modelOptions(new URLSearchParams())) {
   if(!env.KNMI_EDR_API_KEY)throw Error('KNMI_NOT_CONFIGURED');
@@ -62,8 +65,8 @@ export async function readWind(day, env, options=modelOptions(new URLSearchParam
     let r;
     try { r=await fetch('https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations/locations/'+options.stationId+'?'+query,{headers:{Authorization:env.KNMI_EDR_API_KEY.trim(),Accept:'application/json'},redirect:'manual',signal:controller.signal}); } catch(e) { console.error('KNMI_FETCH_FAILED',e?.name||'Error');throw Error('KNMI_CONNECTION'); } finally {clearTimeout(timer);}
     if(!r.ok){console.error('KNMI_HTTP_STATUS',r.status);throw Error(r.status===401||r.status===403?'KNMI_AUTH':'KNMI_UNAVAILABLE');}
-    const hours=modelHours(await r.json(),day,options);
-    return {day,station:options.stationName,hours};
+    const profile=modelHours(await r.json(),day,options,true);
+    return {day,station:options.stationName,...profile};
   })();
   windCache.set(cacheKey,{promise,expires:Date.now()+300000});promise.catch(()=>windCache.delete(cacheKey));
   if(windCache.size>100)windCache.delete(windCache.keys().next().value);
