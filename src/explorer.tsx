@@ -78,7 +78,7 @@ export default function Explorer({park='fryslan'}:{park?:'fryslan'|'beabuorren'}
   }
   return <div className="shell">
     <header className="topbar"><a className="brand" href="/" aria-label="Fryslân productie startpagina"><span className="brand-symbol"><Wind size={24}/></span><span>fryslân<span className="brand-sub">PRODUCTIE</span></span></a><span className="zone">Tijden in Nederland</span></header>
-    <main><nav className="park-nav" aria-label="Windparken"><a href="/" aria-current={!isBea?'page':undefined}>Fryslân</a><a href="/elektrolyser">Elektrolyser</a><a href="/beabuorren" aria-current={isBea?'page':undefined}>Beabuorren</a></nav>
+    <main><nav className="park-nav" aria-label="Windparken"><a href="/" aria-current={!isBea?'page':undefined}>Fryslân</a><a href="/elektrolyser">Elektrolyser</a><a href="/beabuorren" aria-current={isBea?'page':undefined}>Beabuorren</a><a href="/onderzoek">Onderzoek</a></nav>
       <div className="intro"><div><h1>Windpark {parkName}</h1><p>{isBea?'Berekende energie uit KNMI-wind · 8 turbines · 10,4 MW. Er is geen gemeten productiebron gekoppeld.':'Kies een dag en bekijk de opgewekte energie per uur.'}</p></div></div>
       <div className="workspace-head"><nav className="tabs" aria-label="Productieoverzichten"><button onClick={()=>setView('history')} className={view==='history'?'selected':''}><CalendarDays size={16}/> Per dag</button>{!isBea&&<button onClick={()=>setView('live')} className={view==='live'?'selected':''}><Radio size={16}/> Actueel vermogen</button>}</nav><button className="text-button" onClick={()=>setRetry(r=>r+1)}><RefreshCw size={14}/> Vernieuwen</button></div>
       {view==='history'?<div className="history-layout">

@@ -16,3 +16,5 @@
 .allocation-note{font-size:11px;line-height:1.6;color:#526354;margin-top:16px}
 
 .frequent-note{font-size:12px;line-height:1.7;color:#526354;margin:12px 0}.frequent-note>span:last-child{font-size:11px}.frequent-swatch{display:inline-block;width:22px;border-top:2px dotted #a28153;margin-right:8px;vertical-align:middle}
+
+.park-nav{flex-wrap:wrap}.research-table{width:100%;border-collapse:collapse;margin-top:18px;font-size:12px;min-width:650px}.research-table th,.research-table td{text-align:left;padding:12px;border-bottom:1px solid var(--line)}.research-table th{color:#526354;font-weight:500}.chosen-size{background:#edf2e5}.utilisation-bar{height:7px;display:inline-block;background:#a6cb69;margin-right:8px;vertical-align:middle;border-radius:3px}.model-actions{flex-wrap:wrap}

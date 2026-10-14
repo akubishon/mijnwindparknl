@@ -33,3 +33,18 @@ export function mostFrequentPower(intervals) {
   const tiedBands=[...buckets].filter(([,n])=>n===minutes).length;
   return {lowerMW,upperMW:lowerMW+1,lineMW:lowerMW+.5,minutes,availableMinutes,tiedBands};
 }
+
+export function researchResults(intervals) {
+  const valid=intervals.filter(i=>typeof i.powerMW==='number'&&Number.isFinite(i.powerMW)&&Date.parse(i.end)-Date.parse(i.start)===600000);
+  if(!valid.length)return null;
+  const availableHours=valid.length/6;
+  const descending=valid.map(i=>i.powerMW).sort((a,b)=>b-a);
+  const reliable=fraction=>descending[Math.max(0,Math.ceil(descending.length*fraction)-1)];
+  const sizes=[1,2,3,4,5,7.5,10,12.5,15,17.5,20,22.5,25,27.5,30,32.5,35,37.5,40,42.5,44,44.25];
+  const rows=sizes.map(capacityMW=>{
+    const energyMWh=valid.reduce((sum,i)=>sum+Math.min(capacityMW,Math.max(0,i.powerMW))/6,0);
+    const stats=runtimeStats(intervals,capacityMW);
+    return {capacityMW,energyMWh,equivalentFullLoadHours:energyMWh/capacityMW,utilisation:energyMWh/(capacityMW*availableHours),fullLoadHours:stats.totalMinutes/60,longestHours:stats.longestMinutes/60};
+  });
+  return {availableHours,power90:reliable(.9),power50:reliable(.5),rows};
+}

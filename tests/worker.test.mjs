@@ -162,3 +162,12 @@ test('most frequent power groups one-MW bands and ignores missing model data',as
  assert.equal(mostFrequentPower([]),null);
  const tied=mostFrequentPower([list[0],list[3]]);assert.equal(tied.lowerMW,12);assert.equal(tied.tiedBands,2);
 });
+
+test('period research counts utilisation, duration curve and runs across midnight',async()=>{
+ const {researchResults}=await import('../src/electrolysis.mjs');
+ const intervals=[{start:'2026-01-01T23:50:00Z',end:'2026-01-02T00:00:00Z',powerMW:44},{start:'2026-01-02T00:00:00Z',end:'2026-01-02T00:10:00Z',powerMW:44},{start:'2026-01-02T00:10:00Z',end:'2026-01-02T00:20:00Z',powerMW:22}];
+ const result=researchResults(intervals);assert.equal(result.power90,22);assert.equal(result.power50,44);assert.equal(result.availableHours,.5);
+ const row=result.rows.find(r=>r.capacityMW===44);assert.ok(Math.abs(row.utilisation-5/6)<1e-10);assert.equal(row.longestHours,1/3);assert.equal(row.fullLoadHours,1/3);
+ assert.equal(researchResults([]),null);
+ const worker=await fresh();assert.equal((await get(worker,'/onderzoek')).status,200);
+});
