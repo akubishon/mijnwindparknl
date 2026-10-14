@@ -290,3 +290,14 @@ test('site gate uses the existing research secret when no site-specific secret i
  for(let n=0;n<5;n++)assert.equal((await login('wrong')).status,401);
  assert.equal((await login(settings.RESEARCH_PASSWORD)).status,429);
 });
+
+test('technical capacity comparison reports marginal capture, hydrogen and runtime without an economic verdict',async()=>{
+ const {compareCapacities}=await import('../src/electrolysis.mjs');
+ const base={capacityMW:10,energyMWh:100,operatingHours:60,captureFraction:.5};
+ const larger={capacityMW:15,energyMWh:112,operatingHours:40,captureFraction:.56};
+ const c=compareCapacities(base,larger,50);
+ assert.equal(c.extraMW,5);assert.equal(c.capacityIncreasePct,50);assert.equal(c.energyDeltaMWh,12);assert.equal(c.energyChangePct,12);assert.equal(c.operatingHoursDelta,-20);assert.ok(Math.abs(c.capturePointsDelta-6)<1e-10);assert.equal(c.extraEnergyPerMW,2.4);assert.equal(c.hydrogenDeltaKg,240);
+ const decrease=compareCapacities(base,{...larger,energyMWh:80,captureFraction:.4});assert.equal(decrease.energyChangePct,-20);assert.equal(decrease.hydrogenDeltaKg,null);
+ assert.equal(compareCapacities({...base,energyMWh:0},larger,50).energyChangePct,null);
+ assert.equal(compareCapacities(base,base),null);assert.equal(compareCapacities(larger,base),null);
+});

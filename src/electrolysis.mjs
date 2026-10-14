@@ -80,3 +80,15 @@ export function hydrogenKg(energyMWh, kWhPerKg) {
   if(!Number.isFinite(energyMWh)||energyMWh<0||!Number.isFinite(kWhPerKg)||kWhPerKg<=0)return null;
   return energyMWh*1000/kWhPerKg;
 }
+
+export function compareCapacities(base, larger, kWhPerKg=NaN){
+  if(!base||!larger||larger.capacityMW<=base.capacityMW)return null;
+  const extraMW=larger.capacityMW-base.capacityMW;
+  const energyDeltaMWh=larger.energyMWh-base.energyMWh;
+  return {extraMW,capacityIncreasePct:extraMW/base.capacityMW*100,energyDeltaMWh,
+    energyChangePct:base.energyMWh>0?energyDeltaMWh/base.energyMWh*100:null,
+    operatingHoursDelta:larger.operatingHours-base.operatingHours,
+    capturePointsDelta:(larger.captureFraction-base.captureFraction)*100,
+    extraEnergyPerMW:energyDeltaMWh/extraMW,
+    hydrogenDeltaKg:hydrogenKg(larger.energyMWh,kWhPerKg)!==null?hydrogenKg(larger.energyMWh,kWhPerKg)-hydrogenKg(base.energyMWh,kWhPerKg):null};
+}
