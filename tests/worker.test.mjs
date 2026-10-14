@@ -81,3 +81,21 @@ test('filters unexpected upstream fields and rejects malformed live readings', a
     assert.equal((await get(next, '/api/live')).status, 502);
   } finally { global.fetch = prior; }
 });
+
+
+test('KNMI request uses Worker-compatible redirect mode and returns model hours', async () => {
+  const worker=await fresh(), prior=global.fetch;
+  const values=Array(180).fill(7);
+  const stamps=values.map((_,i)=>new Date(Date.parse('2026-10-12T21:00:00Z')+i*600000).toISOString());
+  global.fetch=async (url, options)=>{
+    assert.ok(String(url).startsWith('https://api.dataplatform.knmi.nl/'));
+    assert.equal(options.redirect,'manual');
+    assert.equal(options.headers.Authorization,'fixture-knmi');
+    return Response.json({parameters:{ff:{unit:{symbol:{value:'m/s'}}}},coverages:[{'eumetnet:locationId':'0-20000-0-06258',domain:{axes:{t:{values:stamps}}},ranges:{ff:{values}}}]});
+  };
+  try {
+    const r=await worker.fetch(new Request('https://fixture.test/api/wind?day=2026-10-13'),{...env,KNMI_EDR_API_KEY:'fixture-knmi'});
+    assert.equal(r.status,200);
+    const d=await r.json();assert.equal(d.hours.length,24);assert.ok(d.hours.every(h=>h.modelMWh>0));
+  } finally {global.fetch=prior;}
+});

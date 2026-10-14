@@ -36,7 +36,7 @@ export async function readWind(day, env) {
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),20000);
     let r;
-    try { r=await fetch('https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations/locations/0-20000-0-06258?'+query,{headers:{Authorization:env.KNMI_EDR_API_KEY.trim(),Accept:'application/json'},redirect:'error',signal:controller.signal}); } catch(e) { console.error('KNMI_FETCH_FAILED',e?.name||'Error');throw Error('KNMI_CONNECTION'); } finally {clearTimeout(timer);}
+    try { r=await fetch('https://api.dataplatform.knmi.nl/edr/v1/collections/10-minute-in-situ-meteorological-observations/locations/0-20000-0-06258?'+query,{headers:{Authorization:env.KNMI_EDR_API_KEY.trim(),Accept:'application/json'},redirect:'manual',signal:controller.signal}); } catch(e) { console.error('KNMI_FETCH_FAILED',e?.name||'Error');throw Error('KNMI_CONNECTION'); } finally {clearTimeout(timer);}
     if(!r.ok){console.error('KNMI_HTTP_STATUS',r.status);throw Error(r.status===401||r.status===403?'KNMI_AUTH':'KNMI_UNAVAILABLE');}
     const hours=modelHours(await r.json(),day);
     return {day,station:'Houtribdijk',hours};
