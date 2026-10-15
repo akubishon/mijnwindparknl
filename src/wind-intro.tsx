@@ -16,6 +16,6 @@ export default function WindIntro(){
  if(!latest)return null;
  // KNMI gives the direction wind comes FROM. A downward arrow at 0° flows south.
  return <div className="intro-wind" aria-hidden="true"><svg viewBox="0 0 1200 240" preserveAspectRatio="xMidYMid slice" focusable="false">
- {Array.from({length:65},(_,i)=>{const x=(i%13)*100+15,y=Math.floor(i/13)*65-10;return <g key={i} transform={`translate(${x} ${y}) rotate(${latest.windDirectionDeg})`}><path className="intro-wind-arrow" style={{animationDelay:`-${(i*1.7)%9}s`,animationDuration:`${4+(i%3)}s`}} d="M0 -14V14M-5 8L0 14L5 8"/></g>;})}
+ {Array.from({length:65},(_,i)=>{const x=(i%13)*100+15,y=Math.floor(i/13)*65-10;return <g key={i} transform={`translate(${x} ${y}) rotate(${latest.windDirectionDeg})`}><path className="intro-wind-arrow" d="M0 -14V14M-5 8L0 14L5 8"><animateTransform attributeName="transform" type="translate" from="0 -65" to="0 65" dur={`${4+(i%3)}s`} begin={`-${(i*1.7)%6}s`} repeatCount="indefinite"/></path></g>;})}
  </svg></div>;
 }
