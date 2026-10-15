@@ -370,8 +370,20 @@ test('chart energy units use each interval duration and kWh equals MWh times one
  assert.equal(chartValue(12,1/6,'MW'),12);
  assert.equal(chartValue(null,1/6,'kWh'),null);
  assert.equal(chartValue(0,1/6,'MWh'),0);
- assert.equal(chartCeiling([12,18.2,null]),30);
- assert.equal(chartCeiling([20]),30);
- assert.equal(chartCeiling([2000]),2010);
- assert.equal(chartCeiling([null]),10);
+ assert.equal(chartCeiling([12,18.2,null]),45);
+ assert.equal(chartCeiling([20],'MWh'),45);
+ assert.equal(chartCeiling([235],'kWh'),240);
+ assert.equal(chartCeiling([240],'kWh'),250);
+ assert.equal(chartCeiling([null],'kWh'),10);
+});
+
+test('KNMI hourly comparison sums interval energy and excludes incomplete hours',async()=>{
+ const {knmiHourlyValues}=await import('../src/chart-units.mjs');
+ const points=[6,12,18,24,30,36].map((powerMW,i)=>({powerMW,start:new Date(Date.UTC(2026,0,1,11,i*10)).toISOString(),end:new Date(Date.UTC(2026,0,1,11,(i+1)*10)).toISOString()}));
+ const full=knmiHourlyValues(points,'2026-01-01',.1);
+ assert.equal(full.length,1);assert.equal(full[0].hour,12);assert.ok(Math.abs(full[0].energyMWh-2.1)<1e-10);assert.ok(Math.abs(full[0].powerMW-2.1)<1e-10);
+ assert.equal(knmiHourlyValues(points.slice(1),'2026-01-01').length,0);
+ assert.equal(knmiHourlyValues(points.map((p,i)=>i===2?{...p,powerMW:null}:p),'2026-01-01').length,0);
+ const repeated=Array.from({length:12},(_,i)=>({powerMW:12,start:new Date(Date.UTC(2026,9,25,0,i*10)).toISOString(),end:new Date(Date.UTC(2026,9,25,0,(i+1)*10)).toISOString()}));
+ const winter=knmiHourlyValues(repeated,'2026-10-25');assert.equal(winter[0].hour,2);assert.equal(winter[0].energyMWh,24);assert.equal(winter[0].powerMW,12);
 });
