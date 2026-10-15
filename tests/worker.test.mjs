@@ -352,3 +352,12 @@ test('KNMI point view retains original timestamps and wind observations without 
  assert.equal(intervals[1].powerMW,null);assert.equal(intervals[0].end,intervals[0].timestamp);
  assert.equal(intervals.length,3);
 });
+
+test('ten-minute dots use a fixed Dutch day clock instead of stretching partial data',async()=>{
+ const {clockDayFraction}=await import('../src/chart-time.mjs');
+ assert.equal(clockDayFraction('2026-10-15T04:00:00Z','2026-10-15'),.25);
+ assert.equal(clockDayFraction('2026-10-14T22:00:00Z','2026-10-15'),0);
+ assert.equal(clockDayFraction('2026-10-15T22:00:00Z','2026-10-15'),1);
+ assert.equal(clockDayFraction('2026-10-25T00:10:00Z','2026-10-25'),clockDayFraction('2026-10-25T01:10:00Z','2026-10-25'));
+ assert.equal(clockDayFraction('bad','2026-10-15'),null);
+});
