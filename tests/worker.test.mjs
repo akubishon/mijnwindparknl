@@ -329,7 +329,7 @@ test('atlas model calculation uses gross system supply and never deducts generic
 test('atlas catalogue stays behind site login and proxy credentials are server-only',async()=>{
  const raw=await rawFresh();assert.equal((await get(raw,'/api/atlas/catalogue')).status,401);
  const worker=await fresh();const prior=global.fetch;global.fetch=async(url,options)=>{
-  assert.equal(url,'https://waterstofatlas.nl/api/integrations/mijnwindpark/catalogue');assert.equal(options.headers.Authorization,'Bearer fixture-atlas-secret');assert.equal(options.redirect,'manual');
+  assert.equal(url,'https://elektrolyser-atlas.givingsky33.chatgpt.site/api/integrations/mijnwindpark/catalogue');assert.equal(options.headers.Accept,'application/json');assert.match(options.headers['User-Agent'],/^Mijnwindpark/);assert.ok(options.signal);assert.equal(options.headers.Authorization,'Bearer fixture-atlas-secret');assert.equal(options.redirect,'manual');
   return Response.json({schemaVersion:1,revision:'fixture',models:[]});
  };
  try{const r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),{...env,WINDPARK_CATALOG_TOKEN:'fixture-atlas-secret'});assert.equal(r.status,200);assert.doesNotMatch(await r.text(),/fixture-atlas-secret/);}finally{global.fetch=prior;}
@@ -410,4 +410,16 @@ test('today average uses fractional elapsed hours since Dutch midnight including
  assert.equal(elapsedHoursToday('2026-10-15',Date.parse('2026-10-14T22:00:00Z')),0);
  assert.equal(elapsedHoursToday('2026-03-29',Date.parse('2026-03-29T01:30:00Z')),2.5);
  assert.equal(elapsedHoursToday('2026-10-25',Date.parse('2026-10-25T02:30:00Z')),4.5);
+});
+
+test('atlas connection errors distinguish credentials from network failure without exposing secrets',async()=>{
+ const worker=await fresh(),prior=global.fetch;
+ try{
+  global.fetch=async()=>new Response(null,{status:401});
+  let r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),{...env,WINDPARK_CATALOG_TOKEN:'fixture-atlas-secret'});
+  assert.equal(r.status,502);assert.match((await r.json()).error,/toegangssleutel/);
+  global.fetch=async()=>{throw new TypeError('private network detail');};
+  r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),{...env,WINDPARK_CATALOG_TOKEN:'fixture-atlas-secret'});
+  assert.equal(r.status,502);const text=await r.text();assert.match(text,/verbinding/);assert.doesNotMatch(text,/private network detail|fixture-atlas-secret/);
+ }finally{global.fetch=prior;}
 });
