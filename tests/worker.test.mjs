@@ -361,3 +361,17 @@ test('ten-minute dots use a fixed Dutch day clock instead of stretching partial 
  assert.equal(clockDayFraction('2026-10-25T00:10:00Z','2026-10-25'),clockDayFraction('2026-10-25T01:10:00Z','2026-10-25'));
  assert.equal(clockDayFraction('bad','2026-10-15'),null);
 });
+
+test('chart energy units use each interval duration and kWh equals MWh times one thousand',async()=>{
+ const {chartValue,chartCeiling}=await import('../src/chart-units.mjs');
+ assert.equal(chartValue(12,1,'MWh'),12);
+ assert.equal(chartValue(12,1/6,'MWh'),2);
+ assert.equal(chartValue(12,1/6,'kWh'),2000);
+ assert.equal(chartValue(12,1/6,'MW'),12);
+ assert.equal(chartValue(null,1/6,'kWh'),null);
+ assert.equal(chartValue(0,1/6,'MWh'),0);
+ assert.equal(chartCeiling([12,18.2,null]),30);
+ assert.equal(chartCeiling([20]),30);
+ assert.equal(chartCeiling([2000]),2010);
+ assert.equal(chartCeiling([null]),10);
+});
