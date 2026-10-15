@@ -388,3 +388,17 @@ test('KNMI hourly comparison sums interval energy and excludes incomplete hours'
  const repeated=Array.from({length:12},(_,i)=>({powerMW:12,start:new Date(Date.UTC(2026,9,25,0,i*10)).toISOString(),end:new Date(Date.UTC(2026,9,25,0,(i+1)*10)).toISOString()}));
  const winter=knmiHourlyValues(repeated,'2026-10-25');assert.equal(winter[0].hour,2);assert.equal(winter[0].energyMWh,24);assert.equal(winter[0].powerMW,12);
 });
+
+test('displayed source hours exclude future placeholders and retain zero production',async()=>{
+ const {displayedHours}=await import('../src/display-hours.mjs');
+ const now=Date.parse('2026-10-15T08:30:00Z'); // 10:30 in the Netherlands
+ const hours=Array.from({length:24},(_,hour)=>({hour,kWh:hour===0?0:1000}));
+ const shown=displayedHours(hours,'2026-10-15',now);
+ assert.equal(shown.length,11);
+ assert.equal(shown[0].kWh,0);
+ assert.equal(shown.at(-1).hour,10);
+ assert.equal(shown.reduce((sum,h)=>sum+h.kWh,0)/shown.length,10000/11);
+ assert.equal(displayedHours(hours,'2026-10-14',now).length,24);
+ assert.equal(displayedHours(hours,'2026-10-16',now).length,0);
+ assert.equal(displayedHours([{hour:0,kWh:0},{hour:3,kWh:2000}], '2026-10-15',now).length,2);
+});
