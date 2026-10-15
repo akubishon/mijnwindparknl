@@ -9,7 +9,7 @@ export default function WindIntro(){
    .then(r=>{if(!r.ok)throw Error('Wind unavailable');return r.json();})
    .then(d=>setCurrent(d.intervals||[])).catch(()=>{});
   refresh();
-  const timer=setInterval(refresh,300000);
+  const timer=setInterval(refresh,10000);
   return()=>{controller.abort();clearInterval(timer);};
  },[]);
  const latest=[...current].reverse().find(p=>typeof p.windDirectionDeg==='number'&&Number.isFinite(p.windDirectionDeg)&&p.windDirectionDeg>=0&&p.windDirectionDeg<=360&&(p.windSpeedMS??0)>0);
