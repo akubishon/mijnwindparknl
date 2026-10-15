@@ -19,7 +19,7 @@ export default function TenMinuteWind({points,share,station,loading,error,day,ho
  const knmiHours=useMemo(()=>knmiHourlyValues(points,day,share),[points,day,share]);
  const [selectedKnmiHour,setSelectedKnmiHour]=useState<number|null>(null);
  const activeKnmiHour=knmiHours.find(h=>h.hour===selectedKnmiHour);
- const maximum=modelHours&&unit==='MW'?10.4:chartCeiling([...known.map(value),...sourceHours.map(hourValue),...(unit==='MW'?[]:knmiHours.map(hourValue))],unit);
+ const maximum=unit==='MW'?(modelHours?10.4:38.3):chartCeiling([...known.map(value),...sourceHours.map(hourValue),...knmiHours.map(hourValue)],unit);
  const x=(p:WindPoint)=>60+(clockDayFraction(stamp(p),day)??0)*832,y=(p:WindPoint)=>260-value(p)!/maximum*220;
  const activeHour=sourceHours.find(h=>h.hour===selectedHour);
  const active=points.find(p=>stamp(p)===selected);
