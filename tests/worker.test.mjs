@@ -345,10 +345,11 @@ test('KNMI point view retains original timestamps and wind observations without 
  const {modelOptions,modelHours}=await import('../src/knmi.mjs');
  const options=modelOptions(new URLSearchParams());
  const stamps=['2026-01-01T11:00:00Z','2026-01-01T11:10:00Z','2026-01-01T11:20:00Z'];
- const raw={parameters:{ff:{unit:{symbol:{value:'m/s'}}}},coverages:[{'eumetnet:locationId':options.stationId,domain:{axes:{t:{values:stamps}}},ranges:{ff:{values:[4,null,12]}}}]};
+ const raw={parameters:{ff:{unit:{symbol:{value:'m/s'}}}},coverages:[{'eumetnet:locationId':options.stationId,domain:{axes:{t:{values:stamps}}},ranges:{ff:{values:[4,null,12]},dd:{values:[359,360,999]}}}]};
  const {intervals}=modelHours(raw,'2026-01-01',options,true);
  assert.deepEqual(intervals.map(p=>p.timestamp),stamps.map(s=>new Date(s).toISOString()));
  assert.deepEqual(intervals.map(p=>p.windSpeedMS),[4,null,12]);
+ assert.deepEqual(intervals.map(p=>p.windDirectionDeg),[359,360,null]);
  assert.equal(intervals[1].powerMW,null);assert.equal(intervals[0].end,intervals[0].timestamp);
  assert.equal(intervals.length,3);
 });

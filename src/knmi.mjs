@@ -21,7 +21,7 @@ export function modelHours(raw, day, options=modelOptions(new URLSearchParams())
   if(raw.coverages?.length!==1 || coverage?.['eumetnet:locationId']!==options.stationId || raw.parameters?.ff?.unit?.symbol?.value!=='m/s')throw Error('Invalid KNMI data');
   const stamps=coverage.domain?.axes?.t?.values || [], values=coverage.ranges?.ff?.values || [];
   if(stamps.length!==values.length)throw Error('Invalid KNMI time axis');
-  const samples=stamps.map((stamp,i)=>({t:Date.parse(stamp)-300000,v:typeof values[i]==='number'&&Number.isFinite(values[i])&&values[i]>=0?values[i]:null}));
+  const samples=stamps.map((stamp,i)=>({t:Date.parse(stamp)-300000,direction:typeof coverage.ranges?.dd?.values?.[i]==='number'&&Number.isFinite(coverage.ranges.dd.values[i])&&coverage.ranges.dd.values[i]>=0&&coverage.ranges.dd.values[i]<=360?coverage.ranges.dd.values[i]:null,v:typeof values[i]==='number'&&Number.isFinite(values[i])&&values[i]>=0?values[i]:null}));
   if(samples.some((s,i)=>!Number.isFinite(s.t)||(i&&s.t<=samples[i-1].t)))throw Error('Invalid KNMI time axis');
   const base=Date.parse(day+'T00:00:00Z');
   const doy=Math.floor((base-Date.UTC(Number(day.slice(0,4)),0,1))/86400000)+1;
@@ -49,7 +49,7 @@ export function modelHours(raw, day, options=modelOptions(new URLSearchParams())
   }
   const hours=buckets.map((b,hour)=>({hour,modelMWh:b.count&&!b.missing?b.sum/60:null,minutes:b.count,missingMinutes:b.missing}));
   if(!includeIntervals)return hours;
-  const intervals=samples.filter(s=>{const p=localParts(s.t);return `${p.year}-${p.month}-${p.day}`===day&&s.t+300000<=Date.now();}).map(s=>({start:new Date(s.t-300000).toISOString(),end:new Date(s.t+300000).toISOString(),powerMW:parkPower(s.v),timestamp:new Date(s.t+300000).toISOString(),windSpeedMS:s.v}));
+  const intervals=samples.filter(s=>{const p=localParts(s.t);return `${p.year}-${p.month}-${p.day}`===day&&s.t+300000<=Date.now();}).map(s=>({start:new Date(s.t-300000).toISOString(),end:new Date(s.t+300000).toISOString(),powerMW:parkPower(s.v),timestamp:new Date(s.t+300000).toISOString(),windSpeedMS:s.v,windDirectionDeg:s.direction}));
   return {hours,intervals};
 }
 export async function readWind(day, env, options=modelOptions(new URLSearchParams())) {
@@ -59,7 +59,7 @@ export async function readWind(day, env, options=modelOptions(new URLSearchParam
   const promise=(async()=>{
     // The UTC interval includes both possible Dutch day boundaries, including DST.
     const base=Date.parse(day+'T00:00:00Z');
-    const query=new URLSearchParams({'datetime':`${new Date(base-3*3600000).toISOString()}/${new Date(base+25*3600000).toISOString()}`,'parameter-name':'ff'});
+    const query=new URLSearchParams({'datetime':`${new Date(base-3*3600000).toISOString()}/${new Date(base+25*3600000).toISOString()}`,'parameter-name':'ff,dd'});
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),20000);
     let r;
