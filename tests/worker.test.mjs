@@ -402,3 +402,12 @@ test('displayed source hours exclude future placeholders and retain zero product
  assert.equal(displayedHours(hours,'2026-10-16',now).length,0);
  assert.equal(displayedHours([{hour:0,kWh:0},{hour:3,kWh:2000}], '2026-10-15',now).length,2);
 });
+
+test('today average uses fractional elapsed hours since Dutch midnight including DST',async()=>{
+ const {elapsedHoursToday}=await import('../src/display-hours.mjs');
+ assert.equal(elapsedHoursToday('2026-10-15',Date.parse('2026-10-15T08:30:00Z')),10.5);
+ assert.equal(elapsedHoursToday('2026-10-14',Date.parse('2026-10-15T08:30:00Z')),null);
+ assert.equal(elapsedHoursToday('2026-10-15',Date.parse('2026-10-14T22:00:00Z')),0);
+ assert.equal(elapsedHoursToday('2026-03-29',Date.parse('2026-03-29T01:30:00Z')),2.5);
+ assert.equal(elapsedHoursToday('2026-10-25',Date.parse('2026-10-25T02:30:00Z')),4.5);
+});
