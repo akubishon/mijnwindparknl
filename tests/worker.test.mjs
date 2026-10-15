@@ -46,7 +46,7 @@ test('returns a recoverable error without exposing credentials when upstream fai
   try {const response=await get(worker,'/api/live');assert.equal(response.status,502);const body=await response.text();assert.doesNotMatch(body,/fixture|sensitive|token|key/);assert.match(body,/opnieuw/i);}finally{global.fetch=prior;}
 });
 
-test('security policy permits the bundled script and blocks framing', async () => {
+test('security policy permits the bundled script and iframe embedding', async () => {
   const { createHash } = await import('node:crypto');
   const worker = await fresh();
   const page = await get(worker, '/');
@@ -55,9 +55,9 @@ test('security policy permits the bundled script and blocks framing', async () =
   const hash = createHash('sha256').update(script).digest('base64');
   const policy = page.headers.get('Content-Security-Policy');
   assert.ok(policy.includes(`script-src 'sha256-${hash}'`));
-  assert.ok(policy.includes("frame-ancestors 'none'"));
+  assert.ok(!policy.includes("frame-ancestors"));
   assert.ok(policy.includes("connect-src 'self'"));
-  assert.equal(page.headers.get('X-Frame-Options'), 'DENY');
+  assert.equal(page.headers.get('X-Frame-Options'), null);
   const invalid = await get(worker, '/api/history?day=%3Cscript%3E');
   assert.equal(invalid.status, 400);
   assert.equal(invalid.headers.get('X-Content-Type-Options'), 'nosniff');
