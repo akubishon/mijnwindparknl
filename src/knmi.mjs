@@ -49,7 +49,7 @@ export function modelHours(raw, day, options=modelOptions(new URLSearchParams())
   }
   const hours=buckets.map((b,hour)=>({hour,modelMWh:b.count&&!b.missing?b.sum/60:null,minutes:b.count,missingMinutes:b.missing}));
   if(!includeIntervals)return hours;
-  const intervals=samples.filter(s=>{const p=localParts(s.t);return `${p.year}-${p.month}-${p.day}`===day&&s.t+300000<=Date.now();}).map(s=>({start:new Date(s.t-300000).toISOString(),end:new Date(s.t+300000).toISOString(),powerMW:parkPower(s.v)}));
+  const intervals=samples.filter(s=>{const p=localParts(s.t);return `${p.year}-${p.month}-${p.day}`===day&&s.t+300000<=Date.now();}).map(s=>({start:new Date(s.t-300000).toISOString(),end:new Date(s.t+300000).toISOString(),powerMW:parkPower(s.v),timestamp:new Date(s.t+300000).toISOString(),windSpeedMS:s.v}));
   return {hours,intervals};
 }
 export async function readWind(day, env, options=modelOptions(new URLSearchParams())) {
