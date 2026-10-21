@@ -84,10 +84,11 @@
         <aside class="scenario" aria-labelledby="scenario-title">
           <div>
             <span class="eyebrow">Scenario</span>
-            <h3 id="scenario-title">Wanneer wint 4 modules?</h3>
+            <h3 id="scenario-title">Voorbeeld: hoge minimumlast en lage modulekosten</h3>
             <p>Opsplitsen loont als kleine modules vaker waterstof maken dan één grote. Dat gebeurt vooral als een module een
               <b>hoge minimumlast</b> heeft (alkaline: vaak 30 à 50 %) en een extra unit <b>weinig vaste kosten</b> heeft. Dit scenario
-              zet alkaline op 40 % minimumlast en 0,3 M€ vaste kosten per module, en rekent 1 tot 8 modules door.</p>
+              zet alkaline op 40 % minimumlast en 0,3 M€ vaste kosten per module, en rekent de gekozen aantallen tot en met 8 modules door.
+              De laagste berekende kostprijs hangt af van de windjaren en overige aannames.</p>
           </div>
           <button class="primary-button" type="button" id="scenario-run">Laad scenario en bereken</button>
         </aside>
@@ -122,24 +123,52 @@
           <h2 id="result-title">Uitkomst</h2>
           <p id="result-sub"></p>
         </div></div>
+        <p id="result-pending" class="result-pending" role="status" hidden>De invoer is gewijzigd. Hieronder staat de vorige berekening, met de daarbij gebruikte aannames. Kies ‘Bereken’ om de uitkomst bij te werken.</p>
+        <aside class="result-context" aria-labelledby="basis-title">
+          <h3 id="basis-title">Basis van deze berekening</h3>
+          <p id="result-basis"></p>
+          <p id="result-uncertainty"></p>
+          <details><summary>Alle gebruikte aannames en herkomst van standaardwaarden</summary>
+            <p class="note">Deze waarden horen bij de getoonde uitkomst. De herkomst beschrijft de standaardwaarde; een eigen invoer is daarmee niet als bronwaarde bevestigd.</p>
+            <div id="result-assumptions" class="table-scroll" tabindex="0" role="region" aria-label="Gebruikte aannames"></div>
+          </details>
+          <div class="result-exports"><button id="export-csv" class="secondary-button" type="button">Download alle uitkomsten (CSV)</button>
+            <button id="export-json" class="secondary-button" type="button">Download volledige berekening (JSON)</button></div>
+          <p class="note">CSV bevat ongeronde uitkomsten, stapverschillen en aannames in rekeneenheden. JSON bewaart ook de uitkomsten per windjaar. Extra decimalen maken verschillen controleerbaar; ze geven geen voorspellingszekerheid aan.</p>
+        </aside>
         <div id="headline" class="headline"></div>
         <section class="winner" aria-labelledby="winner-title">
-          <span class="eyebrow">Beste aantal modules</span>
+          <span class="eyebrow">Laagste berekende kostprijs binnen deze instellingen</span>
           <h3 id="winner-title"></h3>
           <div id="winner-compare" class="winner-compare"></div>
           <p id="winner-text" class="winner-text"></p>
           <div class="winner-grid">
             <figure class="chart-card">
-              <h3>Stap voor stap: loont nog een module erbij?</h3>
-              <p>Per extra module: wat de kilo's kosten die hij extra oplevert. Ligt de balk links van het streepje (de gemiddelde
-                kosten per kilo tot dan toe), dan trekt de stap het gemiddelde omlaag en loont hij.</p>
+              <h3>Stap voor stap: kosten van de extra kilo’s</h3>
+              <p>Elke stap vergelijkt twee opeenvolgende gekozen configuraties, bij gelijk totaalvermogen.
+                Balk = verschil in jaarkosten ÷ extra kilo’s waterstof per jaar. Streepje = gemiddelde kostprijs vóór de stap.
+                Bij extra productie verlaagt een balk links van het streepje de gemiddelde kostprijs ten opzichte van de vorige configuratie.</p>
               <div id="ladder-legend" class="legend"></div>
               <div id="ladder" class="chart"></div>
+              <p class="note">Een daling tegenover de vorige configuratie betekent niet automatisch de laagste kostprijs van alle gekozen configuraties. De tabel ernaast toont beide vergelijkingen.</p>
             </figure>
+            <figure class="chart-card step-comparison">
+              <h3>Wat doet elke stap met het gemiddelde?</h3>
+              <p>Dezelfde stappen, nu met het verschil in de gemiddelde kostprijs. Een minteken betekent een daling. De laagste berekende configuratie is gemarkeerd.</p>
+              <div class="table-scroll" tabindex="0" role="region" aria-label="Gemiddelde kostprijs en stapverschillen"><table id="step-comparison"></table></div>
+              <p class="note">Kosten extra kilo’s en gemiddelde kostprijs zijn verschillende grootheden. Een verschil van 0,01 €/kg is 1 cent per kilo. De markering is een rekenuitkomst binnen deze instellingen, geen bewezen beste keuze.</p>
+            </figure>
+          </div>
+          <details class="table-details" open>
+            <summary>Alle cijfers achter de stappen</summary>
+            <p class="note">Productie-uren zijn uren waarin de installatie waterstof maakt. Niet hetzelfde als extra vollasturen of de som van alle module-uren. Bij geen extra waterstof is ‘kosten extra kilo’s’ niet van toepassing; kostenbesparingen blijven zichtbaar.</p>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="Onderliggende cijfers per stap"><table id="step-data"></table></div>
+          </details>
+          <div class="winner-grid map-grid">
             <figure class="chart-card">
               <h3>Omslagkaart: welk aantal wint waar?</h3>
               <p>Het aantal modules met de laagste kostprijs per kilo bij elke combinatie van minimumlast en vaste kosten per module; alle andere aannames
-                zoals nu. Het omrande vak ligt het dichtst bij de huidige aannames. Rekent vijf minimumlasten opnieuw door, dus de eerste keer duurt het even.</p>
+                zoals in de getoonde berekening. Het omrande vak ligt het dichtst bij de gebruikte aannames. Rekent vijf minimumlasten opnieuw door, dus de eerste keer duurt het even.</p>
               <div class="map-actions"><button class="secondary-button" type="button" id="map-run">Bereken omslagkaart</button>
                 <span id="map-status" class="note" role="status" aria-live="polite"></span></div>
               <div id="switch-map" class="chart"></div>
@@ -154,7 +183,7 @@
           </figure>
           <figure class="chart-card">
             <h3>Hoeveel mag een extra module kosten?</h3>
-            <p>Per aantal modules de hoogste vaste kosten per module waarbij de kilo niet duurder is dan met één module.
+            <p id="capex-note">Per aantal modules de hoogste vaste kosten per module waarbij de kilo niet duurder is dan met de eerste gekozen configuratie.
               Ligt de offerte per unit daaronder, dan loont opsplitsen. Dit is het getal om offertes aan te toetsen.</p>
             <div id="capex-chart" class="chart"></div>
           </figure>

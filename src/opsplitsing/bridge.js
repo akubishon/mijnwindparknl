@@ -30,8 +30,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(!lastResult){status.textContent='Bereken eerst een scenario.';return;}
   try{
    const saved=JSON.parse(localStorage.getItem('opsplitsing-saved-v1')||'[]');
-   const naam=meta.technologieen[tech].naam+' · '+lastResult.strategie+' · '+lastResult.jaren.join(', ');
-   saved.unshift({id:crypto.randomUUID(),naam,technologie:tech,eigen_aannames:{},gemaakt:new Date().toISOString(),resultaat:lastResult});
+   const resultTechnology=lastResult.technologie;
+   const naam=(meta.technologieen[resultTechnology]?.naam||'Eigen aannames')+' · '+lastResult.strategie+' · '+lastResult.jaren.join(', ');
+   saved.unshift({id:crypto.randomUUID(),naam,technologie:resultTechnology,eigen_aannames:{},gemaakt:new Date().toISOString(),resultaat:lastResult});
    localStorage.setItem('opsplitsing-saved-v1',JSON.stringify(saved));loadSaved();status.textContent='Scenario bewaard op dit apparaat.';
   }catch{status.textContent='Bewaren is niet gelukt. Mogelijk is de browseropslag vol of geblokkeerd.';}
  };

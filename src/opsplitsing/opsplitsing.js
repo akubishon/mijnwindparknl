@@ -118,6 +118,7 @@ function remember() {
     if (isFinite(value) && Math.abs(value - standard(key)) > 1e-9) changed[key] = value;
   }
   save({technologie: tech, aannames: changed, ...selection()});
+  refreshResultStatus();
 }
 
 function buildForm(state) {
@@ -361,18 +362,26 @@ const niceTop = value => niceScale(0, value).top;
 const digitsFor = step => step >= 1 ? 0 : step >= .1 ? 1 : 2;
 
 function lineWithRange(target, rows, key, unit, digits) {
-  const lows = rows.map(r => Math.min(...Object.values(r.jaren).map(y => y[key])));
-  const highs = rows.map(r => Math.max(...Object.values(r.jaren).map(y => y[key])));
-  const min = Math.min(...lows), max = Math.max(...highs);
+  const ranges = rows.map(r => Object.values(r.jaren || {}).map(y => y[key]).filter(finite));
+  const lows = ranges.map(values => values.length ? Math.min(...values) : null);
+  const highs = ranges.map(values => values.length ? Math.max(...values) : null);
+  const known = rows.filter((r, i) => finite(r[key]) && finite(lows[i]) && finite(highs[i]));
+  if (!known.length) { $(target).textContent = "Geen uitkomst beschikbaar voor deze grootheid."; return; }
+  const min = Math.min(...lows.filter(finite)), max = Math.max(...highs.filter(finite));
   // Een lijn mag boven nul beginnen; de as maakt dat zichtbaar.
-  const scale = niceScale(min - (max - min) * .25, max + (max - min) * .25);
+  const padding = Math.max((max - min) * .25, Math.abs(max) * .01, .001);
+  const scale = niceScale(min - padding, max + padding);
   const f = frame(rows, scale.top, {bottom: scale.bottom, unit});
-  rows.forEach((row, i) => f.svg.append(el("line", {x1: f.cx(i), x2: f.cx(i), y1: f.py(lows[i]), y2: f.py(highs[i]), stroke: COLORS.one, "stroke-opacity": .35, "stroke-width": 6, "stroke-linecap": "round"})));
-  f.svg.append(el("polyline", {points: rows.map((r, i) => `${f.cx(i)},${f.py(r[key])}`).join(" "), fill: "none", stroke: COLORS.one, "stroke-width": 2, "stroke-linejoin": "round"}));
-  const best = key === "lcoh_eur_kg" ? rows.reduce((a, b) => b[key] < a[key] ? b : a) : rows[rows.length - 1];
+  rows.forEach((row, i) => { if (finite(lows[i]) && finite(highs[i])) f.svg.append(el("line", {x1: f.cx(i), x2: f.cx(i), y1: f.py(lows[i]), y2: f.py(highs[i]), stroke: COLORS.one, "stroke-opacity": .35, "stroke-width": 6, "stroke-linecap": "round"})); });
+  let segment = [];
+  const flush = () => { if (segment.length) f.svg.append(el("polyline", {points: segment.join(" "), fill: "none", stroke: COLORS.one, "stroke-width": 2, "stroke-linejoin": "round"})); segment = []; };
+  rows.forEach((r, i) => { if (finite(r[key])) segment.push(`${f.cx(i)},${f.py(r[key])}`); else flush(); });
+  flush();
+  const best = key === "lcoh_eur_kg" || key === "netto_eur_kg" ? known.reduce((a, b) => b[key] < a[key] ? b : a) : known[known.length - 1];
   rows.forEach((row, i) => {
+    if (!finite(row[key])) { f.svg.append(text(f.cx(i), f.B - 8, "geen kostprijs", {"text-anchor": "middle", "font-size": 10})); return; }
     f.svg.append(el("circle", {cx: f.cx(i), cy: f.py(row[key]), r: 4.5, fill: COLORS.one, stroke: "#fff", "stroke-width": 2}));
-    if (row === best || i === 0) f.svg.append(text(f.cx(i), f.py(highs[i]) - 9, nf(row[key], digits), {"text-anchor": "middle", class: "label"}));
+    if (row === best || i === 0 || rows.length <= 6) f.svg.append(text(f.cx(i), f.py(finite(highs[i]) ? highs[i] : row[key]) - 9, nf(row[key], digits), {"text-anchor": "middle", class: "label"}));
   });
   hover(f, rows, (row, i) => `<b>${label(row.modules)} van ${nf(row.module_mw)} MW</b><br>Gemiddeld ${nf(row[key], digits)} ${unit}<br>Windjaren ${nf(lows[i], digits)} tot ${nf(highs[i], digits)}<br>Benutting aanbod ${nf(row.benutting * 100)} %`);
   $(target).replaceChildren(f.svg);
@@ -412,25 +421,133 @@ function fixedCostChart(rows, assumed) {
 function stepChart(rows) {
   const steps = rows.slice(1);
   if (!steps.length) { $("step-chart").textContent = "Kies minstens twee moduleaantallen."; return; }
-  const top = niceTop(Math.max(...steps.map(r => Math.abs(r.extra_waterstof_t)), 1) * 1.15);
-  const f = frame(steps, top, {unit: "ton per jaar"});
+  const changes = stepMetrics(rows);
+  const amounts = changes.map(s => (s.deltaKg ?? 0) / 1000);
+  const scale = niceScale(Math.min(0, ...amounts) * 1.15, Math.max(1, ...amounts) * 1.15);
+  const f = frame(steps, scale.top, {bottom: scale.bottom, unit: "verschil in ton per jaar"});
   const width = Math.min(24, f.band - 12);
-  const biggest = steps.reduce((a, b) => b.extra_waterstof_t > a.extra_waterstof_t ? b : a);
+  f.svg.append(el("line", {x1: f.L, x2: f.W - f.R, y1: f.py(0), y2: f.py(0), class: "axis"}));
   steps.forEach((row, i) => {
-    const value = Math.max(0, row.extra_waterstof_t);
-    const x = f.cx(i) - width / 2, y = f.py(value), h = f.B - y, r = Math.min(4, h, width / 2);
-    f.svg.append(el("path", {d: `M${x},${f.B} V${y + r} Q${x},${y} ${x + r},${y} H${x + width - r} Q${x + width},${y} ${x + width},${y + r} V${f.B} Z`, fill: COLORS.one}));
-    if (row === biggest || i === steps.length - 1) f.svg.append(text(f.cx(i), y - 7, nf(row.extra_waterstof_t, 0) + " t", {"text-anchor": "middle", class: "label"}));
+    const value = amounts[i], y = Math.min(f.py(0), f.py(value));
+    f.svg.append(el("rect", {x: f.cx(i) - width / 2, y, width, height: Math.max(1, Math.abs(f.py(value) - f.py(0))), fill: COLORS.one}));
+    if (steps.length <= 12 || i === steps.length - 1) f.svg.append(text(f.cx(i), value < 0 ? f.py(value) + 14 : y - 7, signed(value, 1, " t"), {"text-anchor": "middle", class: "label"}));
   });
   hover(f, steps, (row, i) => {
-    const before = rows[i];
-    return `<b>${before.modules} → ${row.modules} modules</b><br>${nf(row.extra_waterstof_t, 1)} ton extra (${pct(row.extra_waterstof_t / before.waterstof_t)})<br>Kosten ${row.extra_kosten_meur_jaar >= 0 ? "+" : ""}${nf(row.extra_kosten_meur_jaar, 2)} M€ per jaar`;
+    const s = changes[i];
+    return `<b>${s.before.modules} → ${row.modules} modules</b><br>Waterstof ${deltaText(s.deltaKg == null ? null : s.deltaKg / 1000, 3, " ton/jaar")}<br>Jaarkosten ${deltaText(s.deltaCost, 2, " €")}`;
   });
   $("step-chart").replaceChildren(f.svg);
 }
 
 // Opbrengst per kilo (premie en zuurstof) uit de aannames van de uitkomst, in opgeslagen eenheden.
 const revenuePerKg = result => result.aannames.waterstofpremie_eur_kg + result.aannames.zuurstofprijs_eur_t * 8 / 1000;
+
+const finite = value => typeof value === "number" && Number.isFinite(value);
+const difference = (a, b) => finite(a) && finite(b) ? a - b : null;
+const lowestCost = rows => {
+  const known = rows.map(r => r.lcoh_eur_kg).filter(finite);
+  return known.length ? Math.min(...known) : null;
+};
+const isLowest = (row, rows) => finite(row.lcoh_eur_kg) && Math.abs(row.lcoh_eur_kg - lowestCost(rows)) < 1e-10;
+
+// Absolute resultaten zijn leidend, ook voor oudere opgeslagen scenario's.
+function stepMetrics(rows) {
+  const lowest = lowestCost(rows);
+  return rows.slice(1).map((row, i) => {
+    const before = rows[i];
+    const tonnes = difference(row.waterstof_t, before.waterstof_t);
+    const millions = difference(row.kosten_meur_jaar, before.kosten_meur_jaar);
+    const deltaKg = tonnes == null ? null : tonnes * 1000;
+    const deltaCost = millions == null ? null : millions * 1e6;
+    return {before, row, deltaKg, deltaCost,
+      deltaHours: difference(row.productie_uur, before.productie_uur),
+      deltaLcoh: difference(row.lcoh_eur_kg, before.lcoh_eur_kg),
+      vsLowest: difference(row.lcoh_eur_kg, lowest),
+      marginal: deltaKg > 0 && finite(deltaCost) ? deltaCost / deltaKg : null};
+  });
+}
+
+function snapshotRequest(result) {
+  const aannames = {};
+  for (const group of meta.groepen) for (const entry of group.velden) {
+    if (finite(result.aannames[entry.key])) aannames[entry.key] = result.aannames[entry.key] * entry.schaal;
+  }
+  return {aannames, strategie: result.strategie, jaren: [...result.jaren], modules: result.rijen.map(r => r.modules)};
+}
+
+function refreshResultStatus() {
+  if (!lastResult) return;
+  const snapshot = snapshotRequest(lastResult), current = selection(), currentValues = values();
+  const sameList = (a, b) => [...a].sort((x, y) => x - y).join(",") === [...b].sort((x, y) => x - y).join(",");
+  const same = snapshot.strategie === current.strategie && sameList(snapshot.jaren, current.jaren)
+    && sameList(snapshot.modules, current.modules)
+    && Object.entries(snapshot.aannames).every(([key, value]) => finite(currentValues[key]) && Math.abs(currentValues[key] - value) < 1e-6);
+  $("result-pending").hidden = same;
+}
+
+function resultCsv(result) {
+  const steps = stepMetrics(result.rijen);
+  const rowKeys = [...new Set(result.rijen.flatMap(Object.keys))];
+  const assumptionKeys = Object.keys(result.aannames);
+  const stepKeys = ["deltaKg", "deltaCost", "deltaHours", "deltaLcoh", "vsLowest", "marginal"];
+  const headers = ["berekening.windjaren", "berekening.strategie", "berekening.technologie", ...rowKeys, "stap.van_modules", ...stepKeys.map(k => "stap." + k), ...assumptionKeys.map(k => "aanname." + k)];
+  const cell = value => {
+    if (value == null) return "";
+    if (typeof value === "number") return Number.isFinite(value) ? String(value).replace(".", ",") : "";
+    let string = typeof value === "object" ? JSON.stringify(value) : String(value);
+    if (/^[=+@-]/.test(string)) string = "'" + string;
+    return /[;"\r\n]/.test(string) ? '"' + string.replaceAll('"', '""') + '"' : string;
+  };
+  const rows = result.rijen.map((row, i) => {
+    const s = i ? steps[i - 1] : {vsLowest: difference(row.lcoh_eur_kg, lowestCost(result.rijen))};
+    return [result.jaren.join(", "), result.strategie, result.technologie ?? "", ...rowKeys.map(k => row[k]),
+      s.before?.modules, ...stepKeys.map(k => s[k]), ...assumptionKeys.map(k => result.aannames[k])];
+  });
+  return "\ufeff" + [headers, ...rows].map(row => row.map(cell).join(";")).join("\r\n");
+}
+
+function downloadResult(format) {
+  if (!lastResult) return;
+  const json = {...lastResult, export_toelichting: {
+    stapformule: "verschil in jaarkosten (euro) / extra waterstof (kg per jaar); alleen bij positieve extra productie",
+    aannames: "Originele rekeneenheden; zie veldmetadata voor schaal en getoonde eenheid.",
+    onzekerheid: "Eén vaste trekking van storingen per module en windjaar; geen betrouwbaarheidsinterval.",
+    stapvelden_csv: {deltaKg: "kg/jaar", deltaCost: "euro/jaar", deltaHours: "productie-uren/jaar", deltaLcoh: "euro/kg tegenover vorige configuratie", vsLowest: "euro/kg boven laagste berekende kostprijs", marginal: "euro per extra kg"}},
+    veldmetadata: meta.groepen};
+  const content = format === "csv" ? resultCsv(lastResult) : JSON.stringify(json, null, 2);
+  const url = URL.createObjectURL(new Blob([content], {type: format === "csv" ? "text/csv;charset=utf-8" : "application/json;charset=utf-8"}));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `opsplitsing-${lastResult.jaren.join("-")}.${format}`;
+  document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function resultContext(result) {
+  const a = result.aannames;
+  const name = meta.technologieen[result.technologie]?.naam;
+  $("result-basis").textContent = `${name ? name + " · " : ""}Besturing: ${result.strategie}. Windjaren: ${result.jaren.join(", ")}. `
+    + `Totaal stackvermogen: ${nf(a.capaciteit_mw, 1)} MW in elke configuratie. Gekozen moduleaantallen: ${result.rijen.map(r => r.modules).join(", ")}. `
+    + `Minimumlast: ${nf(a.minimumlast * 100, 1)} %. Onderhoud: ${nf(a.onderhoud_dagen, 1)} dagen per module per jaar, plus berekende stackwisselstilstand. `
+    + `De kostprijs is de gemiddelde jaarkosten gedeeld door de gemiddelde jaarproductie over de gekozen windjaren.`;
+  $("result-uncertainty").textContent = `Storingsmodel: gemiddeld ${nf(a.storingen_per_jaar, 1)} storingen per module per jaar, met ${nf(a.hersteltijd_uur, 1)} uur herstel per storing. `
+    + `${a.storingen_per_jaar > 0 && a.hersteltijd_uur > 0 ? "Aantal en timing worden gesimuleerd met één vaste, herhaalbare trekking per module en windjaar." : "Storingsstilstand is met deze instellingen uitgeschakeld."} `
+    + `${result.jaren.length > 1 ? "De jaarstrepen tonen het minimum en maximum van de gekozen windjaren, met die trekkingen." : "Met één windjaar is geen spreiding tussen windjaren bepaald."} `
+    + `Er zijn geen herhaalde storingstrekkingen doorgerekend voor een onzekerheidsband. Wind, stilstand en start/stopregels werken samen; deze grafiek bewijst geen afzonderlijke oorzaak van een sprong.`;
+  const target = $("result-assumptions"), tableNode = document.createElement("table");
+  tableNode.innerHTML = '<thead><tr><th scope="col">Aanname</th><th scope="col">Waarde berekening</th><th scope="col">Herkomst standaardwaarde</th></tr></thead>';
+  const body = document.createElement("tbody");
+  for (const group of meta.groepen) for (const entry of group.velden) {
+    const tr = document.createElement("tr");
+    const value = a[entry.key];
+    const source = entry.bron === "mijnwindpark.nl" ? "mijnwindpark.nl · modelkeuze" : entry.bron;
+    [entry.label, finite(value) ? nf(value * entry.schaal, 3) + (entry.eenheid ? " " + entry.eenheid : "") : "Niet opgeslagen", source].forEach(value => {
+      const td = document.createElement("td"); td.textContent = value; tr.append(td);
+    });
+    body.append(tr);
+  }
+  tableNode.append(body); target.replaceChildren(tableNode);
+}
 
 function table(rows, net) {
   const columns = [
@@ -448,10 +565,10 @@ function table(rows, net) {
     ["Stroom (M€/jaar)", r => nf(r.stroom_meur_jaar, 2)],
     ["Stack (M€/jaar)", r => nf(r.stack_meur_jaar, 2)],
     ["Kosten (M€/jaar)", r => nf(r.kosten_meur_jaar, 2)],
-    ["LCOH (€/kg)", r => nf(r.lcoh_eur_kg, 2)],
-    ...(net ? [["Netto (€/kg)", r => nf(r.netto_eur_kg, 2)]] : []),
+    ["LCOH (€/kg)", r => nf(r.lcoh_eur_kg, 3)],
+    ...(net ? [["Netto (€/kg)", r => nf(r.netto_eur_kg, 3)]] : []),
   ];
-  const best = rows.reduce((a, b) => (b.lcoh_eur_kg ?? Infinity) < (a.lcoh_eur_kg ?? Infinity) ? b : a);
+  const best = rows.find(row => isLowest(row, rows));
   const head = `<caption class="note">Gemiddelden over de gekozen windjaren. De vetgedrukte rij heeft de laagste LCOH.</caption><thead><tr>${columns.map(c => `<th scope="col">${c[0]}</th>`).join("")}</tr></thead>`;
   const body = rows.map(r => `<tr${r === best ? ' class="best"' : ""}>${columns.map(c => `<td>${c[1](r)}</td>`).join("")}</tr>`).join("");
   $("table").innerHTML = head + `<tbody>${body}</tbody>`;
@@ -466,87 +583,115 @@ const signed = (value, digits, unit) => {
 };
 
 function winner(rows) {
-  const best = rows.find(r => r.beste) || rows[0];
-  const base = rows[0];
-  const index = rows.indexOf(best);
-  const next = rows[index + 1];
-  $("winner-title").textContent = rows.length < 2 ? `Kostprijs per kilo waterstof met ${label(best.modules)}`
-    : best === base ? `Opsplitsen loont hier niet: ${label(base.modules)} geeft de laagste kostprijs per kilo`
-    : `${label(best.modules)} geeft de laagste kostprijs per kilo waterstof`;
-  // Twee tegels naast elkaar: zo is te zien dat de investering stijgt, terwijl de kilo goedkoper wordt.
+  const bestRows = rows.filter(row => isLowest(row, rows));
+  const best = bestRows[0] || rows[0], base = rows[0];
+  const next = rows[1];
+  $("winner-title").textContent = !bestRows.length ? "Geen kostprijs berekend voor deze configuraties"
+    : rows.length < 2 ? `Berekende kostprijs met ${label(best.modules)}`
+    : bestRows.length > 1 ? `${bestRows.map(r => r.modules).join(" en ")} modules delen de laagste berekende kostprijs`
+    : `${label(best.modules)} heeft binnen deze instellingen de laagste berekende kostprijs`;
   const compare = best === base ? (next ? [base, next] : [base]) : [base, best];
-  const tile = row => `<div class="${row === best ? "win" : ""}">
-      <span>${label(row.modules)} van ${nf(row.module_mw)} MW${row === best ? " · laagste kostprijs" : ""}</span>
-      <strong>${nf(row.lcoh_eur_kg, 2)} <small>€ per kilo waterstof</small></strong>
+  const tile = row => `<div class="${isLowest(row, rows) && rows.length > 1 ? "win" : ""}">
+      <span>${label(row.modules)} van ${nf(row.module_mw, 2)} MW${isLowest(row, rows) && rows.length > 1 ? " · laagste berekend" : ""}</span>
+      <strong>${nf(row.lcoh_eur_kg, 3)} <small>€ per kilo waterstof</small></strong>
       <dl><dt>Investering</dt><dd>${nf(row.capex_meur, 1)} M€</dd>
-        <dt>Kosten per jaar</dt><dd>${nf(row.kosten_meur_jaar, 1)} M€</dd>
-        <dt>Waterstof per jaar</dt><dd>${nf(row.waterstof_t, 0)} ton</dd>
+        <dt>Kosten per jaar</dt><dd>${nf(row.kosten_meur_jaar, 3)} M€</dd>
+        <dt>Waterstof per jaar</dt><dd>${nf(row.waterstof_t, 1)} ton</dd>
         <dt>Uren met waterstof</dt><dd>${hours(row.productie_uur)}</dd></dl></div>`;
   $("winner-compare").innerHTML = compare.map(tile).join("");
   const parts = [];
-  if (best !== base) {
-    parts.push(`${label(best.modules)} kost <b>${nf(best.capex_meur - base.capex_meur, 1)} M€ meer</b> om te bouwen dan ${label(base.modules)},
-      maar maakt <b>${nf(best.waterstof_t - base.waterstof_t, 0)} ton per jaar meer</b> waterstof, omdat de kleine modules vaker draaien
-      (${hours(best.productie_uur)} in plaats van ${hours(base.productie_uur)}). Verdeeld over al die extra kilo's is elke kilo
-      <b>${nf(base.lcoh_eur_kg - best.lcoh_eur_kg, 2)} € goedkoper</b>.`);
-    if (best.marginale_eur_kg != null) parts.push(`De laatste stap naar ${label(best.modules)} levert kilo's van ${nf(best.marginale_eur_kg, 2)} €/kg:
-      goedkoper dan het gemiddelde van ${nf(rows[index - 1].lcoh_eur_kg, 2)} €/kg, dus het gemiddelde zakt.`);
-  } else if (next) {
-    parts.push(`${label(next.modules)} maakt ${nf(next.waterstof_t - base.waterstof_t, 0)} ton per jaar meer waterstof, maar dat weegt niet op
-      tegen de ${nf(next.kosten_meur_jaar - base.kosten_meur_jaar, 2)} M€ extra kosten per jaar.`);
+  if (rows.length < 2) parts.push("Er is één configuratie doorgerekend; daarmee is geen vergelijking tussen moduleaantallen gemaakt.");
+  else if (bestRows.length) {
+    parts.push(`Vergelijking van alle ${rows.length} gekozen configuraties, met hetzelfde totale stackvermogen. De markering vergelijkt de totale gemiddelde kostprijs, niet alleen de laatste stap.`);
+    if (rows.some(row => !finite(row.lcoh_eur_kg))) parts.push("Voor configuraties zonder berekende kostprijs is geen kostenvergelijking gemaakt.");
+    if (best !== base && finite(base.lcoh_eur_kg)) parts.push(`${label(best.modules)} vraagt ${signed(best.capex_meur - base.capex_meur, 3, " M€")} investering en maakt
+      ${signed(best.waterstof_t - base.waterstof_t, 1, " ton")} waterstof per jaar ten opzichte van ${label(base.modules)}.
+      De gemiddelde kostprijs daalt van ${nf(base.lcoh_eur_kg, 3)} naar ${nf(best.lcoh_eur_kg, 3)} €/kg.`);
+    const reversal = stepMetrics(rows).find((step, i) => i + 1 > rows.indexOf(best) && step.deltaLcoh < 0 && step.vsLowest > 1e-10);
+    if (reversal) parts.push(`<b>Let op bij ${reversal.before.modules} → ${reversal.row.modules}:</b>
+      de gemiddelde kostprijs daalt ${nf(-reversal.deltaLcoh * 100, 2)} cent/kg ten opzichte van de vorige configuratie,
+      maar blijft ${nf(reversal.vsLowest * 100, 2)} cent/kg hoger dan bij ${label(best.modules)}.`);
   }
-  if (next && best !== base) parts.push(next.marginale_eur_kg != null
-    ? `Naar ${label(next.modules)} kosten de extra kilo's ${nf(next.marginale_eur_kg, 2)} €/kg: duurder dan ${nf(best.lcoh_eur_kg, 2)} €/kg, dus daar stopt het.`
-    : `${label(next.modules)} levert geen extra waterstof meer op.`);
   $("winner-text").innerHTML = parts.join(" ");
   ladder(rows);
+  stepTables(rows);
 }
 
-// Horizontale trap: per stap de kosten van de extra kilo's, met een streepje op het gemiddelde ervoor.
+const deltaText = (value, digits = 2, unit = "") => {
+  if (!finite(value)) return "–";
+  if (value !== 0 && Math.abs(value) < 0.5 * 10 ** -digits) return `${value < 0 ? "−" : "+"}&lt;${nf(10 ** -digits, digits)}${unit}`;
+  return signed(value, digits, unit);
+};
+const marginalText = step => finite(step.marginal) ? nf(step.marginal, 2) + " €/kg"
+  : step.deltaKg == null ? "Niet berekend" : step.deltaKg < 0 ? "N.v.t.: minder H₂" : step.deltaKg === 0 ? "N.v.t.: geen extra H₂" : "Niet berekend: kosten ontbreken";
+
+function stepTables(rows) {
+  const steps = stepMetrics(rows), lowest = lowestCost(rows);
+  const header = (caption, titles) => `<caption class="note">${caption}</caption><thead><tr>${titles.map(title => `<th scope="col">${title}</th>`).join("")}</tr></thead>`;
+  $("step-comparison").innerHTML = header("Alle gekozen configuraties. Verschillen berekend vóór afronding; + is duurder, − is goedkoper.",
+    ["Modules", "Gemiddeld (€/kg)", "Verschil vorige (cent/kg)", "Boven laagste (cent/kg)"])
+    + `<tbody>${rows.map((row, i) => {
+      const d = i ? steps[i - 1].deltaLcoh : null;
+      const direction = d == null ? (i ? "niet berekend" : "vergelijkingsbasis") : d < 0 ? "daalt t.o.v. vorige" : d > 0 ? "stijgt t.o.v. vorige" : "onveranderd";
+      return `<tr${isLowest(row, rows) && rows.length > 1 ? ' class="best"' : ""}><th scope="row">${row.modules}${isLowest(row, rows) && rows.length > 1 ? '<span class="best-label">laagste berekend</span>' : ""}</th>
+        <td>${nf(row.lcoh_eur_kg, 3)}</td><td>${deltaText(d == null ? null : d * 100)}<span class="step-direction">${direction}</span></td>
+        <td>${deltaText(finite(row.lcoh_eur_kg) && finite(lowest) ? (row.lcoh_eur_kg - lowest) * 100 : null)}</td></tr>`;
+    }).join("")}</tbody>`;
+  $("step-data").innerHTML = header("Alle veranderingen tegenover de vorige gekozen configuratie; totaalvermogen blijft gelijk.",
+    ["Stap (modules)", "Extra waterstof (ton/jaar)", "Extra productie-uren/jaar", "Extra kosten (€/jaar)", "Kosten extra kilo’s (€/kg)", "Gemiddeld vóór (€/kg)", "Gemiddeld na (€/kg)", "Verschil gemiddeld (cent/kg)"])
+    + `<tbody>${steps.length ? steps.map(step => `<tr><th scope="row">${step.before.modules} → ${step.row.modules}</th>
+      <td>${deltaText(step.deltaKg == null ? null : step.deltaKg / 1000, 3)}</td><td>${deltaText(step.deltaHours, 1)}</td><td>${deltaText(step.deltaCost, 2)}</td>
+      <td>${marginalText(step)}</td><td>${nf(step.before.lcoh_eur_kg, 3)}</td><td>${nf(step.row.lcoh_eur_kg, 3)}</td><td>${deltaText(step.deltaLcoh == null ? null : step.deltaLcoh * 100)}</td></tr>`).join("")
+      : '<tr><td colspan="8">Er is één configuratie doorgerekend; er zijn geen stappen om te vergelijken.</td></tr>'}</tbody>`;
+}
+
+// Marginale kosten naast de gemiddelde kostprijs vóór de stap. Negatieve waarden blijven zichtbaar.
 function ladder(rows) {
-  const steps = rows.slice(1);
+  const steps = stepMetrics(rows);
   if (!steps.length) { $("ladder").textContent = "Kies minstens twee moduleaantallen."; $("ladder-legend").innerHTML = ""; return; }
-  const average = Math.max(...rows.map(r => r.lcoh_eur_kg ?? 0));
-  const known = steps.map(r => r.marginale_eur_kg).filter(v => v != null && v > 0);
-  const top = niceTop(Math.min(Math.max(average * 1.3, ...known), average * 3));
-  const W = 640, L = 118, R = 150, T = 26, height = steps.length > 12 ? 26 : 40, H = T + steps.length * height + 24;
-  const px = v => L + Math.max(0, Math.min(v, top)) / top * (W - L - R);
+  const values = [...rows.map(row => row.lcoh_eur_kg), ...steps.map(step => step.marginal)].filter(finite);
+  const low = Math.min(0, ...values), high = Math.max(1, ...values);
+  const stepSize = niceScale(low, high).step;
+  const bottom = Math.floor(low / stepSize) * stepSize, top = Math.ceil(high / stepSize) * stepSize;
+  const W = 640, L = 100, R = 152, T = 34, height = steps.length > 12 ? 30 : 44, H = T + steps.length * height + 28;
+  const px = value => L + (value - bottom) / (top - bottom) * (W - L - R);
   const svg = el("svg", {viewBox: `0 0 ${W} ${H}`, "aria-hidden": "true"});
-  const scale = niceScale(0, top);
-  for (let v = 0; v <= top + 1e-9; v += scale.step) {
-    svg.append(el("line", {x1: px(v), x2: px(v), y1: T - 6, y2: H - 22, class: v ? "grid" : "axis"}),
-      text(px(v), H - 6, nf(v, 0), {"text-anchor": "middle"}));
+  for (let value = bottom; value <= top + 1e-9; value += stepSize) {
+    svg.append(el("line", {x1: px(value), x2: px(value), y1: T - 6, y2: H - 24, class: value ? "grid" : "axis"}),
+      text(px(value), H - 7, nf(value, digitsFor(stepSize)), {"text-anchor": "middle"}));
   }
-  svg.append(text(W - R + 10, H - 6, "€/kg"), text(W - R + 10, T - 10, "meer waterstof"));
-  steps.forEach((row, i) => {
-    const before = rows[i], y = T + i * height, mid = y + height / 2;
-    const value = row.marginale_eur_kg;
-    svg.append(text(L - 10, mid + 4, `${before.modules} → ${row.modules}`, {"text-anchor": "end", class: "on-light", "font-size": 13, "font-weight": row.beste ? 700 : 400}));
-    const end = value == null ? px(top) : px(value);
-    const w = Math.max(2, end - px(0)), r = Math.min(4, w);
-    const pad = height > 30 ? 9 : 5;
-    svg.append(el("path", {d: `M${px(0)},${y + pad} H${px(0) + w - r} Q${px(0) + w},${y + pad} ${px(0) + w},${y + pad + r} V${y + height - pad - r} Q${px(0) + w},${y + height - pad} ${px(0) + w - r},${y + height - pad} H${px(0)} Z`,
-      fill: row.stap_loont ? COLORS.many : "#a9b6c2"}));
-    const mark = px(before.lcoh_eur_kg);
-    svg.append(el("line", {x1: mark, x2: mark, y1: y + 4, y2: y + height - 4, stroke: COLORS.ink, "stroke-width": 2}));
-    const shownValue = value == null ? "geen extra H₂" : value > top ? `> ${nf(top, 0)} €/kg` : nf(value, 2) + " €/kg";
-    // Lange balk: het getal binnen de balk, zodat het niet over de kolom rechts valt.
-    const inside = Math.max(end, mark) + 76 > W - R;
-    svg.append(inside ? text(end - 6, mid + 4, shownValue, {"text-anchor": "end", class: "on-light", "font-weight": 600})
-      : text(Math.max(end, mark) + 6, mid + 4, shownValue, {class: "label"}),
-      text(W - R + 10, mid + 4, `${signed(row.extra_productie_uur, 0, " uur")} · ${signed(row.extra_waterstof_t, 0, " t")}`, {class: "on-light", "font-size": 11}));
+  svg.append(text(W - R + 12, H - 7, "€/kg"), text(W - R + 12, 15, "Δ productie-uren"), text(W - R + 12, 28, "Δ ton H₂ per jaar"));
+  steps.forEach((step, i) => {
+    const {before, row, marginal} = step, y = T + i * height, mid = y + height / 2;
+    svg.append(text(L - 10, mid + 4, `${before.modules} → ${row.modules}`, {"text-anchor": "end", class: "on-light", "font-size": 13, "font-weight": isLowest(row, rows) ? 700 : 400}));
+    const colour = step.deltaLcoh == null ? "#fff" : step.deltaLcoh < 0 ? COLORS.many : "#a9b6c2";
+    const end = finite(marginal) ? px(marginal) : px(0);
+    if (finite(marginal)) svg.append(el("rect", {x: Math.min(px(0), end), y: y + 10, width: Math.max(1, Math.abs(end - px(0))), height: height - 20, rx: 3, fill: colour,
+      ...(step.deltaLcoh == null ? {stroke: COLORS.muted, "stroke-dasharray": "3 2"} : {})}));
+    const mark = finite(before.lcoh_eur_kg) ? px(before.lcoh_eur_kg) : px(0);
+    if (finite(before.lcoh_eur_kg)) svg.append(el("line", {x1: mark, x2: mark, y1: y + 4, y2: y + height - 4, stroke: COLORS.ink, "stroke-width": 2}));
+    const display = finite(marginal) ? nf(marginal, 2) + " €/kg" : step.deltaKg < 0 ? "minder H₂" : step.deltaKg === 0 ? "geen extra H₂" : "niet berekend";
+    const inside = finite(marginal) && marginal >= 0 && Math.max(end, mark) + 80 > W - R;
+    const labelX = !finite(marginal) ? L + 8 : marginal < 0 ? Math.min(W - R - 90, Math.max(L + 8, px(0) + 6)) : Math.max(end, mark) + 6;
+    svg.append(inside ? text(end - 6, mid + 4, display, {"text-anchor": "end", class: "on-light", "font-weight": 600})
+      : text(labelX, mid + 4, display, {class: "label"}),
+      text(W - R + 12, mid - 3, finite(step.deltaHours) ? signed(step.deltaHours, 0, " uur") : "–", {class: "on-light", "font-size": 11}),
+      text(W - R + 12, mid + 11, finite(step.deltaKg) ? signed(step.deltaKg / 1000, 1, " t") : "–", {class: "on-light", "font-size": 11}));
     const hit = el("rect", {x: 0, y, width: W, height, class: "hit"});
     hit.addEventListener("mousemove", event => showTip(event, `<b>${before.modules} → ${row.modules} modules</b>
-      <br>${signed(row.extra_productie_uur, 0, " uur")} per jaar met waterstofproductie
-      <br>${signed(row.extra_waterstof_t, 1, " ton")} waterstof per jaar
-      <br>${signed(row.extra_kosten_meur_jaar, 2, " M€")} kosten per jaar
-      <br>Extra kilo's kosten ${value == null ? "–" : nf(value, 2) + " €/kg"}, gemiddeld was ${nf(before.lcoh_eur_kg, 2)} €/kg
-      <br><b>${row.stap_loont ? `Loont: LCOH ${nf(before.lcoh_eur_kg, 2)} → ${nf(row.lcoh_eur_kg, 2)} €/kg` : `Loont niet: LCOH ${nf(before.lcoh_eur_kg, 2)} → ${nf(row.lcoh_eur_kg, 2)} €/kg`}</b>`));
-    hit.addEventListener("mouseleave", hideTip);
-    svg.append(hit);
+      <br>Waterstof: ${deltaText(step.deltaKg == null ? null : step.deltaKg / 1000, 3, " ton/jaar")}
+      <br>Productie-uren: ${deltaText(step.deltaHours, 1, " uur/jaar")}
+      <br>Jaarkosten: ${deltaText(step.deltaCost, 2, " €")}
+      <br>Kosten extra kilo’s: ${marginalText(step)}
+      <br>Gemiddeld: ${nf(before.lcoh_eur_kg, 3)} → ${nf(row.lcoh_eur_kg, 3)} €/kg
+      <br>Verschil: ${deltaText(step.deltaLcoh == null ? null : step.deltaLcoh * 100, 2, " cent/kg")}
+      <br>Boven laagste berekend: ${deltaText(step.vsLowest == null ? null : step.vsLowest * 100, 2, " cent/kg")}`));
+    hit.addEventListener("mouseleave", hideTip); svg.append(hit);
   });
-  $("ladder-legend").innerHTML = `<span><span class="key cost"></span> Stap loont</span><span><span class="key cost-no"></span> Stap loont niet</span>
-    <span><span class="key tick"></span> Gemiddelde kosten per kilo vóór de stap</span>`;
+  $("ladder-legend").innerHTML = `<span><span class="key cost"></span> Gemiddelde kostprijs daalt tegenover vorige configuratie</span>
+    <span><span class="key cost-no"></span> Gemiddelde kostprijs stijgt of blijft gelijk</span>
+    <span><span class="key cost-unknown"></span> Kostprijs ontbreekt: geen oordeel over de stap</span>
+    <span><span class="key tick"></span> Gemiddelde kostprijs vóór de stap</span>`;
   $("ladder").replaceChildren(svg);
 }
 
@@ -567,8 +712,7 @@ async function loadMap(result) {
   $("map-run").disabled = true;
   $("map-status").innerHTML = '<span class="spinner"></span>Omslagkaart berekenen…';
   try {
-    const data = await post("/api/opsplitsing/omslagkaart", {aannames: values(), strategie: result.strategie, jaren: result.jaren,
-      modules: result.rijen.map(r => r.modules)});
+    const data = await post("/api/opsplitsing/omslagkaart", snapshotRequest(result));
     if (token !== mapToken) return;
     $("map-status").textContent = "";
     drawMap(data);
@@ -667,15 +811,15 @@ function drawSaved(list) {
     return;
   }
   const table = document.createElement("table");
-  table.innerHTML = `<caption class="note">${list.length} scenario${list.length === 1 ? "" : "'s"}, nieuwste eerst. "Beste" = het aantal met de laagste kostprijs per kilo waterstof (LCOH).</caption>
+  table.innerHTML = `<caption class="note">${list.length} scenario${list.length === 1 ? "" : "'s"}, nieuwste eerst. De laagste kostprijs geldt binnen de opgeslagen instellingen en gekozen configuraties.</caption>
     <thead><tr><th scope="col">Scenario</th><th scope="col">Modules</th><th scope="col">Laagste prijs per kilo bij</th>
-    <th scope="col">€/kg: 1 module → beste</th><th scope="col">Meer waterstof</th><th scope="col">Gemaakt</th><th scope="col"></th></tr></thead>`;
+    <th scope="col">€/kg: vergelijkingsbasis → laagste berekend</th><th scope="col">Meer waterstof</th><th scope="col">Gemaakt</th><th scope="col"></th></tr></thead>`;
   const body = document.createElement("tbody");
   for (const item of list) {
     const tr = document.createElement("tr");
     tr.classList.toggle("shown", item.id === shownSaved);
     const cells = [item.naam, span(item.modules), label(item.beste.modules),
-      `${nf(item.een_module.lcoh_eur_kg, 2)} → ${nf(item.beste.lcoh_eur_kg, 2)} €/kg`,
+      `${nf(item.een_module.lcoh_eur_kg, 3)} → ${nf(item.beste.lcoh_eur_kg, 3)} €/kg`,
       pct(item.beste.waterstof_t / item.een_module.waterstof_t - 1),
       new Date(item.gemaakt).toLocaleString("nl-NL", {dateStyle: "short", timeStyle: "short", timeZone: "Europe/Amsterdam"})];
     cells.forEach((value, i) => {
@@ -715,7 +859,7 @@ async function showSaved(id) {
       modules: result.rijen.map(r => r.modules).filter(n => meta.modules.includes(n))});
     remember();
     drawExplainers();
-    render({...result, uit_cache: true});
+    render({...result, technologie: stored.technologie, uit_cache: true});
     shownSaved = id;
     status.textContent = `Getoond: ${stored.naam}.`;
     drawSaved(savedList);
@@ -728,15 +872,18 @@ async function showSaved(id) {
 
 function headline(rows, result) {
   const base = rows[0];
+  const changes = stepMetrics(rows);
   // Knikpunt: het eerste aantal waarna een extra stap minder dan 1 % waterstof oplevert.
   let knee = base;
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i].extra_waterstof_t / rows[i - 1].waterstof_t < 0.01) break;
+    if (changes[i - 1].deltaKg / 1000 / rows[i - 1].waterstof_t < 0.01) break;
     knee = rows[i];
   }
   const gain = knee.waterstof_t / base.waterstof_t - 1;
   $("headline").innerHTML = `
-    <div><span>Knikpunt</span><strong>${label(knee.modules)}</strong><p>Daarna levert een extra module minder dan 1 % waterstof op.</p></div>
+    <div><span>Eerste afvlakking productie</span><strong>${label(knee.modules)}</strong><p>${rows.length < 2 ? "Eén configuratie: geen productieverschil bepaald."
+      : knee === rows[rows.length - 1] ? "Geen volgende gekozen stap met minder dan 1 % extra waterstof."
+      : "De eerstvolgende gekozen stap levert minder dan 1 % extra waterstof. Latere stappen kunnen anders uitvallen; dit is geen stopadvies."}</p></div>
     <div><span>Meer waterstof</span><strong>${pct(gain)}</strong><p>${label(knee.modules)} ten opzichte van ${label(base.modules)}: ${nf(knee.waterstof_t - base.waterstof_t, 0)} ton per jaar.</p></div>
     <div><span>Vaste kosten per module</span><strong>${knee.opsplitsen == null ? "–" : pays(knee) ? "≤ " + nf(knee.vaste_kosten_break_even_meur, 2) + " M€" : "Loont niet"}</strong>
       <p>${knee.opsplitsen == null ? `${label(knee.modules)} is de vergelijkingsbasis.`
@@ -752,16 +899,19 @@ function render(result) {
   const rows = result.rijen;
   $("results").hidden = false;
   headline(rows, result);
+  resultContext(result);
   winner(rows);
+  refreshResultStatus();
   setupMap(result);
   lineWithRange("h2-chart", rows, "waterstof_t", "ton", 0);
   fixedCostChart(rows, result.aannames.vaste_kosten_module_meur);
+  $("capex-note").textContent = `Per aantal modules de hoogste vaste kosten per module waarbij de kilo niet duurder is dan met ${label(rows[0].modules)} (de eerste gekozen configuratie). Ligt de offerte per unit daaronder, dan is de berekende kostprijs lager dan die basis. Dit is het getal om offertes aan te toetsen binnen deze aannames.`;
   const net = revenuePerKg(result) > 0;
   $("lcoh-title").textContent = net ? "Netto kosten per kilo" : "Kosten per kilo (LCOH)";
   $("lcoh-note").textContent = net
     ? `LCOH min premie en zuurstofverkoop (${nf(revenuePerKg(result), 2)} €/kg); de streep toont de spreiding tussen windjaren.`
     : "Met de CAPEX uit de referentieofferte en de vaste kosten per module; de streep toont de spreiding tussen windjaren.";
-  lineWithRange("lcoh-chart", rows, net ? "netto_eur_kg" : "lcoh_eur_kg", "€/kg", 2);
+  lineWithRange("lcoh-chart", rows, net ? "netto_eur_kg" : "lcoh_eur_kg", "€/kg", 3);
   stepChart(rows);
   table(rows, net);
   renderSpeed(result);
@@ -861,14 +1011,18 @@ async function post(url, body) {
 }
 
 async function runDay() {
+  if (!lastResult) return;
+  const result = lastResult;
   const n = Number($("day-count").value);
-  const v = values();
+  const requestedDate = $("day").value;
+  const request = snapshotRequest(result), v = request.aannames;
   $("day-status").innerHTML = '<span class="spinner"></span>Dag berekenen…';
   $("day-status").classList.remove("error");
   try {
-    const data = await post("/api/opsplitsing/dag", {aannames: v, strategie: selection().strategie, datum: $("day").value, modules: [1, n]});
+    const data = await post("/api/opsplitsing/dag", {aannames: v, strategie: request.strategie, datum: requestedDate, modules: [1, n]});
+    if (result !== lastResult || n !== Number($("day-count").value) || requestedDate !== $("day").value) return;
     dayChart(data, n, v);
-    Object.assign(day, {data, n, v});
+    Object.assign(day, {data, n, v, strategie: request.strategie});
     const slider = $("step");
     slider.max = String(data.wind.length - 1);
     selectStep(interestingStep(data, n));
@@ -904,10 +1058,11 @@ async function submit(event) {
   running = true;
   $("run").disabled = true;
   const began = performance.now();
-  status.innerHTML = '<span class="spinner"></span>Rekenen… De eerste keer haalt de server de windjaren bij KNMI op; daarna komen ze uit de lokale opslag.';
+  status.innerHTML = '<span class="spinner"></span>Rekenen op dit apparaat met de meegeleverde KNMI-windreeksen…';
+  const submitted = {aannames: values(), ...pick}, submittedTechnology = tech;
   try {
-    const result = await post("/api/opsplitsing", {aannames: values(), ...pick});
-    render(result);
+    const result = await post("/api/opsplitsing", submitted);
+    render({...result, technologie: submittedTechnology});
     status.textContent = `Klaar in ${nf((performance.now() - began) / 1000)} s.`;
     $("results").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start"});
   } catch (error) {
@@ -942,6 +1097,8 @@ async function start() {
   $("day-run").addEventListener("click", runDay);
   $("scenario-run").addEventListener("click", loadScenario);
   $("saved-refresh").addEventListener("click", loadSaved);
+  $("export-csv").addEventListener("click", () => downloadResult("csv"));
+  $("export-json").addEventListener("click", () => downloadResult("json"));
   loadSaved();
   $("step").addEventListener("input", event => selectStep(Number(event.target.value)));
   $("day-count").addEventListener("change", runDay);
@@ -1042,7 +1199,7 @@ function renderWalk() {
     const box = document.createElement("div");
     box.className = "deploy";
     box.innerHTML = `<p class="calc"><b>${label(count)} van ${nf(size)} MW</b><br>Startdrempel ${nf(config.drempel_mw)} MW per module
-      (${nf(v.minimumlast, 0)} % last + BoP). Er passen er ${step.passen}; de besturing kiest ${step.gewenst}${step.gewenst < step.passen && selection().strategie === "verdelen" ? ", omdat dat de meeste waterstof geeft" : ""}. ${verdict}.${reason}</p>`;
+      (${nf(v.minimumlast, 0)} % last + BoP). Er passen er ${step.passen}; de besturing kiest ${step.gewenst}${step.gewenst < step.passen && day.strategie === "verdelen" ? ", omdat dat de meeste waterstof geeft" : ""}. ${verdict}.${reason}</p>`;
     box.append(moduleBars(step, size, color));
     return box;
   };
@@ -1123,6 +1280,7 @@ const PARTS = [
 let whyToken = 0;
 
 function setupWhy(result) {
+  whyToken++;
   const rows = result.rijen;
   const select = $("why-n");
   const others = rows.slice(1);
@@ -1193,7 +1351,7 @@ async function loadSensitivity(result, n) {
   $("tornado").replaceChildren();
   $("tornado-legend").innerHTML = "";
   try {
-    const data = await post("/api/opsplitsing/gevoeligheid", {aannames: values(), strategie: result.strategie, jaren: result.jaren, n});
+    const data = await post("/api/opsplitsing/gevoeligheid", {...snapshotRequest(result), n});
     if (token !== whyToken) return;
     status.innerHTML = "";
     drawTornado(data, n);

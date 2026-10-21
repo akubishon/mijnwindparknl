@@ -96,6 +96,10 @@ Opgeslagen scenario’s worden op dit apparaat in localStorage bewaard, met een 
 
 Controleren: `node scripts/test-python-browser.mjs` vergelijkt de browser-Python-uitkomsten exact met een native Python-referentie voor 2025 en modules 1 en 2, en controleert het dagvoorbeeld. `npm run compose`, `npm test` en `npm run build` controleren routes, toegangscontrole, jaarreeksen en het publicatiebestand. De testfixture staat in `tests/fixtures/opsplitsing-2025-native.json`.
 
+De opsplitsingspresentatie houdt marginale kosten en gemiddelde kostprijs naast elkaar zichtbaar. Elke stap vergelijkt de volgende gekozen configuratie bij hetzelfde totaalvermogen. De compacte tabel toont LCOH op drie decimalen, het verschil met de vorige configuratie in cent/kg en het verschil met de laagste doorgerekende kostprijs. De open stappentabel behoudt productieverschillen, uren, jaarkosten en LCOH vóór/na; geen of negatieve extra productie wordt niet als een geldige prijs van extra kilo's voorgesteld. Negatieve kosten en productieverschillen blijven zichtbaar. De markering ‘laagste berekend’ geldt uitsluitend binnen de getoonde instellingen.
+
+De uitkomst toont haar eigen aannames, windjaren en het gebruik van één vaste storingstrekking per module en jaar. Jaarspreiding is geen betrouwbaarheidsinterval. CSV exporteert alle oorspronkelijke rijvelden plus ongeronde stapverschillen en aannames (kommadecimalen, puntkomma's); contextkolommen hebben de prefix `berekening.`, stapvelden `stap.` en aannames `aanname.`. Aannames staan in oorspronkelijke rekeneenheden. JSON bewaart de volledige uitkomst en veldmetadata. Vervolgdiagrammen, de dagweergave en opgeslagen scenario's gebruiken dezelfde resultaataannames, ook nadat het formulier is aangepast. Een melding maakt zichtbaar wanneer invoer en getoonde uitkomst verschillen. De Pythonberekeningen, historische reeksen en aannames zijn niet gewijzigd. `tests/opsplitsing-presentation.test.mjs` controleert de omkering in 2022 (4/5/6 modules), ontbrekende en negatieve verschillen, verzoek-snapshots en exportbehoud.
+
 
 ## Stavoren + Houtribdijk comparison
 
