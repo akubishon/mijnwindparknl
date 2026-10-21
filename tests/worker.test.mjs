@@ -11,6 +11,33 @@ async function fresh(){
  return {fetch(request,settings){const headers=new Headers(request.headers);if(!headers.has('Cookie'))headers.set('Cookie',cookie);return worker.fetch(new Request(request,{headers}),settings);}};
 }
 const get = (worker, route) => worker.fetch(new Request('https://fixture.test' + route), env);
+test('comparison APIs use highest wind per park before power and apply allocation and BoP afterwards',async()=>{
+ const worker=await fresh(),prior=global.fetch;
+ global.fetch=async url=>{
+  const station=new URL(url).pathname.split('/').at(-1);
+  const values=Array(180).fill(station.endsWith('06267')?10:30);
+  const stamps=values.map((_,i)=>new Date(Date.parse('2025-01-14T21:00:00Z')+i*600000).toISOString());
+  return Response.json({parameters:{ff:{unit:{symbol:{value:'m/s'}}}},coverages:[{'eumetnet:locationId':station,domain:{axes:{t:{values:stamps}}},ranges:{ff:{values}}}]});
+ };
+ const settings={...env,KNMI_EDR_API_KEY:'fixture'};
+ try{
+  for(const park of ['fryslan','beabuorren']){
+   const r=await worker.fetch(new Request(`https://fixture.test/api/wind?comparison=1&day=2025-01-15&park=${park}&height=10&seasonal=0&wake=0`),settings);
+   assert.equal(r.status,200);const d=await r.json();assert.equal(d.combination.length,144);
+   assert.ok(d.stavoren.every(p=>p.powerMW>0));
+   assert.ok(d.combination.every(p=>p.powerMW===0&&p.highestStation==='Houtribdijk'&&p.fallbackStation===null));
+  }
+  const response=await worker.fetch(new Request('https://fixture.test/api/electrolyser?comparison=1&day=2025-01-15'),settings);
+  assert.equal(response.status,200);const d=await response.json();
+  assert.equal(d.combination.length,144);assert.ok(d.combination.every(p=>p.powerMW===0&&p.highestStation==='Houtribdijk'));
+  const {windPowerModel,modelOptions}=await import('../src/knmi.mjs');
+  const f=windPowerModel('2025-01-15',modelOptions(new URLSearchParams('park=fryslan')))(10);
+  const b=windPowerModel('2025-01-15',modelOptions(new URLSearchParams('park=beabuorren')))(10);
+  assert.ok(Math.abs(d.stavoren[0].powerMW-(.1*f+b)/1.1)<1e-9);
+  assert.equal(d.combination[0].differenceMW,d.stavoren[0].powerMW);
+  assert.equal((await worker.fetch(new Request('https://fixture.test/api/wind?day=2025-01-15&comparison=1&height=0'),settings)).status,400);
+ }finally{global.fetch=prior;}
+});
 test('serves the app and validates requests before contacting upstream', async () => {
   const worker=await fresh();let calls=0;const prior=global.fetch;global.fetch=async()=>{calls++;throw Error('Unexpected request');};
   try {

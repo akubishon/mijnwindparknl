@@ -114,6 +114,15 @@ export default {
         const day=url.searchParams.get('day');if(!validDay(day))return answer({error:'Kies een geldige datum.'},400);
         let a,b;try {a=modelOptions(new URLSearchParams({park:'fryslan',station:url.searchParams.get('fryslanStation')||'0-20000-0-06267'}));b=modelOptions(new URLSearchParams({park:'beabuorren',station:url.searchParams.get('beabuorrenStation')||'0-20000-0-06267'}));}catch{return answer({error:'Ongeldig meetstation.'},400);}
         if(!env.KNMI_EDR_API_KEY)return answer({error:'KNMI is nog niet gekoppeld.'},503);
+        if(url.pathname==='/api/electrolyser'&&url.searchParams.get('comparison')==='1'){
+          const [f,bp]=await Promise.all([readWindComparison(day,env,a),readWindComparison(day,env,b)]);
+          const stavoren=combinedSupply(f.stavoren,bp.stavoren),houtribdijk=combinedSupply(f.houtribdijk,bp.houtribdijk);
+          const combination=combinedSupply(f.combination,bp.combination).map((p,i)=>({...p,timestamp:p.end,
+            highestStation:f.combination[i].highestStation,fallbackStation:f.combination[i].fallbackStation,
+            stavorenPowerMW:stavoren[i].powerMW,houtribdijkPowerMW:houtribdijk[i].powerMW,
+            differenceMW:stavoren[i].powerMW===null||houtribdijk[i].powerMW===null?null:Math.abs(stavoren[i].powerMW-houtribdijk[i].powerMW)}));
+          return answer({day,stavoren,houtribdijk,combination,unavailable:[...new Set([...f.unavailable,...bp.unavailable])]});
+        }
         const [fryslan,beabuorren]=await Promise.all([readWind(day,env,a),readWind(day,env,b)]);
         return answer({day,intervals:combinedSupply(fryslan.intervals,beabuorren.intervals)});
       }
@@ -124,7 +133,7 @@ export default {
         if(!env.KNMI_EDR_API_KEY)return answer({error:'KNMI-windgegevens zijn nog niet gekoppeld.'},503);
         let options;
         try {options=modelOptions(url.searchParams);}catch{return answer({error:'Ongeldige modelinstellingen. Controleer de waarden en de volgorde van de windsnelheidsgrenzen.'},400);}
-        return answer(await readWind(day,env,options));
+        return answer(await (url.searchParams.get('comparison')==='1'?readWindComparison(day,env,options):readWind(day,env,options)));
       }
       if (url.pathname === '/api/history') {
         const day = url.searchParams.get('day');

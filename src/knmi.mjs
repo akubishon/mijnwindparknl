@@ -16,13 +16,7 @@ export function modelOptions(params) {
   if(!(o.cutIn<o.ratedSpeed&&o.ratedSpeed<o.cutOut))throw Error('INVALID_MODEL_OPTIONS');
   return o;
 }
-export function modelHours(raw, day, options=modelOptions(new URLSearchParams()), includeIntervals=false) {
-  const coverage=raw.coverages?.[0];
-  if(raw.coverages?.length!==1 || coverage?.['eumetnet:locationId']!==options.stationId || raw.parameters?.ff?.unit?.symbol?.value!=='m/s')throw Error('Invalid KNMI data');
-  const stamps=coverage.domain?.axes?.t?.values || [], values=coverage.ranges?.ff?.values || [];
-  if(stamps.length!==values.length)throw Error('Invalid KNMI time axis');
-  const samples=stamps.map((stamp,i)=>({t:Date.parse(stamp)-300000,direction:typeof coverage.ranges?.dd?.values?.[i]==='number'&&Number.isFinite(coverage.ranges.dd.values[i])&&coverage.ranges.dd.values[i]>=0&&coverage.ranges.dd.values[i]<=360?coverage.ranges.dd.values[i]:null,v:typeof values[i]==='number'&&Number.isFinite(values[i])&&values[i]>=0?values[i]:null}));
-  if(samples.some((s,i)=>!Number.isFinite(s.t)||(i&&s.t<=samples[i-1].t)))throw Error('Invalid KNMI time axis');
+export function windPowerModel(day,options) {
   const base=Date.parse(day+'T00:00:00Z');
   const doy=Math.floor((base-Date.UTC(Number(day.slice(0,4)),0,1))/86400000)+1;
   const alpha=options.alpha+(options.seasonal?.065*Math.cos(2*Math.PI*(doy-1)/365):0);
@@ -34,7 +28,17 @@ export function modelHours(raw, day, options=modelOptions(new URLSearchParams())
     const [v0,p0]=beabuorrenCurve[i-1], [v1,p1]=beabuorrenCurve[i];
     return (p0+(p1-p0)*(v-v0)/(v1-v0))*options.ratedKW/1300;
   };
-  const parkPower=v=>{if(v===null)return null;const hub=v*(options.height/10)**alpha, unperturbed=turbine(hub);return (options.wake&&unperturbed>0?turbine(hub*(1-options.wakePercent/100)):unperturbed)*(options.park==='beabuorren'?8:89)/1000;};
+  return v=>{if(v===null)return null;const hub=v*(options.height/10)**alpha, unperturbed=turbine(hub);return (options.wake&&unperturbed>0?turbine(hub*(1-options.wakePercent/100)):unperturbed)*(options.park==='beabuorren'?8:89)/1000;};
+}
+export function modelHours(raw, day, options=modelOptions(new URLSearchParams()), includeIntervals=false) {
+  const coverage=raw.coverages?.[0];
+  if(raw.coverages?.length!==1 || coverage?.['eumetnet:locationId']!==options.stationId || raw.parameters?.ff?.unit?.symbol?.value!=='m/s')throw Error('Invalid KNMI data');
+  const stamps=coverage.domain?.axes?.t?.values || [], values=coverage.ranges?.ff?.values || [];
+  if(stamps.length!==values.length)throw Error('Invalid KNMI time axis');
+  const samples=stamps.map((stamp,i)=>({t:Date.parse(stamp)-300000,direction:typeof coverage.ranges?.dd?.values?.[i]==='number'&&Number.isFinite(coverage.ranges.dd.values[i])&&coverage.ranges.dd.values[i]>=0&&coverage.ranges.dd.values[i]<=360?coverage.ranges.dd.values[i]:null,v:typeof values[i]==='number'&&Number.isFinite(values[i])&&values[i]>=0?values[i]:null}));
+  if(samples.some((s,i)=>!Number.isFinite(s.t)||(i&&s.t<=samples[i-1].t)))throw Error('Invalid KNMI time axis');
+  const base=Date.parse(day+'T00:00:00Z');
+  const parkPower=windPowerModel(day,options);
   const buckets=Array.from({length:24},()=>({sum:0,count:0,missing:0}));
   let index=0;
   for(let t=base-3*3600000;t<base+25*3600000;t+=60000){
@@ -78,4 +82,35 @@ export function stationsByDistance(park) {
   const centre=park==='beabuorren'?[53.052,5.493]:[53.017,5.367];
   const rad=v=>v*Math.PI/180;
   return stationCatalog.map(s=>{const a=Math.sin(rad(s.latitude-centre[0])/2)**2+Math.cos(rad(centre[0]))*Math.cos(rad(s.latitude))*Math.sin(rad(s.longitude-centre[1])/2)**2;return {...s,distanceKM:6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))};}).sort((a,b)=>a.distanceKM-b.distanceKM||a.name.localeCompare(b.name));
+}
+
+// Align original observations by their exact ten-minute interval, then choose wind BEFORE power.
+export function stationComparison(stavoren,houtribdijk,day,options) {
+  const map=rows=>new Map(rows.map(p=>[p.start+'|'+p.end,p]));
+  const a=map(stavoren),b=map(houtribdijk),power=windPowerModel(day,options);
+  const result={stavoren:[],houtribdijk:[],combination:[]};
+  const base=Date.parse(day+'T00:00:00Z');
+  for(let t=base-3*3600000;t<base+27*3600000;t+=600000){
+    const local=localParts(t);if(`${local.year}-${local.month}-${local.day}`!==day||t+600000>Date.now())continue;
+    const start=new Date(t).toISOString(),end=new Date(t+600000).toISOString(),key=start+'|'+end;
+    const empty={start,end,timestamp:end,powerMW:null,windSpeedMS:null};
+    const pa=a.get(key)||empty,pb=b.get(key)||empty;
+    const av=typeof pa.windSpeedMS==='number'&&Number.isFinite(pa.windSpeedMS)?pa.windSpeedMS:null;
+    const bv=typeof pb.windSpeedMS==='number'&&Number.isFinite(pb.windSpeedMS)?pb.windSpeedMS:null;
+    const wind=av===null?bv:bv===null?av:Math.max(av,bv);
+    const highestStation=av===null?(bv===null?null:'Houtribdijk'):bv===null?'Stavoren':av===bv?'Gelijk':av>bv?'Stavoren':'Houtribdijk';
+    result.stavoren.push({...pa});result.houtribdijk.push({...pb});
+    result.combination.push({...empty,powerMW:power(wind),windSpeedMS:wind,highestStation,
+      fallbackStation:av===null&&bv!==null?'Houtribdijk':bv===null&&av!==null?'Stavoren':null,
+      stavorenPowerMW:pa.powerMW,houtribdijkPowerMW:pb.powerMW,
+      stavorenWindSpeedMS:av,houtribdijkWindSpeedMS:bv,
+      differenceMW:pa.powerMW===null||pb.powerMW===null?null:Math.abs(pa.powerMW-pb.powerMW)});
+  }
+  return result;
+}
+export async function readWindComparison(day,env,options=modelOptions(new URLSearchParams())) {
+  const ids=['0-20000-0-06267','0-20000-0-06258'],names=['Stavoren','Houtribdijk'];
+  const profiles=await Promise.allSettled(ids.map((stationId,i)=>readWind(day,env,{...options,station:stationId,stationId,stationName:names[i]})));
+  return {day,...stationComparison(...profiles.map(r=>r.status==='fulfilled'?r.value.intervals:[]),day,options),
+    unavailable:profiles.flatMap((r,i)=>r.status==='rejected'?[names[i]]:[])};
 }

@@ -7,7 +7,7 @@
     "dev": "node scripts/dev.mjs",
     "compose": "node scripts/compose-worker.mjs",
     "build": "bash scripts/build.sh && node scripts/validate-artifact.mjs",
-    "test": "node --test tests/worker.test.mjs"
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "lucide-react": "1.31.0",
