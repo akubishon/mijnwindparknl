@@ -1,6 +1,6 @@
 /* Witteveen+Bos-stijl, gelijk aan mijnwindpark.nl. */
 @font-face{font-family:'TASA Orbiter';src:url('/fonts/tasa-orbiter.ttf') format('truetype');font-style:normal;font-weight:400 800;font-display:swap}
-:root{--ink:#0C2340;--muted:#465970;--accent:#00A6DE;--sky:#C3E4F2;--paper:#EFECE6;--line:#bcc8d2;--surface:#fff;
+:root{--ink:#0C2340;--muted:#465970;--accent:#00A6DE;--sky:#C3E4F2;--paper:#EFECE6;--line:#bcc8d2;--surface:#fff;--page-gutter:clamp(16px,2.25vw,56px);
   --series-1:#22528F;--series-2:#0094C6;--wash:#C3E4F2}
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:'TASA Orbiter','Segoe UI',Arial,sans-serif;font-size:15px;line-height:1.6}
@@ -9,11 +9,11 @@ button{cursor:pointer}
 button:disabled{cursor:default;opacity:.45}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
 a{color:inherit}
-.shell{max-width:1600px;margin:auto}
-.topbar{background:var(--ink);color:#fff;height:100px;padding:0 6.25%;display:flex;align-items:center;justify-content:space-between;border-radius:0 0 36px 0}
+.shell{width:100%;max-width:none;margin:auto}
+.topbar{background:var(--ink);color:#fff;height:100px;padding:0 var(--page-gutter);display:flex;align-items:center;justify-content:space-between;border-radius:0 0 36px 0}
 .brand{color:#fff;font-size:30px;font-weight:700;letter-spacing:-.8px;text-decoration:none}
 .zone{color:var(--sky);font-size:12px}
-main{padding:0 6.25% 40px}
+main{padding:0 var(--page-gutter) 40px;min-width:0}
 .park-nav{display:flex;flex-wrap:wrap;margin:26px 0 0;border-bottom:1px solid var(--ink)}
 .park-nav a{padding:13px 20px;font-size:14px;text-decoration:none}
 .park-nav a:hover{background:var(--sky)}
@@ -36,7 +36,7 @@ main{padding:0 6.25% 40px}
 .flow p{font-size:13px;color:var(--muted);margin:0 0 12px;flex:1}
 .flow code{font-family:inherit;font-size:12px;background:var(--surface);border-left:3px solid var(--accent);padding:6px 8px}
 .flow-n{display:inline-grid;place-items:center;width:28px;height:28px;background:var(--ink);color:#fff;border-radius:0 8px 0 0;font-size:13px;font-weight:700}
-.explain-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.explain-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
 .explain{margin:0;background:var(--sky);border-radius:0 28px 0 0;padding:22px}
 .explain h3,.chart-card h3{font-size:18px;font-weight:500;margin:0 0 6px}
 .explain p{margin:0 0 12px;font-size:14px}
@@ -107,7 +107,7 @@ input[type=radio],input[type=checkbox]{accent-color:var(--ink);width:16px;height
 .headline strong{display:block;font-size:clamp(30px,3vw,44px);line-height:1.1;font-weight:500;letter-spacing:-1px;margin:6px 0}
 .headline span{font-size:11px;letter-spacing:.6px;font-weight:700;text-transform:uppercase}
 .headline p{margin:0;font-size:13px}
-.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.chart-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
 .chart-card{margin:0;border:1px solid var(--line);border-radius:0 24px 0 0;padding:20px}
 .chart-card>p{margin:0 0 10px;font-size:13px;color:var(--muted)}
 .chart svg{display:block;width:100%;height:auto;overflow:visible}
@@ -197,7 +197,7 @@ footer{color:var(--muted);font-size:12px;border-top:1px solid var(--ink);margin-
 .why-head h3{font-size:21px;font-weight:500;margin:0 0 6px;line-height:1.6}
 .why-head select{margin:0 4px;font-size:18px;padding:4px 8px;border:1px solid var(--ink);background:#fff;border-radius:0 8px 0 0}
 .why-head .note{max-width:820px;margin:0 0 16px}
-.why-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.why-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
 .why-grid .chart-card>p{margin:0 0 10px}
 .heaviest{font-size:15px;color:var(--ink)!important}
 @media(max-width:900px){.why-grid{grid-template-columns:1fr}}
@@ -256,3 +256,13 @@ footer{color:var(--muted);font-size:12px;border-top:1px solid var(--ink);margin-
 .winner-compare dl{display:grid;grid-template-columns:auto auto;gap:2px 14px;margin:0;font-size:13px}
 .winner-compare dt{color:var(--muted)}
 .winner-compare dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+
+/* Let data use widescreen space, without stretching prose or small diagrams. */
+.panel,.explain-grid>*,.chart-grid>*,.why-grid>*{min-width:0}
+.chart-card>p{max-width:90ch}
+.winner-compare{max-width:1120px}
+.map-grid .chart-card{max-width:1120px}
+.chart svg,.explain svg{max-width:1100px}
+@media(min-width:2400px){
+ .chart-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
