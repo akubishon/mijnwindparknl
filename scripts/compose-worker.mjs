@@ -1,3 +1,4 @@
+import {assets as opsAssets,html as opsPage,policy as opsPolicy} from './compose-opsplitsing.mjs';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { build } from 'esbuild';
 import { createHash } from 'node:crypto';
@@ -11,7 +12,7 @@ const policy = `default-src 'none'; script-src 'sha256-${scriptHash}'; style-src
 const stationCatalog = readFileSync('src/stations.json', 'utf8');
 const electrolyserClient=readFileSync('src/electrolysis.mjs','utf8').replaceAll('export ', '');
 const windClient = readFileSync('src/knmi.mjs', 'utf8').replace("import stationCatalog from './stations.json' with { type: 'json' };", 'const stationCatalog = '+stationCatalog+';').replaceAll('export ', '');
-const worker = readFileSync('src/worker-template.mjs', 'utf8').replace('/* __DATA_CLIENT__ */', () => dataClient).replace('/* __WIND_CLIENT__ */', () => windClient+'\n'+electrolyserClient).replace('/* __STATIONS__ */', () => stationCatalog).replace('/* __BRAND_FONT__ */',()=>JSON.stringify(readFileSync('src/assets/tasa-orbiter.ttf').toString('base64'))).replace('/* __PAGE__ */', () => JSON.stringify(html)).replace('/* __CSP__ */', () => JSON.stringify(policy));
+const worker = readFileSync('src/worker-template.mjs', 'utf8').replace('/* __DATA_CLIENT__ */', () => dataClient).replace('/* __WIND_CLIENT__ */', () => windClient+'\n'+electrolyserClient).replace('/* __STATIONS__ */', () => stationCatalog).replace('/* __BRAND_FONT__ */',()=>JSON.stringify(readFileSync('src/assets/tasa-orbiter.ttf').toString('base64'))).replace('/* __OPS_ASSETS__ */',()=>JSON.stringify(opsAssets)).replace('/* __OPS_PAGE__ */',()=>JSON.stringify(opsPage)).replace('/* __OPS_POLICY__ */',()=>JSON.stringify(opsPolicy)).replace('/* __PAGE__ */', () => JSON.stringify(html)).replace('/* __CSP__ */', () => JSON.stringify(policy));
 mkdirSync('worker', { recursive: true });
 writeFileSync('worker/index.js', worker);
 console.log('Composed the standalone app worker.');

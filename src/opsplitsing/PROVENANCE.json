@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/akubishon/windprofiel",
+  "commit": "0c3cba267e355bbfa38265e1c87a5804afff6aaa",
+  "retrieved_on": "2026-10-21",
+  "python_sha256": {
+    "windprofiel/__init__.py": "17e3726bf973a77277508ede49a8f3772029b72101f5251c1c53ed89ff5126b0",
+    "windprofiel/profile.py": "e08d80c2732eb0406a70a3f231c924933e936daf192849c4d022ad4e72cd50ba",
+    "windprofiel/opsplitsing.py": "2da24a8dca4d2298a325881c628dd4b0a3846b12beba5eee58ce2a21d092fa72",
+    "windprofiel/scenarios.py": "27654e0b8332f6faceb51390be41bee9b309d4428e8eec482a1718ca159ce2a4",
+    "windprofiel/application.py": "bbcd93eb0ff579e1f42643d545f56352dd1dcf5257b19ccbd7a5cc838613e5de",
+    "windprofiel/knmi.py": "6e8fff72c352a7d1670e2020f034186daad8b9ab2d62ba94dec314b8736814d7"
+  },
+  "wind_years": [
+    2022,
+    2023,
+    2024,
+    2025
+  ],
+  "source": "KNMI EDR; upstream supply_year with original park curves and assumptions",
+  "runtime": "Pyodide 0.29.3; upstream Python unchanged; SerialPool replaces ProcessPoolExecutor; precomputed supply replaces KNMI requests; browser-local saved scenarios",
+  "timezone_source": "IANA Europe/Amsterdam from system zoneinfo"
+}

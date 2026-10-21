@@ -1,5 +1,8 @@
 /* __DATA_CLIENT__ */
 /* __WIND_CLIENT__ */
+const opsAssets = /* __OPS_ASSETS__ */;
+const opsPage = /* __OPS_PAGE__ */;
+const opsPolicy = /* __OPS_POLICY__ */;
 const page = /* __PAGE__ */;
 const brandFont = /* __BRAND_FONT__ */;
 const favicon='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M0 0h48a16 16 0 0 1 16 16v48H0z" fill="#0C2340"/><path d="M32 31v23M32 31L18 11M32 31l25-3M32 31L18 49" stroke="#00A6DE" stroke-width="5"/></svg>';
@@ -71,6 +74,9 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const gate=await gateRequest(request,env,url);if(gate)return gate;
+    if(url.pathname==='/opsplitsing'||url.pathname==='/elektrolyser/opsplitsen')return new Response(opsPage,{headers:{...securityHeaders,'Content-Security-Policy':opsPolicy,'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
+    if(url.pathname==='/api/opsplitsing/scenarios')return answer({scenarios:[]});
+    if(url.pathname.startsWith('/opsplitsing-assets/')){const asset=opsAssets[url.pathname.slice('/opsplitsing-assets/'.length)];return asset?new Response(asset[0],{headers:{...securityHeaders,'Content-Security-Policy':opsPolicy,'Content-Type':asset[1]+'; charset=utf-8','Cache-Control':'private, max-age=3600'}}):answer({error:'Onbekend bestand.'},404);}
     if(url.pathname==='/api/research/auth'&&request.method==='POST'){
       if(request.headers.get('Origin')!==url.origin)return answer({error:'Ongeldige aanvraag.'},403);
       if(!env.RESEARCH_PASSWORD)return answer({error:'Onderzoek is vergrendeld: het wachtwoord is nog niet ingesteld.'},503);
@@ -89,7 +95,7 @@ export default {
       authAttempts.delete(ip);return answer({token:await researchToken(env.RESEARCH_PASSWORD)});
     }
     if (request.method !== 'GET') return answer({ error: 'Method not allowed' }, 405);
-    if ((url.pathname === '/assets/tasa-orbiter.ttf' || url.pathname === '/proefstijl/font.ttf')) return new Response(Uint8Array.from(atob(brandFont),c=>c.charCodeAt(0)), {headers:{...securityHeaders,'Content-Type':'font/ttf','Cache-Control':'public, max-age=86400'}});
+    if ((url.pathname === '/fonts/tasa-orbiter.ttf' || url.pathname === '/assets/tasa-orbiter.ttf' || url.pathname === '/proefstijl/font.ttf')) return new Response(Uint8Array.from(atob(brandFont),c=>c.charCodeAt(0)), {headers:{...securityHeaders,'Content-Type':'font/ttf','Cache-Control':'public, max-age=86400'}});
     const formerTrialPages={'/proefstijl':'/','/proefstijl/beabuorren':'/beabuorren','/proefstijl/elektrolyser':'/elektrolyser','/proefstijl/onderzoek':'/onderzoek'};
     if(Object.hasOwn(formerTrialPages,url.pathname))return new Response(null,{status:302,headers:{...securityHeaders,Location:formerTrialPages[url.pathname]+url.search,'Cache-Control':'no-store'}});
     if (url.pathname === '/' || url.pathname === '/beabuorren' || url.pathname === '/elektrolyser' || url.pathname === '/onderzoek') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });

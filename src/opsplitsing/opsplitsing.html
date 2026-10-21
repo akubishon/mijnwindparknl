@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Elektrolyser opsplitsen</title>
+  <link rel="stylesheet" href="./opsplitsing.css"><script src="./opsplitsing.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="/">Windparken</a>
+      <span class="zone">Lokale analyse · Europe/Amsterdam</span>
+    </header>
+    <main>
+      <nav class="park-nav" aria-label="Pagina's">
+        <a href="/">Windprofiel</a>
+        <a href="/opsplitsing" aria-current="page">Elektrolyser opsplitsen</a>
+      </nav>
+
+      <section class="intro">
+        <div class="eyebrow">ONDERZOEK · 44 MW ELEKTROLYSER</div>
+        <h1>Eén grote elektrolyser, of meerdere kleine modules?</h1>
+        <p>Een elektrolyser kan niet onder zijn minimumlast draaien. Kleinere modules hebben een lagere ondergrens en
+          vangen daardoor meer zwakke wind op, maar ze kosten meer per kW. Deze pagina rekent dat door op vier echte
+          windjaren, met jouw eigen aannames.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="how-title">
+        <div class="step-heading"><span class="step-number">1</span><div>
+          <h2 id="how-title">Zo werkt de analyse</h2>
+          <p>Zes stappen van KNMI-meting naar kosten per kilo waterstof. Elke stap gebruikt de aannames onder stap 2.</p>
+        </div></div>
+        <ol class="flow">
+          <li><span class="flow-n">A</span><h3>KNMI-wind</h3>
+            <p>Tienminutengemiddelden van Houtribdijk en Stavoren, vier volledige jaren. Fryslân krijgt per tien minuten de hoogste van de twee, Beabuorren Stavoren.</p>
+            <code>v₁₀ per 10 min</code></li>
+          <li><span class="flow-n">B</span><h3>Parkvermogen</h3>
+            <p>Wind naar ashoogte met de seizoensexponent, door de vermogenscurve, minus zogverlies. Hetzelfde model als de windprofielpagina.</p>
+            <code>v = v₁₀ · (h/10)<sup>α</sup></code></li>
+          <li><span class="flow-n">C</span><h3>Aanbod</h3>
+            <p>De elektrolyser krijgt 10 % van Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl.</p>
+            <code>P = 0,1 · Fryslân + Beabuorren</code></li>
+          <li><span class="flow-n">D</span><h3>Modules inzetten</h3>
+            <p>Per tien minuten kiest de besturing hoeveel modules draaien. Grenzen: minimumlast, BoP, aan- en uittijden, startvertraging, onderhoud en storingen.</p>
+            <code>k modules · P/k per module</code></li>
+          <li><span class="flow-n">E</span><h3>Waterstof en slijtage</h3>
+            <p>Stackvermogen door de rendementscurve geeft kilo's. Starts en lastwisselingen tellen als extra bedrijfsuren voor de stack.</p>
+            <code>kg = stack-MWh ÷ kWh/kg</code></li>
+          <li><span class="flow-n">F</span><h3>Kosten</h3>
+            <p>CAPEX met rente, vaste OPEX, stackvervanging en stroom, gedeeld door de waterstof per jaar.</p>
+            <code>LCOH = kosten ÷ kg per jaar</code></li>
+        </ol>
+
+        <div class="explain-grid">
+          <figure class="explain">
+            <h3>Waarom opsplitsen helpt</h3>
+            <p>De minimumlast geldt per module. Eén grote module start pas als het aanbod boven haar minimumlast komt; vier modules van een kwart
+              van de grootte starten bij een kwart van dat aanbod. Alles onder de drempel gaat verloren.</p>
+            <svg id="threshold-art" viewBox="0 0 440 220" role="img" aria-labelledby="threshold-title">
+              <title id="threshold-title">Schets: een golvend windaanbod met twee drempels. De lage drempel van een kleine module laat meer aanbod door dan de hoge drempel van één grote module.</title>
+            </svg>
+            <figcaption>Donker: aanbod dat één grote module benut. Licht: wat vier modules daarbovenop benutten. Schets op schaal van de aannames, geen meting.</figcaption>
+          </figure>
+          <figure class="explain">
+            <h3>Rendement per module</h3>
+            <p>Waterstof per MWh stroom, inclusief BoP en Faradayverlies, tegen de last. Onder de minimumlast produceert een module niets.</p>
+            <div id="efficiency-chart" class="chart" role="img" aria-label="Rendementscurve per module"></div>
+            <figcaption id="efficiency-caption">Volgt de aannames uit stap 2.</figcaption>
+          </figure>
+        </div>
+        <details class="speed" id="speed">
+          <summary>Hoe kan een heel jaar, elke tien minuten, zo snel?</summary>
+          <div id="speed-body"></div>
+        </details>
+      </section>
+
+      <section class="panel" aria-labelledby="input-title">
+        <div class="step-heading"><span class="step-number">2</span><div>
+          <h2 id="input-title">Aannames</h2>
+          <p>Kies PEM of alkaline voor de standaardwaarden van de EU LCOH-tool (Clean Hydrogen Partnership). Wat die tool niet geeft,
+            zoals minimumlast en opstarttijden, staat als plaatshouder; elk veld zegt waar de waarde vandaan komt. Alles is aan te passen
+            en je wijzigingen blijven in deze browser bewaard.</p>
+        </div></div>
+        <aside class="scenario" aria-labelledby="scenario-title">
+          <div>
+            <span class="eyebrow">Scenario</span>
+            <h3 id="scenario-title">Wanneer wint 4 modules?</h3>
+            <p>Opsplitsen loont als kleine modules vaker waterstof maken dan één grote. Dat gebeurt vooral als een module een
+              <b>hoge minimumlast</b> heeft (alkaline: vaak 30 à 50 %) en een extra unit <b>weinig vaste kosten</b> heeft. Dit scenario
+              zet alkaline op 40 % minimumlast en 0,3 M€ vaste kosten per module, en rekent 1 tot 8 modules door.</p>
+          </div>
+          <button class="primary-button" type="button" id="scenario-run">Laad scenario en bereken</button>
+        </aside>
+        <form id="form" novalidate>
+          <div class="choices">
+            <fieldset><legend>Technologie</legend><div id="technologies" class="radio-list"></div><p id="tech-note" class="note"></p></fieldset>
+            <fieldset><legend>Besturing</legend><div id="strategies" class="radio-list"></div></fieldset>
+            <fieldset><legend>Windjaren</legend><div id="years" class="check-list"></div></fieldset>
+            <fieldset><legend>Aantal modules</legend><div id="counts" class="check-list"></div></fieldset>
+          </div>
+          <div id="groups" class="groups"></div>
+          <div class="form-actions">
+            <button class="primary-button" type="submit" id="run">Bereken</button>
+            <button class="secondary-button" type="button" id="reset">Alle standaardwaarden van deze technologie</button>
+            <span id="status" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="saved-title" id="saved">
+        <div class="step-heading"><span class="step-number">↺</span><div>
+          <h2 id="saved-title">Opgeslagen scenario's</h2>
+          <p>Bewaar berekende uitkomsten op dit apparaat. “Toon” herstelt de uitkomst en de aannames. Opgeslagen scenario’s blijven in deze browser; CSV-export staat bij de uitkomst.</p>
+        </div></div>
+        <div class="saved-actions"><button class="secondary-button" type="button" id="saved-refresh">Lijst vernieuwen</button>
+          <span id="saved-status" class="note" role="status" aria-live="polite"></span></div>
+        <div id="saved-list" class="table-scroll"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="result-title" id="results" hidden>
+        <div class="step-heading"><span class="step-number">3</span><div>
+          <h2 id="result-title">Uitkomst</h2>
+          <p id="result-sub"></p>
+        </div></div>
+        <div id="headline" class="headline"></div>
+        <section class="winner" aria-labelledby="winner-title">
+          <span class="eyebrow">Beste aantal modules</span>
+          <h3 id="winner-title"></h3>
+          <div id="winner-compare" class="winner-compare"></div>
+          <p id="winner-text" class="winner-text"></p>
+          <div class="winner-grid">
+            <figure class="chart-card">
+              <h3>Stap voor stap: loont nog een module erbij?</h3>
+              <p>Per extra module: wat de kilo's kosten die hij extra oplevert. Ligt de balk links van het streepje (de gemiddelde
+                kosten per kilo tot dan toe), dan trekt de stap het gemiddelde omlaag en loont hij.</p>
+              <div id="ladder-legend" class="legend"></div>
+              <div id="ladder" class="chart"></div>
+            </figure>
+            <figure class="chart-card">
+              <h3>Omslagkaart: welk aantal wint waar?</h3>
+              <p>Het aantal modules met de laagste kostprijs per kilo bij elke combinatie van minimumlast en vaste kosten per module; alle andere aannames
+                zoals nu. Het omrande vak ligt het dichtst bij de huidige aannames. Rekent vijf minimumlasten opnieuw door, dus de eerste keer duurt het even.</p>
+              <div class="map-actions"><button class="secondary-button" type="button" id="map-run">Bereken omslagkaart</button>
+                <span id="map-status" class="note" role="status" aria-live="polite"></span></div>
+              <div id="switch-map" class="chart"></div>
+            </figure>
+          </div>
+        </section>
+        <div class="chart-grid">
+          <figure class="chart-card">
+            <h3>Waterstof per jaar</h3>
+            <p>Gemiddelde over de windjaren; de streep loopt van het zwakste tot het sterkste jaar.</p>
+            <div id="h2-chart" class="chart"></div>
+          </figure>
+          <figure class="chart-card">
+            <h3>Hoeveel mag een extra module kosten?</h3>
+            <p>Per aantal modules de hoogste vaste kosten per module waarbij de kilo niet duurder is dan met één module.
+              Ligt de offerte per unit daaronder, dan loont opsplitsen. Dit is het getal om offertes aan te toetsen.</p>
+            <div id="capex-chart" class="chart"></div>
+          </figure>
+          <figure class="chart-card">
+            <h3 id="lcoh-title">Kosten per kilo (LCOH)</h3>
+            <p id="lcoh-note">Met de CAPEX uit de referentieofferte en de vaste kosten per module; de streep toont de spreiding tussen windjaren.</p>
+            <div id="lcoh-chart" class="chart"></div>
+          </figure>
+          <figure class="chart-card">
+            <h3>Wat elke extra stap oplevert</h3>
+            <p>Extra waterstof per jaar ten opzichte van het vorige aantal modules.</p>
+            <div id="step-chart" class="chart"></div>
+          </figure>
+        </div>
+        <div class="why">
+          <div class="why-head">
+            <h3>Waarom wint of verliest <label class="sr-only" for="why-n">Aantal modules</label><select id="why-n"></select>
+              tegen <span id="why-base">1 module</span>?</h3>
+            <p class="note">Links het verschil in kosten per kilo, uitgesplitst in de vier delen waaruit het exact bestaat. Rechts welke aanname
+              dat verschil het sterkst verschuift.</p>
+          </div>
+          <div class="why-grid">
+            <figure class="chart-card">
+              <h3>Waar het verschil vandaan komt</h3>
+              <p id="why-total"></p>
+              <div id="waterfall" class="chart"></div>
+            </figure>
+            <figure class="chart-card">
+              <h3>Welke aanname weegt het zwaarst?</h3>
+              <p>Elke aanname 25 % lager en 25 % hoger. De balk toont hoe ver het voordeel van <span class="why-n-label"></span> dan verschuift;
+                de bovenste weegt het zwaarst.</p>
+              <p id="tornado-status" class="note" role="status" aria-live="polite"></p>
+              <div id="tornado-legend" class="legend"></div>
+              <div id="tornado" class="chart"></div>
+            </figure>
+          </div>
+        </div>
+        <details class="table-details" open>
+          <summary>Alle uitkomsten in een tabel</summary>
+          <div class="table-scroll"><table id="table"></table></div>
+        </details>
+      </section>
+
+      <section class="panel" aria-labelledby="day-title" id="day-panel" hidden>
+        <div class="step-heading"><span class="step-number">4</span><div>
+          <h2 id="day-title">Een dag van dichtbij</h2>
+          <p>Hetzelfde aanbod, twee configuraties. Standaard een gewone dag waarop opsplitsen hielp: beter dan driekwart van de dagen, zonder onderhoud of storing. Waar de lijnen samenvallen, draaien beide even hard.</p>
+        </div></div>
+        <div class="day-controls">
+          <label>Dag <input type="date" id="day"></label>
+          <label>Vergelijk 1 module met <select id="day-count"></select></label>
+          <button class="secondary-button" type="button" id="day-run">Toon dag</button>
+          <span id="day-status" role="status" aria-live="polite"></span>
+        </div>
+        <div id="day-legend" class="legend"></div>
+        <div id="day-chart" class="chart day-chart"></div>
+        <p id="day-summary" class="note"></p>
+        <div class="walk-head">
+          <div>
+            <h3>Rekenvoorbeeld: één moment van tien minuten</h3>
+            <p class="note">Klik of sleep in de grafiek, of gebruik de schuif. De kaarten rekenen dat ene moment stap voor stap door,
+              met dezelfde formules als de jaarberekening. Het hele jaar is deze som, herhaald voor elke tien minuten.</p>
+          </div>
+          <label class="step-picker">Tijdstip <output id="step-time"></output>
+            <input type="range" id="step" min="0" max="143" value="72" aria-describedby="step-time"></label>
+        </div>
+        <ol class="flow walk" id="walk"></ol>
+      </section>
+
+      <footer>KNMI EDR · rekenmodel windprofiel · plaatshouders voor leveranciersgegevens · TASA Orbiter onder SIL Open Font License</footer>
+    </main>
+  </div>
+  <div id="tooltip" class="tooltip" role="presentation" hidden></div>
+</body>
+</html>

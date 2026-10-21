@@ -423,3 +423,12 @@ test('atlas connection errors distinguish credentials from network failure witho
   assert.equal(r.status,502);const text=await r.text();assert.match(text,/verbinding/);assert.doesNotMatch(text,/private network detail|fixture-atlas-secret/);
  }finally{global.fetch=prior;}
 });
+test('opsplitsing page, Python model and year data stay behind the site login',async()=>{
+ const raw=await rawFresh();
+ for(const route of ['/opsplitsing','/opsplitsing-assets/bundle.json','/opsplitsing-assets/data/2025.json'])assert.equal((await get(raw,route)).status,401);
+ const worker=await fresh();const page=await get(worker,'/opsplitsing');assert.equal(page.status,200);assert.match(await page.text(),/bridge.js/);assert.match(page.headers.get('Content-Security-Policy'),/wasm-unsafe-eval/);
+ const bundle=await (await get(worker,'/opsplitsing-assets/bundle.json')).json();assert.ok(bundle['windprofiel/opsplitsing.py']);assert.ok(bundle['zoneinfo/Europe/Amsterdam']);
+ for(const year of [2022,2023,2024,2025]){const data=await(await get(worker,'/opsplitsing-assets/data/'+year+'.json')).json();assert.equal(data.jaar,year);assert.ok(data.t.length>51000);assert.equal(data.t.length,data.mw.length);}
+ assert.equal((await get(worker,'/opsplitsing-assets/data/2030.json')).status,404);
+ assert.equal((await get(worker,'/fonts/tasa-orbiter.ttf')).status,200);
+});
