@@ -284,7 +284,7 @@ test('site gate blocks every page, data endpoint and asset before any upstream r
  const worker=await rawFresh();const prior=global.fetch;let calls=0;global.fetch=async()=>{calls++;throw Error('must not fetch');};
  try{
   for(const path of ['/','/beabuorren','/elektrolyser','/onderzoek','/proefstijl','/favicon.svg','/assets/tasa-orbiter.ttf']){
-   const r=await get(worker,path);assert.equal(r.status,401,path);const html=await r.text();assert.match(html,/<label for="password">Wachtwoord<\/label>/);assert.doesNotMatch(html,/<style>|<button|<h1|<p[ >]/);assert.doesNotMatch(html,/const |<script>|Fryslân|Beabuorren|brandFont/);assert.equal(r.headers.get('Cache-Control'),'no-store');
+   const r=await get(worker,path);assert.equal(r.status,401,path);const html=await r.text();assert.match(html,/<label for="password">Wachtwoord<\/label>/);assert.match(html,/<h1 id="welcome-title">Welkom!<\/h1>/);assert.match(html,/Voer je wachtwoord in\./);assert.match(html,/<button type="submit">Inloggen<\/button>/);assert.doesNotMatch(html,/const |<script>|Fryslân|Beabuorren|brandFont/);assert.equal(r.headers.get('Cache-Control'),'no-store');assert.match(r.headers.get('Content-Security-Policy'),/form-action 'self'/);
   }
   for(const path of ['/api/live','/api/history?day=2026-10-14','/api/wind?day=2026-10-13','/api/research/day?day=2026-10-13','/api/stations','/api/catalog'])assert.equal((await get(worker,path)).status,401,path);
   assert.equal(calls,0);
@@ -295,7 +295,7 @@ test('site gate blocks every page, data endpoint and asset before any upstream r
 test('site login issues a secure session, rejects forged/expired/rotated sessions and permits logout',async()=>{
  const worker=await rawFresh(),base='https://fixture.test';
  const login=(password,next='/onderzoek',origin=base)=>worker.fetch(new Request(base+'/auth/site',{method:'POST',headers:{Origin:origin,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({password,next})}),env);
- assert.equal((await login('wrong')).status,401);
+ const invalid=await login('wrong');assert.equal(invalid.status,401);const invalidHtml=await invalid.text();assert.match(invalidHtml,/aria-describedby="password-error" aria-invalid="true"/);assert.match(invalidHtml,/<p class="error" id="password-error" role="alert">Onjuist wachtwoord\.<\/p>/);
  assert.equal((await login(env.SITE_PASSWORD,'/','https://evil.test')).status,403);
  const r=await login(env.SITE_PASSWORD);assert.equal(r.status,303);assert.equal(r.headers.get('Location'),'/onderzoek');const setCookie=r.headers.get('Set-Cookie');
  assert.match(setCookie,/Secure; HttpOnly; SameSite=Strict; Max-Age=43200/);assert.match(setCookie,/^__Host-site_session=/);
