@@ -232,25 +232,34 @@
           <h2 id="day-title">Een dag van dichtbij</h2>
           <p>Hetzelfde aanbod, twee configuraties. Standaard een gewone dag waarop opsplitsen hielp: beter dan driekwart van de dagen, zonder onderhoud of storing. Waar de lijnen samenvallen, draaien beide even hard.</p>
         </div></div>
-        <div class="day-controls">
-          <label>Dag <input type="date" id="day"></label>
-          <label>Vergelijk 1 module met <select id="day-count"></select></label>
-          <button class="secondary-button" type="button" id="day-run">Toon dag</button>
-          <span id="day-status" role="status" aria-live="polite"></span>
-        </div>
-        <div id="day-legend" class="legend"></div>
-        <div id="day-chart" class="chart day-chart"></div>
-        <p id="day-summary" class="note"></p>
-        <div class="walk-head">
-          <div>
-            <h3>Rekenvoorbeeld: één moment van tien minuten</h3>
-            <p class="note">Klik of sleep in de grafiek, of gebruik de schuif. De kaarten rekenen dat ene moment stap voor stap door,
-              met dezelfde formules als de jaarberekening. Het hele jaar is deze som, herhaald voor elke tien minuten.</p>
+        <div class="day-layout">
+          <div class="day-overview">
+            <div class="day-controls">
+              <label>Dag <input type="date" id="day"></label>
+              <label>Vergelijk 1 module met <select id="day-count"></select></label>
+              <button class="secondary-button" type="button" id="day-run">Toon dag</button>
+              <span id="day-status" role="status" aria-live="polite"></span>
+            </div>
+            <div id="day-legend" class="legend"></div>
+            <div id="day-chart" class="chart day-chart"></div>
+            <p class="day-chart-hint note">Veeg horizontaal door de grafiek om de hele dag te bekijken.</p>
+            <p id="day-summary" class="note"></p>
+            <div class="moment-toolbar">
+              <div><h3>Gekozen moment</h3><p>Klik in de grafiek of verplaats de schuif.</p></div>
+              <label class="step-picker">Tien minuten <output id="step-time"></output>
+                <input type="range" id="step" min="0" max="143" value="72" aria-describedby="step-time"></label>
+              <div class="moment-navigation"><button id="step-prev" class="secondary-button" type="button" disabled aria-label="Vorige tien minuten">← Vorige</button>
+                <button id="step-next" class="secondary-button" type="button" disabled aria-label="Volgende tien minuten">Volgende →</button></div>
+            </div>
+            <div id="moment-summary" class="moment-summary" aria-live="polite"></div>
           </div>
-          <label class="step-picker">Tijdstip <output id="step-time"></output>
-            <input type="range" id="step" min="0" max="143" value="72" aria-describedby="step-time"></label>
+          <aside class="day-detail" aria-labelledby="walk-title">
+            <div class="walk-head"><h3 id="walk-title">Dit moment, stap voor stap</h3>
+              <p class="note">Van windmeting tot waterstof. De kernwaarden staan bij elke stap; open een stap voor alle formules en aannames.</p>
+              <button id="walk-toggle" class="text-button" type="button">Alle rekenstappen tonen</button></div>
+            <ol class="flow walk" id="walk"></ol>
+          </aside>
         </div>
-        <ol class="flow walk" id="walk"></ol>
       </section>
 
       <footer>KNMI EDR · rekenmodel windprofiel · plaatshouders voor leveranciersgegevens · TASA Orbiter onder SIL Open Font License</footer>

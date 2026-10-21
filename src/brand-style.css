@@ -47,3 +47,32 @@ body.brand-style{--ink:#0C2340;--muted:#465970;--green:#00A6DE;--paper:#EFECE6;-
 @media(min-width:1200px){
  .brand-style .history-layout{grid-template-columns:280px minmax(0,1fr);gap:28px}
 }
+
+/* Use wide screens for comfortable reading, with clear primary and secondary text. */
+body.brand-style{font-size:17px}
+.brand-style .intro p,.brand-style .research-explainer p,.brand-style .research-choice p,.brand-style .research-step-heading p,.brand-style .research-answer p,.brand-style .research-bounds p,.brand-style .capacity-comparison>p,.brand-style .capacity-curve>p{font-size:17px}
+.brand-style .metric-note,.brand-style .aside-note,.brand-style .data-note,.brand-style .calendar-note,.brand-style .chart-caption,.brand-style .chart-header p,.brand-style .wind-note,.brand-style .allocation-note,.brand-style .frequent-note,.brand-style .model-settings p{font-size:15px}
+.brand-style .metric-label,.brand-style .calendar-select label,.brand-style .date-jump,.brand-style .model-grid label,.brand-style .research-bar small,.atlas-config small{font-size:14px}
+.brand-style .metric-value{font-size:42px}
+.brand-style .metric-value span{font-size:16px}
+.brand-style .calendar-grid button,.brand-style .month-heading,.brand-style .weekday{font-size:14px}
+.brand-style .calendar-grid button{height:38px}
+.brand-style .park-nav a,.brand-style .primary-button,.brand-style .download,.brand-style .pause-button,.brand-style .today-button,.brand-style .tabs button,.brand-style .model-grid input,.brand-style .model-grid select{font-size:16px}
+.brand-style .text-button,.brand-style .research-table caption{font-size:15px}
+.brand-style table,.brand-style .research-bar,.brand-style .hour-table summary,.brand-style .model-settings summary{font-size:16px}
+.brand-style td,.brand-style th{padding:14px}
+.brand-style .chart-header h3{font-size:21px}
+.brand-style .chart-header{flex-wrap:wrap;align-items:flex-start;gap:14px}
+.brand-style .chart-header>div{min-width:0;flex:1 1 240px}
+.brand-style .panel-heading h2,.brand-style .research-step-heading h2{font-size:28px}
+@media(min-width:1200px){
+ .brand-style .history-layout{grid-template-columns:310px minmax(0,1fr);gap:32px}
+ .brand-style .production-panel,.brand-style .live-panel{padding:32px}
+}
+@media(max-width:720px){
+ body.brand-style{font-size:16px}
+ .brand-style .intro p{font-size:16px}
+ .brand-style .metric-value{font-size:32px}
+ .brand-style .park-nav a{font-size:14px}
+ .brand-style td,.brand-style th{padding:12px}
+}

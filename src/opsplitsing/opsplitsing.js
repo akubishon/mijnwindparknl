@@ -937,7 +937,7 @@ function dayChart(data, n, v) {
   const one = data.configuraties[1] || data.configuraties["1"];
   const many = data.configuraties[n] || data.configuraties[String(n)];
   const steps = one.stappen;
-  const W = 1000, H = 300, L = 48, R = 16, T = 16, B = 260;
+  const W = 1000, H = 300, L = 48, R = 30, T = 16, B = 260;
   const start = steps[0].t, span = steps[steps.length - 1].t + 600 - start;
   const px = t => L + (t - start) / span * (W - L - R);
   const top = niceTop(Math.max(...steps.map(s => s.aanbod), threshold(v.capaciteit_mw, v)));
@@ -1102,6 +1102,14 @@ async function start() {
   loadSaved();
   $("step").addEventListener("input", event => selectStep(Number(event.target.value)));
   $("day-count").addEventListener("change", runDay);
+  $("step-prev").addEventListener("click", () => selectStep(day.index - 1));
+  $("step-next").addEventListener("click", () => selectStep(day.index + 1));
+  $("walk-toggle").addEventListener("click", () => {
+    const steps = [...$("walk").querySelectorAll("details")];
+    const open = !steps.every(step => step.open);
+    steps.forEach(step => { step.open = open; });
+    updateWalkToggle();
+  });
   addEventListener("scroll", hideTip, {passive: true});
 }
 
@@ -1124,6 +1132,8 @@ function selectStep(i) {
   if (!day.data) return;
   day.index = Math.max(0, Math.min(day.data.wind.length - 1, i));
   $("step").value = String(day.index);
+  $("step-prev").disabled = day.index === 0;
+  $("step-next").disabled = day.index === day.data.wind.length - 1;
   $("step-time").textContent = `${clockOf(cfg(day.data, 1).stappen[day.index].t)}–${clockOf(cfg(day.data, 1).stappen[day.index].t + 600)}`;
   day.marker?.(day.index);
   renderWalk();
@@ -1179,10 +1189,17 @@ function renderWalk() {
   const sumKg = s => s.kg.reduce((x, y) => x + y, 0);
   const kWh = (x, size) => x > 0 ? (x * (1 + v.bop_variabel / 100) + v.bop_vast / 100 * size) * 1000 / 6 : 0;
 
-  const card = (letter, title, body) => {
+  const previousSteps = [...$("walk").querySelectorAll("details")];
+  const expanded = previousSteps.length ? new Set(previousSteps.filter(step => step.open).map(step => step.dataset.step)) : new Set(["E"]);
+  const card = (letter, title, body, value) => {
     const li = document.createElement("li");
-    li.innerHTML = `<span class="flow-n">${letter}</span><h4>${title}</h4>`;
-    for (const part of [].concat(body)) typeof part === "string" ? li.insertAdjacentHTML("beforeend", part) : li.append(part);
+    const details = document.createElement("details");
+    details.dataset.step = letter;
+    details.open = expanded.has(letter);
+    details.innerHTML = `<summary><span class="flow-n">${letter}</span><h4>${title}</h4><strong class="step-value">${value}</strong></summary>`;
+    const content = document.createElement("div"); content.className = "walk-step-content";
+    for (const part of [].concat(body)) typeof part === "string" ? content.insertAdjacentHTML("beforeend", part) : content.append(part);
+    details.append(content); details.addEventListener("toggle", updateWalkToggle); li.append(details);
     return li;
   };
   const windLine = park => {
@@ -1228,15 +1245,27 @@ function renderWalk() {
     card("A", "KNMI-wind op 10 m", [legend, windSpark(data, index),
       `<p class="calc">${measured}<br>Fryslân: de hoogste, <b>${nf(wind.fryslan.v10)} m/s</b> van ${data.stations[wind.gekozen]}.
        <br>Beabuorren: Stavoren, <b>${nf(wind.beabuorren.v10)} m/s</b>.</p>
-       <p class="note">Tienminutengemiddelden van het KNMI. Voor Fryslân past de hoogste lijn beter bij wat het park zelf levert dan één station.</p>`]),
-    card("B", "Wind op ashoogte en parkvermogen", parks.map(windLine)),
+       <p class="note">Tienminutengemiddelden van het KNMI. Voor Fryslân past de hoogste lijn beter bij wat het park zelf levert dan één station.</p>`], `${nf(wind.fryslan.v10)} m/s voor Fryslân · ${nf(wind.beabuorren.v10)} m/s voor Beabuorren`),
+    card("B", "Wind op ashoogte en parkvermogen", parks.map(windLine), `${nf(wind.fryslan.mw)} MW + ${nf(wind.beabuorren.mw)} MW`),
     card("C", "Aanbod voor de elektrolyser", `<p class="calc">${nf(share, 1)} × ${nf(wind.fryslan.mw)} + ${nf(wind.beabuorren.mw)}<br><b class="big">= ${nf(a.aanbod)} MW</b></p>
-      <p class="note">10 % van Windpark Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl.</p>`),
-    card("D", "Modules inzetten", [deploy(one, a, COLORS.one, 1), deploy(many, b, COLORS.many, n)]),
-    card("E", "Waterstof in deze tien minuten", [produce(one, a, 1), produce(many, b, n)]),
+      <p class="note">10 % van Windpark Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl.</p>`, `${nf(a.aanbod)} MW beschikbaar`),
+    card("D", "Modules inzetten", [deploy(one, a, COLORS.one, 1), deploy(many, b, COLORS.many, n)], `${a.stack.filter(x => x > 0).length} van 1 aan · ${b.stack.filter(x => x > 0).length} van ${n} aan`),
+    card("E", "Waterstof in deze tien minuten", [produce(one, a, 1), produce(many, b, n)], `${nf(sumKg(a), 2)} kg met 1 module · ${nf(sumKg(b), 2)} kg met ${n}`),
     card("F", "Optellen", `<p class="calc">Dit moment: <b>${nf(sumKg(a))} kg</b> met 1 module, <b>${nf(sumKg(b))} kg</b> met ${n}.</p>
-      <p class="calc">De hele dag, ${nf(data.wind.length, 0)} stappen: <b>${nf(one.waterstof_kg / 1000, 2)} t</b> en <b>${nf(many.waterstof_kg / 1000, 2)} t</b>.</p>${year}`),
+      <p class="calc">De hele dag, ${nf(data.wind.length, 0)} stappen: <b>${nf(one.waterstof_kg / 1000, 2)} t</b> en <b>${nf(many.waterstof_kg / 1000, 2)} t</b>.</p>${year}`, `Dagtotaal: ${nf(one.waterstof_kg / 1000, 2)} t tegenover ${nf(many.waterstof_kg / 1000, 2)} t`),
   );
+  $("moment-summary").innerHTML = [[1, a], [n, b]].map(([count, step]) => `<section><h4>${label(count)}</h4>
+    <strong>${nf(sumKg(step), 2)} <small>kg waterstof</small></strong>
+    <p>${nf(step.verbruik, 2)} MW verbruik · ${step.stack.filter(x => x > 0).length} van ${count} modules aan</p>
+    ${step.opstart_min.some(minutes => minutes > 0) ? '<p class="startup-note">Opstarttijd beperkt de productie in dit moment.</p>' : ""}</section>`).join("");
+  updateWalkToggle();
+}
+
+function updateWalkToggle() {
+  const steps = [...$("walk").querySelectorAll("details")];
+  const allOpen = steps.length > 0 && steps.every(step => step.open);
+  $("walk-toggle").textContent = allOpen ? "Rekenstappen inklappen" : "Alle rekenstappen tonen";
+  $("walk-toggle").setAttribute("aria-expanded", String(allOpen));
 }
 
 // ---------------------------------------------------------------- hoe kan dit zo snel?

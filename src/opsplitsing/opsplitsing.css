@@ -263,6 +263,113 @@ footer{color:var(--muted);font-size:12px;border-top:1px solid var(--ink);margin-
 .winner-compare{max-width:1120px}
 .map-grid .chart-card{max-width:1120px}
 .chart svg,.explain svg{max-width:1100px}
-@media(min-width:2400px){
- .chart-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+/* Comfortable reading: breadth goes to larger panels, never extra small charts. */
+body{font-size:17px;line-height:1.65}
+.panel{padding:32px 36px}
+.step-heading h2{font-size:28px}
+.step-heading p,.intro p,.explain p,.scenario p,.winner-text,.result-context p,.chart-card>p,.speed p,.speed li{font-size:17px}
+.note,figcaption,.result-context summary,.legend,.field-meta,.hint,.group-summary,.headline p,.calc,.flow code{font-size:15px}
+.chart-card h3,.explain h3,.result-context h3{font-size:22px}
+.chart-card{padding:26px}
+.chart text{font-size:13px}
+.flow{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 0}
+.flow li:nth-child(3n)::after{display:none}
+.flow p,.flow h3{font-size:17px}
+.flow li{padding:22px}
+.choices{gap:24px}
+legend,.radio-list label,.check-list label,.field label,.group-name,.day-controls label{font-size:16px}
+.radio-list small,.field-meta,.winner-compare span,.winner-compare small{font-size:14px}
+.winner-compare dl{font-size:16px;gap:6px 20px}
+.winner-compare strong{font-size:42px}
+.winner-compare{max-width:1240px;gap:24px}
+.winner-grid,.why-grid,.chart-grid,.explain-grid{gap:28px}
+.winner-grid{grid-template-columns:1fr}
+.map-grid .chart-card{max-width:1240px}
+table,#step-comparison,#step-data,#result-assumptions table{font-size:16px}
+th,td{padding:12px 14px}
+#step-comparison{min-width:600px}
+#step-data{min-width:1360px}
+.best-label,.step-direction{font-size:14px}
+.table-details summary,.why-head .note,.table-details>.note{font-size:16px}
+.chart svg,.explain svg{max-width:1200px}
+@media(min-width:1700px){
+ .winner-grid:not(.map-grid){grid-template-columns:minmax(0,1.35fr) minmax(600px,1fr)}
+}
+@media(max-width:1399px){
+ .chart-grid,.why-grid,.explain-grid{grid-template-columns:1fr}
+}
+@media(max-width:900px){
+ .flow{grid-template-columns:1fr 1fr}
+ .flow li::after{display:none!important}
+ .choices{grid-template-columns:1fr}
+}
+@media(max-width:720px){
+ body{font-size:16px}
+ .panel{padding:22px 18px}
+ .chart-card{padding:20px}
+ .intro p,.step-heading p,.chart-card>p,.explain p,.scenario p,.winner-text,.result-context p{font-size:16px}
+ .flow{grid-template-columns:1fr}
+ .winner-compare{grid-template-columns:1fr}
+ .winner-compare strong{font-size:36px}
+ .chart text{font-size:13px}
+}
+
+/* One workspace: daily behaviour on the left, the selected calculation on the right. */
+.day-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:32px;align-items:start}
+.day-layout>*{min-width:0}
+.day-overview{padding:24px;border:1px solid var(--line);border-radius:0 24px 0 0;background:#fff}
+.day-controls{gap:16px;margin-bottom:20px}
+.day-controls label{font-size:16px}
+#day-legend{font-size:15px;gap:10px 22px}
+#day-chart{overflow-x:auto}
+#day-chart svg{max-width:none;min-width:860px}
+#day-chart text{font-size:14px}
+.day-chart-hint{display:none}
+#day-summary{font-size:16px;max-width:95ch;margin:18px 0}
+.moment-toolbar{display:flex;flex-wrap:wrap;gap:18px 24px;align-items:center;border-top:1px solid var(--line);padding-top:20px}
+.moment-toolbar h3{font-size:22px;font-weight:500;margin:0}
+.moment-toolbar p{font-size:15px;margin:4px 0 0;color:var(--muted)}
+.moment-toolbar .step-picker{flex:1 1 260px;min-width:0;font-size:15px;gap:8px}
+.moment-toolbar output{font-size:28px}
+.moment-navigation{display:flex;gap:8px}
+.moment-navigation button{font-size:15px;padding:10px 12px}
+.moment-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:22px}
+.moment-summary section{background:var(--paper);border-left:4px solid var(--series-1);border-radius:0 16px 0 0;padding:18px 20px}
+.moment-summary section+section{background:#eef8fc;border-left-color:var(--series-2)}
+.moment-summary h4{font-size:17px;margin:0 0 10px}
+.moment-summary strong{display:block;font-size:32px;line-height:1.25;font-weight:500;font-variant-numeric:tabular-nums}
+.moment-summary small{font-size:16px;font-weight:400}
+.moment-summary p{font-size:15px;line-height:1.6;margin:12px 0 0}
+.startup-note{color:var(--muted)}
+.day-detail .walk-head{display:block;margin:0 0 20px;padding:0;border:0}
+.day-detail .walk-head h3{font-size:24px;margin:0 0 8px}
+.day-detail .walk-head p{font-size:16px;max-width:65ch}
+#walk-toggle{font-size:16px;margin-top:12px}
+.flow.walk{display:flex;flex-direction:column;gap:12px}
+.flow.walk>li{display:block;margin:0;padding:0;border:1px solid var(--line);border-radius:0 16px 0 0;background:#fff}
+.flow.walk>li::after{display:none!important}
+.walk details>summary{position:relative;display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:12px;row-gap:6px;align-items:center;padding:16px 40px 16px 16px;cursor:pointer;list-style:none}
+.walk details>summary::-webkit-details-marker{display:none}
+.walk details>summary::after{content:'+';position:absolute;right:16px;top:16px;font-size:22px;line-height:1}
+.walk details[open]>summary::after{content:'−'}
+.walk details[open]>summary{background:var(--sky);border-radius:0 16px 0 0}
+.walk summary .flow-n{grid-row:1/3;margin:0}
+.walk summary h4{margin:0;font-size:17px;line-height:1.4}
+.walk .step-value{grid-column:2;font-size:16px;font-weight:500;line-height:1.5;font-variant-numeric:tabular-nums}
+.walk-step-content{padding:18px 20px}
+.walk-step-content .calc,.walk-step-content .note,.walk-step-content .legend{font-size:16px}
+.walk-step-content p:last-child{margin-bottom:0}
+.walk-step-content .spark{max-width:360px;height:auto;margin:12px 0}
+.walk-step-content .module-bars{max-width:360px;height:auto}
+@media(min-width:1500px){
+ .day-layout{grid-template-columns:minmax(0,1.55fr) minmax(470px,1fr)}
+ .day-overview{position:sticky;top:24px}
+}
+@media(max-width:720px){
+ .day-overview{padding:16px}
+ .day-chart-hint{display:block;font-size:15px}
+ .moment-summary{grid-template-columns:1fr}
+ .moment-summary strong{font-size:30px}
+ .moment-toolbar .step-picker{flex-basis:100%}
+ .moment-navigation{width:100%;justify-content:space-between}
 }
