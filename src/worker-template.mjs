@@ -108,7 +108,7 @@ export default {
     if ((url.pathname === '/fonts/tasa-orbiter.ttf' || url.pathname === '/assets/tasa-orbiter.ttf' || url.pathname === '/proefstijl/font.ttf')) return new Response(Uint8Array.from(atob(brandFont),c=>c.charCodeAt(0)), {headers:{...securityHeaders,'Content-Type':'font/ttf','Cache-Control':'public, max-age=86400'}});
     const formerTrialPages={'/proefstijl':'/','/proefstijl/beabuorren':'/beabuorren','/proefstijl/elektrolyser':'/elektrolyser','/proefstijl/onderzoek':'/onderzoek'};
     if(Object.hasOwn(formerTrialPages,url.pathname))return new Response(null,{status:302,headers:{...securityHeaders,Location:formerTrialPages[url.pathname]+url.search,'Cache-Control':'no-store'}});
-    if (url.pathname === '/' || url.pathname === '/beabuorren' || url.pathname === '/elektrolyser' || url.pathname === '/onderzoek') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
+    if (url.pathname === '/' || url.pathname === '/fryslan' || url.pathname === '/beabuorren' || url.pathname === '/elektrolyser' || url.pathname === '/onderzoek') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
     if (url.pathname === '/favicon.svg') return new Response(favicon, { headers: { ...securityHeaders, 'Content-Type': 'image/svg+xml' } });
     try {
       if(url.pathname==='/api/atlas/catalogue'){
