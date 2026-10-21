@@ -67,9 +67,91 @@ The research main view is now centred on “Wat verandert als je groter gaat?”
 
 ## Official Waterstofatlas integration
 
-Research defaults to two real-model configurations from Waterstofatlas. `/api/atlas/catalogue` is gated by the website session and reads the deliberately added, read-only Atlas endpoint `/api/integrations/mijnwindpark/catalogue`. Both Sites share a scoped secret `WINDPARK_CATALOG_TOKEN`; it stays server-side. The endpoint merges the live R2 source with live online additions and projects only relevant catalogue fields and provenance. It does not scrape HTML or JavaScript, and it cannot modify records.
+The Waterstofatlas models are compared under `/elektrolyser` (see the next section); `/onderzoek` now refers there and keeps only the manual-capacity research. `/api/atlas/catalogue` is gated by the website session and reads the deliberately added, read-only Atlas endpoint `/api/integrations/mijnwindpark/catalogue`. Both Sites share a scoped secret `WINDPARK_CATALOG_TOKEN`; it stays server-side. The endpoint merges the live R2 source with live online additions and projects only relevant catalogue fields and provenance. It does not scrape HTML or JavaScript, and it cannot modify records.
 
-Each configuration chooses a catalogue model, integer module count and explicit system-power, system-kWh/kg and operating-percent assumptions. Unambiguous leading source values can be prefilled; ranges, bounds, stack-only consumption and minimum-load percentages expressed on a hydrogen-production basis are not silently turned into electrical point values. Raw specifications and source/addition provenance stay accessible. Users may edit scenario values or reapply current source values. Calculations restore gross allocated wind supply `(0.1 × Fryslân + Beabuorren)` from the existing after-BoP intervals by multiplying by 1.1, then use system energy per kg without a second generic BoP deduction. Constant part-load consumption is an assumption; startup, degradation and efficiency curves are not modelled. Unknown intervals do not count as zero production. The previous manual-capacity research remains as a secondary mode.
+## Elektrolysers uit de Waterstofatlas vergelijken
+
+Deze wijziging is in GitHub gemaakt en moet nog naar Sites worden overgezet; `SITES-SOURCE.json` beschrijft nog de laatst gespiegelde Sites-versie.
+
+### Pagina-opbouw
+
+`/elektrolyser` is één ingang met vier subtabbladen, elk met een eigen adres (terug-knop en links werken):
+
+1. **Beschikbaar vermogen** (`/elektrolyser`): de bestaande dagweergave, ongewijzigd in data en berekening. Alleen de subtabbladen staan erboven.
+2. **Catalogus** (`/elektrolyser/catalogus`): elektrolysers uit `/api/atlas/catalogue`, te filteren op fabrikant, technologie en zoekterm. Per model: modulevermogen, systeemverbruik, stackverbruik, minimumlast, leveringstype, brontekst en bron, elk met een statuslabel, en een link naar de Waterstofatlas. SANY, LONGi Hydrogen en Sungrow vallen weg, net als in de Atlas (`disabledManufacturers`); voedingen zonder stack (technologie Vermogenselektronica) ook.
+3. **Samenstellen** (`/elektrolyser/samenstellen`): tot vier opstellingen (A–D). Per opstelling een model en een geheel aantal modules, met totaalvermogen, opname bij vollast inclusief BoP en alle rekenwaarden met status, regel en brontekst. **Vul aan tot doelvermogen** (standaard 44 MW) kiest het aantal modules zoals `modules()` in `configurations.js`: exact als het past, anders het eerstvolgende aantal erboven, met het aantal eronder als alternatief.
+4. **Vergelijken** (`/elektrolyser/vergelijken`): 2 tot 4 complete opstellingen naast elkaar bij dezelfde windreeks en dezelfde algemene aannames, met een tabel, verschillen ten opzichte van een gekozen referentieopstelling, waterstof per windjaar, één grafiek en een CSV.
+
+`/onderzoek` verwijst voor Atlas-modellen naar Samenstellen en Vergelijken; de handmatige capaciteitsvergelijking blijft. `/opsplitsing` blijft de uitgebreide weergave met kosten en LCOH, met de Python-kern. Opstellingen, algemene aannames en doelvermogen worden als gemak in `localStorage` van de browser bewaard; zonder opslag werkt de pagina gewoon.
+
+### Begrippen
+
+- **Module**: de kleinste eenheid die zelfstandig aan en uit kan, met een eigen minimumlast. Een systeem met meerdere stacks telt als één module.
+- **Opstelling**: één model × een geheel aantal modules (1–200). Verschillende modellen in één opstelling vallen erbuiten.
+- **Vermogensgrens**: het modulevermogen geldt voor het systeem inclusief BoP of alleen voor de stack. `capaciteit_mw` in `opsplitsing.py` is stackvermogen; BoP komt daar bovenop (op vollast × (1 + BoP-vast + BoP-variabel), standaard × 1,10). Daarom is `capaciteit_mw = n × modulevermogen` bij een stackvermogen en `n × modulevermogen ÷ (1 + BoP-vast + BoP-variabel)` bij een systeemvermogen. Zo telt de BoP niet dubbel en draait een systeem van 4,4 MW op vollast ook 4,4 MW. De grens komt uit de brontekst ("systeem", "BoP + stack", "stack") of, als die niets zegt, uit een gelabelde aanname: losse stack of alleen stackverbruik → stack; DC → stack; anders systeem.
+
+### Statussen en regels
+
+Elk rekenveld heeft één status: **bron** (letterlijk uit de datasheet via de Atlas), **afgeleid** (vaste regel, die erbij staat; rust de regel op een aanname, dan staat er “afgeleid · aanname”), **standaard technologie** (`TECHNOLOGIES` in `opsplitsing.py`, met de bron uit `source()`: EU LCOH-tool, mijnwindpark.nl of plaatshouder) of **eigen invoer**. Een veld dat in de bron staat maar niet eenduidig is, heet **open** en levert geen resultaat tot je een keuze maakt.
+
+- Modulevermogen volgt `modulePower()` uit `datasheetextract/configurations.js`, met de vaste uitzonderingen voor Oort, Hydrogenera en Plug (status afgeleid, met de regel). Een bereik zoals “0,3–1 MW” wordt nooit stilzwijgend één getal: je kiest een van de grenzen (eigen invoer). Bovengrenzen (“tot”, “≤”, “<”) en waarden met marge (“±”) blijven open.
+- Systeemverbruik: één waarde aan het begin van de brontekst is bron; “≈” of “berekend” is afgeleid (rekenwerk van de Atlas). Bij alleen stackverbruik of een losse stack is er geen resultaat zonder expliciete BoP-aanname (vinkje); daarna is systeemverbruik = stackverbruik × (1 + BoP-vast + BoP-variabel), gelabeld als aanname. Een systeemverbruik in kWh/kg bevat de BoP al; het windaanbod is bruto en de BoP wordt niet nog eens afgetrokken.
+- Minimumlast: alleen een expliciet elektrische basis (“elektrische last”, “stacklast”, “vermogensbereik”) is bron. Zonder vermelde basis is het een afgeleide aanname (gelezen als elektrisch percentage). Een minimumlast in waterstofproductie, Nm³/h of stroomsterkte, meerdere waarden of een tijdelijke ondergrens blijft open; als elektrisch percentage gebruiken kan alleen met een knop die er “(aanname)” bij zet. Ontbreekt de minimumlast, dan geldt de technologiestandaard (plaatshouder).
+- AC/DC staat als bron als de tekst het noemt; anders is het een aanname die past bij de vermogensgrens.
+- Deellast: standaard het `deellastvoordeel` van de technologie, als aanname. Levert de endpoint een deellastcurve, dan wordt die omgerekend (kWh/Nm³ × 11,12 Nm³/kg bij 0 °C en 1,013 bar) en is het deellastvoordeel de waarde (0–30 %, stap 0,1 %) waarbij de verhouding deellast/vollast van het model het best bij de curve past. De restafwijking staat erbij; valt de curve buiten wat het model kan volgen, dan staat dat er ook bij.
+- Technologie: PEM en alkalisch gebruiken hun standaard; drukalkalisch rekent met alkaline (afgeleide aanname); voor AEM, SOEC en andere technologieën kies je zelf een rekenprofiel.
+- Opstarttijden uit de Atlas worden getoond maar niet gebruikt: opstarttijden zijn algemene aannames.
+
+“Rust op X bronwaarden en Y aannames” telt de veertien rekenvelden van het model: bron en afgeleid zonder aanname tellen als bronwaarde, de rest als aanname.
+
+### Berekening
+
+De vergelijking gebruikt `src/electrolyser-kernel.mjs`, een JavaScript-versie van `simulate()` en `simulate_with_replacements()` uit `opsplitsing.py` (MODEL_VERSION 10). De Python-kern kost 1–3 s per opstelling en windjaar; in de browser met Pyodide duurt een vergelijking van vier opstellingen over vier jaar daardoor al gauw een minuut. De JavaScript-versie doet hetzelfde in enkele seconden, in een aparte worker (`/assets/elektrolyser-rekenkern.js`) met voortgang. De port volgt de Python-bewerkingsvolgorde, inclusief `sum()` met compensatie, `round(x, 2)`, `random.Random` (MT19937) en Europe/Amsterdam-wandkloktijd voor onderhoud. Tests tonen gelijke uitkomsten (verschil 0 in alle referentiegevallen; toegestaan 1e-9 relatief).
+
+Een opstelling wordt `Aannames(capaciteit_mw, minimumlast, systeemverbruik_vol, deellastvoordeel, BoP, …)` met n modules. De standaardbesturing is `verdelen`; `bijschakelen` en `samen` zijn te kiezen. Algemene aannames zijn voor alle opstellingen gelijk: besturing, minimale aan- en uit-tijd, startvertraging, opstarttijden, koud na, warmhouden, onderhoud, storingen, hersteltijd en stilstand per stackwissel. Standaard zijn dat de waarden van `Aannames()` (PEM/EU-tool, deels plaatshouders). Storingen volgen in elke opstelling dezelfde vaste trekking per module en jaar (zaad jaar × 100 + modulenummer); meer modules betekent meer, kleinere storingen.
+
+Windaanbod: de jaarreeksen 2022–2025 van `/opsplitsing` (bruto toegewezen aanbod, 10 % Fryslân + Beabuorren), te kiezen per jaar. Meetgaten zitten niet in de reeks en tellen nooit als nul; ontbrekende of ongeldige waarden worden weggelaten. Zoals in `/opsplitsing` wordt elk jaar naar 8.760 uur omgerekend; de datadekking per jaar staat in de tabel en de CSV. Uitkomsten staan per windjaar en als gemiddelde; de spreiding tussen jaren is geen betrouwbaarheidsinterval. Uitkomsten worden per invoerhash gecachet (canonieke JSON van rekenkernversie, windjaar, modules, besturing en alle aannames).
+
+### Uitkomsten per opstelling
+
+- Totaal nominaal vermogen = n × modulevermogen (op de vermogensgrens van de bron); opname bij vollast incl. BoP = n × stackvermogen × (1 + BoP).
+- Waterstof (kg per jaar), opgenomen stroom inclusief BoP (MWh per jaar) en stand-by (warmhouden).
+- Deel van het windaanbod benut = opgenomen ÷ aanbod.
+- Gemiddelde belasting = opgenomen ÷ (opname bij vollast incl. BoP × uren met data). Dezelfde grens als de opgenomen stroom, dus hooguit 100 %.
+- Resterende windenergie = aanbod − opgenomen, gesplitst in **onder minimumlast** (niets draait en het aanbod ligt onder de minimumlast van één module; bij `samen` van alle modules samen), **boven maximum** (aanbod boven de opname bij vollast van alle modules) en **overig** (onderhoud, storingen, startvertraging, minimale uit-tijd).
+- Werkelijk stroomverbruik = (opgenomen + stand-by) × 1000 ÷ kg, naast de nominale rekenwaarde.
+- Draaiuren per module, uren met productie, starts per module en datadekking.
+
+De vergelijking waarschuwt als het nominale vermogen meer dan 5 % van de referentie afwijkt, of als de opname bij vollast meer dan 5 % verschilt door een andere vermogensgrens, en biedt dan “Vul alle opstellingen aan tot doelvermogen”. Er is geen oordeel “beste” en geen financieel advies. De grafiek toont per aanbodklasse (0–2,5 … 45+ MW) welk deel van de windenergie elke opstelling opneemt, met het aandeel van het jaaraanbod per klasse.
+
+Met `samen` zijn 10 × 4,4 MW en 2 × 22 MW alleen gelijk als ook beschikbaarheid en de minimale aan-tijd gelijk zijn: storingen en onderhoud gelden per module, en de minimale aan-tijd houdt net gestarte modules aan (zoveel als er bij het aanbod op minimumlast passen). Met de standaardaannames is het verschil in windjaar 2025 ongeveer 0,7 %.
+
+### CSV
+
+UTF-8 met BOM, puntkomma's en decimale komma's. Eén regel per opstelling per windjaar plus het gemiddelde. `bron.*`: catalogusversie, bijwerkdatum, versie van de aanvullingen, model en letterlijke bronteksten. `aanname.*`: elke rekenwaarde met `.status` (bron, afgeleid, afgeleid (aanname), standaard technologie, eigen invoer) en `.regel`, plus besturing, algemene aannames, windreeks en storingstrekking. `uitkomst.*`: windjaar, “rust op”, alle uitkomsten hierboven, uren met data, invoerhash en rekenkernversie.
+
+### Ontbrekende velden in de Atlas-endpoint
+
+De catalogus-endpoint (`/api/integrations/mijnwindpark/catalogue`, buiten deze repository) levert nu `power`, `systemEnergy`, `stackEnergy`, `minimum`, `production`, `hotStart`, `coldStart` en `source`. Voor deze pagina zijn nodig, en worden niet op een andere manier uit de Atlas-website gelezen:
+
+- `scope` (leveringsomvang → leveringstype Systeem / Losse stack / Procesmodule / Projectafhankelijk / Niet gespecificeerd);
+- `stacks` (aantal stacks per module);
+- `partload` (deellastcurve);
+- een directe link per model (`url`), nu wordt naar de Atlas-startpagina gelinkt;
+- `category` (elektrolyser of voeding), nu wordt op technologie gefilterd;
+- de elektriciteitsbasis (AC/DC) en levensfase (BOL/EOL) als aparte velden, nu gelezen uit de tekst.
+
+De code gebruikt `scope`, `stacks`, `partload` en `url` zodra de endpoint ze levert; de catalogus meldt welke ontbreken.
+
+### Voorstellen voor `akubishon/windprofiel` (niet hier gewijzigd)
+
+- `simulate()` zou de resterende windenergie per oorzaak (onder minimumlast, boven maximum, beschikbaarheid) en het aantal starts per aanbodklasse kunnen teruggeven; nu rekent deze site die naast de ongewijzigde beslissingen uit.
+- Een deellastcurve per lastband (systeemverbruik in kWh/kg) als alternatief voor één `deellastvoordeel`. De curve van H₂ Energy 1 MW PEM laat meer verlies bij deellast zien dan BoP-vast en Faradayverlies verklaren; met `deellastvoordeel ≥ 0` valt de pasvorm op de grens.
+- Bij `samen` houdt de minimale aan-tijd net gestarte modules afzonderlijk aan; als `samen` echt één installatie moet zijn, zou dat per opstelling moeten gelden.
+
+### Controleren
+
+`npm test` bevat `tests/electrolyser-compare.test.mjs` en `tests/electrolyser-routes.test.mjs`: hashes van de Python-bestanden, gelijkheid van de JavaScript-kern met `tests/fixtures/elektrolyser-kern-python.json` (native CPython, opnieuw te maken met `python3 -I scripts/kernel-reference.py > tests/fixtures/elektrolyser-kern-python.json`) en met de bestaande `/opsplitsing`-fixture, de acceptatiepunten (10 × 4,4 tegen 2 × 22 MW, BoP-aanname, minimumlast in waterstofproductie en vermogensbereiken, meetgaten en datadekking), CSV, cachesleutel, routes achter de login en de CSP. `node scripts/test-python-browser.mjs` vergelijkt daarnaast de JavaScript-kern live met de Python-kern in Pyodide voor `verdelen`, `samen` en `bijschakelen`. De testcatalogus `tests/fixtures/atlas-catalogue.json` bevat Atlas-waarden van twaalf modellen en één testmodel.
 
 ## KNMI ten-minute point display
 

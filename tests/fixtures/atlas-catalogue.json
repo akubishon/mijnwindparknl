@@ -1,0 +1,543 @@
+{
+ "schemaVersion": 1,
+ "revision": "fixture-f16ed15",
+ "sourceUpdatedAt": "2026-10-21T00:00:00Z",
+ "additionsVersion": "fixture",
+ "models": [
+  {
+   "id": "2235f080649b",
+   "name": "Accelera by Cummins HyLYZER 1000-30",
+   "manufacturer": "Accelera by Cummins",
+   "technology": "PEM",
+   "values": {
+    "power": "5 MW; AC/DC niet vermeld",
+    "systemEnergy": "52 kWh/kg H₂; nominale capaciteit, BOL; AC/DC niet expliciet vermeld",
+    "stackEnergy": "51 kWh/kg H₂ DC; nominale capaciteit, BOL",
+    "minimum": "15%; bedrijfsbereik 15–100%, referentiegrootheid niet expliciet vermeld",
+    "production": "90 kg/h",
+    "hotStart": "",
+    "coldStart": "",
+    "source": "ProtonExchangeMembrane/Accelera_HyLYZER_5MW.pdf; p. 1: model, technologie, vermogen, productie, druk, zuiverheid; p. 2: onderdelen, verbruik, minimumlast"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "systemEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "stackEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "minimum": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "e71624c9dc86",
+   "name": "ITM Power NEPTUNE V",
+   "manufacturer": "ITM",
+   "technology": "PEM",
+   "values": {
+    "power": "5 MW; AC/DC niet expliciet gelabeld",
+    "systemEnergy": "55,9 kWh/kg H₂ AC; volledig systeem, BOL",
+    "stackEnergy": "",
+    "minimum": "12,5%; bedrijfsbereik 12,5–100%, referentie niet expliciet vermeld",
+    "production": "90 kg/h",
+    "hotStart": "",
+    "coldStart": "",
+    "source": "ProtonExchangeMembrane/ITM_Neptune_V_5MW.pdf; p. 2: specificaties/proces; p. 3: leveringsomvang"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "systemEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "minimum": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "df9f964a103d",
+   "name": "Oort Energy Theia",
+   "manufacturer": "Oort Energy",
+   "technology": "PEM",
+   "values": {
+    "power": "1–1,5 MW; AC/DC niet expliciet vermeld",
+    "systemEnergy": "49,6 kWh/kg H₂; end-to-end, max. duty (gen 1)",
+    "stackEnergy": "",
+    "minimum": "",
+    "production": "≈ 1,875–28,125 kg/h (berekend uit 45–675 kg/dag)",
+    "hotStart": "",
+    "coldStart": "",
+    "source": "ProtonExchangeMembrane/OortEnergy_0.25_0.5_1.5_20MW.png; afbeelding (geen paginanummer)"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "systemEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "33d735067975",
+   "name": "H₂ Energy 1 MW PEM (modelnaam niet vermeld)",
+   "manufacturer": "H₂ Energy",
+   "technology": "PEM",
+   "values": {
+    "power": "0,930 MW stack, BOL; DC afgeleid uit stackspanning (max. 1500 VDC)",
+    "systemEnergy": "55,8 kWh/kg H₂ systeem, BOL; alle interne utilities, optionele droger uitgesloten; AC/DC niet expliciet vermeld",
+    "stackEnergy": "",
+    "minimum": "10% van nominale productie; bedrijfsbereik 10–100%",
+    "production": "≈ 18 kg/h (p. 1); ≈ 17,917 kg/h berekend uit ≈ 430 kg/dag (p. 2)",
+    "hotStart": "0,5 min (30 s) naar 10%",
+    "coldStart": "5 min naar 10%; afhankelijk van omgevingstemperatuur",
+    "source": "ProtonExchangeMembrane/SchedaTecnica_1MW.pdf; p. 1: fabrikant/technologie/systeem; p. 2: specificaties"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "systemEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "minimum": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "hotStart": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "coldStart": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "8a9e0f32c40c",
+   "name": "H2GREEM VHPGREEM productfamilie",
+   "manufacturer": "H2GREEM",
+   "technology": "PEM",
+   "values": {
+    "power": "0,3–1 MW (nominal load); AC/DC niet expliciet vermeld",
+    "systemEnergy": "",
+    "stackEnergy": "",
+    "minimum": "5%; bedrijfsbereik 5–100%, referentie niet expliciet vermeld",
+    "production": "6–20 kg/h (bron ook 66–200 Nm³/h)",
+    "hotStart": "< 0,1667 min (bron: < 10 s vanuit standby; niet expliciet hot-start genoemd)",
+    "coldStart": "Circa 3 min (bron: +/- 3 min)",
+    "source": "ProtonExchangeMembrane/VHPGREEM_1MW.pdf; p. 1"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "minimum": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "hotStart": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "coldStart": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "93b7cc204a8d",
+   "name": "Nel PSM",
+   "manufacturer": "Nel",
+   "technology": "PEM",
+   "values": {
+    "power": "10 MW klasse; stacks op DC, hulpapparatuur AC",
+    "systemEnergy": "",
+    "stackEnergy": "Stack: 53,2 kWh/kg H₂ bij 100% capaciteit; levensfase niet vermeld",
+    "minimum": "10%; turndown 10–100%, referentie niet expliciet vermeld",
+    "production": "≈ 179,167 kg/h (berekend uit 4300 kg/dag)",
+    "hotStart": "",
+    "coldStart": "",
+    "source": "ProtonExchangeMembrane/nel_10MW.pdf; p. 1: specificaties; p. 2: voeding/vereisten"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "stackEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "minimum": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "131c1f65c663",
+   "name": "Plug GenEco 5 MW",
+   "manufacturer": "Plug",
+   "technology": "PEM",
+   "values": {
+    "power": "Tot 5 MW stackverbruik; systeemvoeding AC, vermogenslabel niet expliciet AC/DC",
+    "systemEnergy": "",
+    "stackEnergy": "Gemiddeld stackverbruik: 49,9 kWh/kg H₂; levensfase/condities niet vermeld",
+    "minimum": "",
+    "production": "≈ 88,542 kg/h (berekend uit 2125 kg/dag)",
+    "hotStart": "",
+    "coldStart": "",
+    "source": "ProtonExchangeMembrane/plug_geneco_5MW.pdf; p. 1: model/technologie; p. 2: specificaties"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "stackEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "f95eee7331d1",
+   "name": "Quest One ME450",
+   "manufacturer": "Quest One",
+   "technology": "PEM",
+   "values": {
+    "power": "1 MW klasse; elektrolysevoeding AC; vermogenslabel niet expliciet AC/DC",
+    "systemEnergy": "52,5 kWh/kg H₂ systeem; BOL, 15 °C buiten, 200 Nm³/h; bron ook 4,7 kWh/Nm³",
+    "stackEnergy": "",
+    "minimum": "20% van H₂-productie; 42–210 Nm³/h",
+    "production": "18,75 kg/h (berekend uit 450 kg/dag); bron ook 210 Nm³/h",
+    "hotStart": "0,5 min (30 s), standby naar nominaal; niet expliciet hot-start genoemd",
+    "coldStart": "",
+    "source": "ProtonExchangeMembrane/questone_1MW.pdf; p. 1: model; p. 2: specificaties/voetnoten"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "systemEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "minimum": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "hotStart": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "ba8266d686da",
+   "name": "Sunfire HyLink Alkaline 22",
+   "manufacturer": "Sunfire",
+   "technology": "Drukalkalisch",
+   "values": {
+    "power": "10 MW DC",
+    "systemEnergy": "46,4–52,2 kWh/kg H₂ AC totaal; levensfase/condities niet vermeld",
+    "stackEnergy": "",
+    "minimum": "20%; operating range 20–100%, referentie niet expliciet vermeld",
+    "production": "200 kg/h",
+    "hotStart": "",
+    "coldStart": "",
+    "source": "AlkalineElectroLysis/Sunfire_10MW.pdf; p. 1: technologie; p. 2: units/leveringsomvang; p. 3: specificaties"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "systemEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "minimum": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "4043e24178a0",
+   "name": "Hitachi Energy P2H2 3M-WD (20 ft)",
+   "manufacturer": "Hitachi Energy",
+   "technology": "Vermogenselektronica",
+   "values": {
+    "power": "≈ 5,5 MW omzetter; AC-ingang/DC-uitgang, MW-label niet expliciet",
+    "systemEnergy": "Niet van toepassing: voeding, geen H₂-productie",
+    "stackEnergy": "Niet van toepassing: voeding, geen H₂-productie",
+    "minimum": "",
+    "production": "Niet van toepassing: omzetter, geen H₂-productie",
+    "hotStart": "",
+    "coldStart": "",
+    "source": "PressurisedAlkalineElectroLysis/Hitachi_5.5MW.pdf; p. 1: toepassing/scope; p. 2: specificaties; p. 3: varianten"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "systemEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "stackEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "cd2120c035ba",
+   "name": "SANY E-1000",
+   "manufacturer": "SANY",
+   "technology": "Drukalkalisch",
+   "values": {
+    "power": "≈ 4,200–4,400 MW DC (berekend uit flow × specifiek verbruik)",
+    "systemEnergy": "",
+    "stackEnergy": "≈ 46,73–48,95 kWh/kg H₂ DC (berekend); levensfase niet vermeld",
+    "minimum": "20%; working load 20–120%, referentie niet vermeld",
+    "production": "≈ 89,880 kg/h (berekend uit 1000 Nm³/h)",
+    "hotStart": "≤ 3 min vanuit 50 ± 5 °C tot gekwalificeerde gaszuiverheid",
+    "coldStart": "≤ 20 min tot gekwalificeerde H₂/O₂-zuiverheid",
+    "source": "PressurisedAlkalineElectroLysis/Sany_0.8_2_4_5.2_6_8MW.pdf; PDF-p. 5: modeltabel; p. 3: technologieportfolio; p. 10: aparte BoP-opties"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "stackEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "minimum": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "hotStart": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "coldStart": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "59aad78f4ec7",
+   "name": "Stargate Hydrogen 5 MW-stack (modelnaam niet vermeld)",
+   "manufacturer": "Stargate Hydrogen",
+   "technology": "Drukalkalisch",
+   "values": {
+    "power": "4,400 MW stack, BOL; DC afgeleid uit stackstroom/spanning; productklasse 5 MW",
+    "systemEnergy": "",
+    "stackEnergy": "49 kWh/kg H₂ stack; bron ook 4,3 kWh/Nm³; levensfase niet expliciet bij specifiek verbruik",
+    "minimum": "20% van stacklast; bedrijfsbereik 20–110%",
+    "production": "90 kg/h; bron labelt ten onrechte “daily” bij kg/h",
+    "hotStart": "",
+    "coldStart": "",
+    "source": "PressurisedAlkalineElectroLysis/Starbase_5MW.pdf; p. 1"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "stackEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "minimum": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "f379bf00c820",
+   "name": "Enapter AEM Nexus 1000",
+   "manufacturer": "Enapter",
+   "technology": "AEM",
+   "values": {
+    "power": "0,9332 MW AC systeem; chiller +≈ 0,006 MW; droger +≈ 0,012 MW",
+    "systemEnergy": "51,3 kWh/kg H₂ systeem, BOL, 99,5%-configuratie; vollast, elektrolyt 55 °C, omgeving 15 °C",
+    "stackEnergy": "",
+    "minimum": "8,5%; operational flexibility tot 100%, referentie niet expliciet vermeld",
+    "production": "18,2 kg/h",
+    "hotStart": "3,75 min (225 s), 0–100%; elektrolyt circuleert bij ≥ 45 °C",
+    "coldStart": "",
+    "source": "AnionExchangeMembrane/Enapter_933kW.pdf; p. 1: scope; p. 2: specificaties/condities"
+   },
+   "provenance": {
+    "power": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "systemEnergy": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "minimum": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "production": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "hotStart": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    },
+    "source": {
+     "kind": "bron",
+     "source": "Elektrolysers.xlsx"
+    }
+   }
+  },
+  {
+   "id": "fixture-systeem-4-4",
+   "name": "Fixture Systeem 4,4 MW",
+   "manufacturer": "Fixture",
+   "technology": "PEM",
+   "values": {
+    "power": "4,4 MW AC systeem",
+    "systemEnergy": "53,3 kWh/kg H₂; nominale capaciteit, BOL",
+    "stackEnergy": "",
+    "minimum": "20% van elektrische last",
+    "production": "",
+    "hotStart": "",
+    "coldStart": "",
+    "source": "Testfixture, geen leveranciersgegevens"
+   },
+   "provenance": {}
+  }
+ ]
+}

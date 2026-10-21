@@ -4,6 +4,7 @@ const opsAssets = /* __OPS_ASSETS__ */;
 const opsPage = /* __OPS_PAGE__ */;
 const opsPolicy = /* __OPS_POLICY__ */;
 const page = /* __PAGE__ */;
+const calculatorWorker = /* __CALC_WORKER__ */;
 const brandFont = /* __BRAND_FONT__ */;
 const favicon='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M0 0h48a16 16 0 0 1 16 16v48H0z" fill="#0C2340"/><path d="M32 31v23M32 31L18 11M32 31l25-3M32 31L18 49" stroke="#00A6DE" stroke-width="5"/></svg>';
 const securityHeaders = { 'Content-Security-Policy': /* __CSP__ */, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=()' };
@@ -108,7 +109,8 @@ export default {
     if ((url.pathname === '/fonts/tasa-orbiter.ttf' || url.pathname === '/assets/tasa-orbiter.ttf' || url.pathname === '/proefstijl/font.ttf')) return new Response(Uint8Array.from(atob(brandFont),c=>c.charCodeAt(0)), {headers:{...securityHeaders,'Content-Type':'font/ttf','Cache-Control':'public, max-age=86400'}});
     const formerTrialPages={'/proefstijl':'/','/proefstijl/beabuorren':'/beabuorren','/proefstijl/elektrolyser':'/elektrolyser','/proefstijl/onderzoek':'/onderzoek'};
     if(Object.hasOwn(formerTrialPages,url.pathname))return new Response(null,{status:302,headers:{...securityHeaders,Location:formerTrialPages[url.pathname]+url.search,'Cache-Control':'no-store'}});
-    if (url.pathname === '/' || url.pathname === '/fryslan' || url.pathname === '/beabuorren' || url.pathname === '/elektrolyser' || url.pathname === '/onderzoek') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
+    if (url.pathname === '/' || url.pathname === '/fryslan' || url.pathname === '/beabuorren' || url.pathname === '/elektrolyser' || url.pathname === '/elektrolyser/catalogus' || url.pathname === '/elektrolyser/samenstellen' || url.pathname === '/elektrolyser/vergelijken' || url.pathname === '/onderzoek') return new Response(page, { headers: { ...securityHeaders, 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' } });
+    if (url.pathname === '/assets/elektrolyser-rekenkern.js') return new Response(calculatorWorker, { headers: { ...securityHeaders, 'Content-Security-Policy': "default-src 'none'; connect-src 'self'", 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' } });
     if (url.pathname === '/favicon.svg') return new Response(favicon, { headers: { ...securityHeaders, 'Content-Type': 'image/svg+xml' } });
     try {
       if(url.pathname==='/api/atlas/catalogue'){

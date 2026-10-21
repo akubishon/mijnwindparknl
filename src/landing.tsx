@@ -6,7 +6,7 @@ type Category='all'|'wind'|'hydrogen';
 const destinations=[
  {href:'/fryslan',name:'Windpark Fryslân',tag:'WINDPARK',category:'wind',icon:Wind,description:'Bekijk de productie per dag, KNMI-windgegevens en het actuele vermogen van Fryslân.',action:'Bekijk Fryslân',detail:'Dagoverzicht · Actueel vermogen'},
  {href:'/beabuorren',name:'Windpark Beabuorren',tag:'WINDPARK',category:'wind',icon:Wind,description:'Verken het berekende vermogen van Beabuorren op basis van KNMI-windmetingen.',action:'Bekijk Beabuorren',detail:'Windmetingen · Berekende productie'},
- {href:'/elektrolyser',name:'Elektrolyser',tag:'WATERSTOF',category:'hydrogen',icon:Zap,description:'Ontdek hoeveel vermogen uit beide windparken beschikbaar is voor de elektrolyser.',action:'Bekijk het vermogen',detail:'Van windenergie naar waterstof'},
+ {href:'/elektrolyser',name:'Elektrolyser',tag:'WATERSTOF',category:'hydrogen',icon:Zap,description:'Ontdek hoeveel vermogen uit beide windparken beschikbaar is en vergelijk elektrolysers uit de Waterstofatlas.',action:'Bekijk het vermogen',detail:'Van windenergie naar waterstof'},
  {href:'/onderzoek',name:'Onderzoek',tag:'ANALYSE',category:'hydrogen',icon:FlaskConical,description:'Vergelijk installatiegroottes en onderzoek bedrijfsuren en waterstofproductie.',action:'Open het onderzoek',detail:'Scenario’s · Installatiegrootte'},
  {href:'/opsplitsing',name:'Elektrolyser opsplitsen',tag:'SCENARIO’S',category:'hydrogen',icon:Layers3,description:'Vergelijk één grote elektrolyser met meerdere modules en verken productie en kosten.',action:'Vergelijk de modules',detail:'Modulariteit · Productie · Kosten'},
 ];
