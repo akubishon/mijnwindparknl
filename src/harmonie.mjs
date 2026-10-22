@@ -116,7 +116,7 @@ export async function readHarmonie(env,selection={}){
 
 // Durable snapshots contain both locations and the complete available run horizon.
 const snapshotKey=(model,run)=>`harmonie/v1/${model}/${run}.json`;
-export async function updateHarmonieSnapshot(env,model='p1'){
+export async function updateHarmonieSnapshot(env,model='p1',selection={}){
  model=harmonieModel(model);
  if(!env.BUCKET)throw Error('HARMONIE_STORAGE');
  if(!env.KNMI_OPEN_DATA_API_KEY)throw Error('HARMONIE_NOT_CONFIGURED');
@@ -124,7 +124,9 @@ export async function updateHarmonieSnapshot(env,model='p1'){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
  const api=async path=>{const r=await fetch(base+path,{headers:{Authorization:env.KNMI_OPEN_DATA_API_KEY.trim(),Accept:'application/json'},redirect:'manual',signal:controller.signal});if(!r.ok)throw Error('HARMONIE_API_'+r.status);return r.json();};
  try{
-  const listing=await api('?maxKeys=1&sorting=desc&orderBy=filename');
+  const history=selection.run?historicalHarmonieOptions(selection.run,selection.day):null;
+  if(history&&model==='p2b'&&Date.now()-Date.parse(history.expectedRun)>72*3600000)throw Error('HARMONIE_P2B_ARCHIVE');
+  const listing=history?{files:[{filename:history.filename.replace('_P1_','_'+model.toUpperCase()+'_')}]}:await api('?maxKeys=1&sorting=desc&orderBy=filename');
   const filename=listing.files?.[0]?.filename;
   const match=typeof filename==='string'&&filename.match(new RegExp('^HARM43_V1_'+model.toUpperCase()+'_(\\d{10})\\.tar$','i'));
   console.info('HARMONIE_PREPROCESS_FILE',JSON.stringify({model,filename}));
@@ -159,7 +161,10 @@ export async function readStoredHarmonie(env,selection={}){
  if(!env.BUCKET)throw Error('HARMONIE_STORAGE');
  let key=history?snapshotKey(model,history.expectedRun):null;
  if(!key){const pointer=await env.BUCKET.get(snapshotKey(model,'latest'));if(!pointer)throw Error('HARMONIE_PENDING');key=(await pointer.json()).key;}
- const object=await env.BUCKET.get(key);if(!object)throw Error('HARMONIE_PENDING');
+ let object=await env.BUCKET.get(key);
+ // Backfill an explicitly requested archive run once, without changing the latest run.
+ if(!object&&history){await updateHarmonieSnapshot(env,model,selection);object=await env.BUCKET.get(key);}
+ if(!object)throw Error('HARMONIE_PENDING');
  const data=await object.json(),start=window?.start??Date.now(),until=window?.until??Infinity,limit=window?.limit??7;
  const rows=data.rows.filter(r=>Date.parse(r.time)>=start&&Date.parse(r.time)<until).slice(0,limit);
  if(!rows.length)throw Error('HARMONIE_PENDING');

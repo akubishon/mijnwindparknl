@@ -99,3 +99,17 @@ test('failed extraction leaves previous durable forecast unchanged',async()=>{
  globalThis.fetch=async url=>url.includes('?maxKeys=')?Response.json({files:[{filename:'HARM43_V1_P1_2026102206.tar'}]}):url.endsWith('/url')?Response.json({temporaryDownloadUrl:'https://storage.googleapis.com/incomplete'}):new Response(tar(9));
  try{await assert.rejects(updateHarmonieSnapshot({BUCKET,KNMI_OPEN_DATA_API_KEY:'test'}),/INCOMPLETE/);assert.equal((await (await BUCKET.get('harmonie/v1/p1/latest.json')).json()).key,'previous');assert.equal(BUCKET.objects.size,1);}finally{globalThis.fetch=oldFetch;Date.now=oldNow;}
 });
+
+test('missing historical run is backfilled once for both parks without replacing the latest snapshot',async()=>{
+ const {readStoredHarmonie}=await import('../src/harmonie.mjs');const BUCKET=memoryBucket();
+ const latest={run:'2026-10-22T09:00:00.000Z',key:'newer'};await BUCKET.put('harmonie/v1/p1/latest.json',JSON.stringify(latest));
+ const oldFetch=globalThis.fetch,oldNow=Date.now;Date.now=()=>Date.parse('2026-10-22T10:30:00Z');let downloads=0;
+ globalThis.fetch=async url=>{assert.ok(!url.includes('?maxKeys='));if(url.endsWith('/url')){assert.match(url,/HARM43_V1_P1_2026102206.tar/);return Response.json({temporaryDownloadUrl:'https://storage.googleapis.com/backfill'});}downloads++;return new Response(tar(49));};
+ try{
+  const env={BUCKET,KNMI_OPEN_DATA_API_KEY:'historical-backfill'},selection={run:'2026-10-22T06',day:'2026-10-22'};
+  const first=await readStoredHarmonie(env,selection);assert.equal(first.historical,true);assert.equal(first.rows[0].parks.length,2);assert.equal(first.rows.length,16);
+  globalThis.fetch=()=>{throw Error('Backfilled run must use durable storage');};
+  assert.deepEqual(await readStoredHarmonie(env,selection),first);assert.equal(downloads,1);
+  assert.deepEqual(await (await BUCKET.get('harmonie/v1/p1/latest.json')).json(),latest);
+ }finally{globalThis.fetch=oldFetch;Date.now=oldNow;}
+});

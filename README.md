@@ -249,8 +249,10 @@ R2-snapshots via `/api/harmonie`. Een snapshot bevat de beschikbare horizon van
 pas op die opgeslagen windsnelheden toegepast, zodat alle instellingen dezelfde
 bronverwerking delen. Elke run blijft onder zijn model en UTC-uitgiftetijd
 bewaard. Dagfilters gebruiken Europe/Amsterdam, inclusief zomer-/wintertijd.
-Historische runs zijn beschikbaar zodra ze door deze opslag zijn verwerkt;
-ontbrekende runs geven een expliciete melding en starten geen download.
+Ontbrekende historische runs worden bij een expliciete aanvraag eenmaal uit het
+KNMI-archief verwerkt en blijvend opgeslagen, met beide locaties en de volledige
+horizon. Volgende aanvragen lezen alleen de opslag. Een oudere run vervangt
+nooit de nieuwere actuele voorspelling.
 
 Een gekoppelde cloudtaak controleert ieder uur om vijf minuten over het uur
 (Europe/Amsterdam) beide modellen via

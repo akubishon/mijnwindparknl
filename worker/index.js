@@ -394,7 +394,7 @@ async function readHarmonie(env,selection={}){
 
 // Durable snapshots contain both locations and the complete available run horizon.
 const snapshotKey=(model,run)=>`harmonie/v1/${model}/${run}.json`;
-async function updateHarmonieSnapshot(env,model='p1'){
+async function updateHarmonieSnapshot(env,model='p1',selection={}){
  model=harmonieModel(model);
  if(!env.BUCKET)throw Error('HARMONIE_STORAGE');
  if(!env.KNMI_OPEN_DATA_API_KEY)throw Error('HARMONIE_NOT_CONFIGURED');
@@ -402,7 +402,9 @@ async function updateHarmonieSnapshot(env,model='p1'){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
  const api=async path=>{const r=await fetch(base+path,{headers:{Authorization:env.KNMI_OPEN_DATA_API_KEY.trim(),Accept:'application/json'},redirect:'manual',signal:controller.signal});if(!r.ok)throw Error('HARMONIE_API_'+r.status);return r.json();};
  try{
-  const listing=await api('?maxKeys=1&sorting=desc&orderBy=filename');
+  const history=selection.run?historicalHarmonieOptions(selection.run,selection.day):null;
+  if(history&&model==='p2b'&&Date.now()-Date.parse(history.expectedRun)>72*3600000)throw Error('HARMONIE_P2B_ARCHIVE');
+  const listing=history?{files:[{filename:history.filename.replace('_P1_','_'+model.toUpperCase()+'_')}]}:await api('?maxKeys=1&sorting=desc&orderBy=filename');
   const filename=listing.files?.[0]?.filename;
   const match=typeof filename==='string'&&filename.match(new RegExp('^HARM43_V1_'+model.toUpperCase()+'_(\\d{10})\\.tar$','i'));
   console.info('HARMONIE_PREPROCESS_FILE',JSON.stringify({model,filename}));
@@ -437,7 +439,10 @@ async function readStoredHarmonie(env,selection={}){
  if(!env.BUCKET)throw Error('HARMONIE_STORAGE');
  let key=history?snapshotKey(model,history.expectedRun):null;
  if(!key){const pointer=await env.BUCKET.get(snapshotKey(model,'latest'));if(!pointer)throw Error('HARMONIE_PENDING');key=(await pointer.json()).key;}
- const object=await env.BUCKET.get(key);if(!object)throw Error('HARMONIE_PENDING');
+ let object=await env.BUCKET.get(key);
+ // Backfill an explicitly requested archive run once, without changing the latest run.
+ if(!object&&history){await updateHarmonieSnapshot(env,model,selection);object=await env.BUCKET.get(key);}
+ if(!object)throw Error('HARMONIE_PENDING');
  const data=await object.json(),start=window?.start??Date.now(),until=window?.until??Infinity,limit=window?.limit??7;
  const rows=data.rows.filter(r=>Date.parse(r.time)>=start&&Date.parse(r.time)<until).slice(0,limit);
  if(!rows.length)throw Error('HARMONIE_PENDING');
@@ -535,7 +540,7 @@ export default {
       const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(token))),b=>b.toString(16).padStart(2,'0')).join('');
       if(!env.FORECAST_WRITER_SHA256||digest!==env.FORECAST_WRITER_SHA256)return answer({error:'Unauthorized'},401);
       const model=url.searchParams.get('model')||'p1';if(!['p1','p2b'].includes(model))return answer({error:'Invalid model'},400);
-      try{const result=await updateHarmonieSnapshot(env,model);const saved=await readStoredHarmonie(env,{model});return answer({...result,verifiedRun:saved.run,storedHours:saved.rows.length});}
+      try{const selection={model,run:url.searchParams.get('run')||undefined,day:url.searchParams.get('day')||undefined};const result=await updateHarmonieSnapshot(env,model,selection);const saved=await readStoredHarmonie(env,selection);return answer({...result,verifiedRun:saved.run,storedHours:saved.rows.length});}
       catch(error){console.error('HARMONIE_UPDATE_FAILED',error.message);return answer({error:error.message},502);}
     }
     const gate=await gateRequest(request,env,url);if(gate)return gate;
@@ -629,7 +634,7 @@ export default {
       }
       return answer({ error: 'Not found' }, 404);
     } catch (error) {
-      if(url.pathname==='/api/harmonie'){console.error('HARMONIE_REQUEST_FAILED',error?.message?.startsWith('HARMONIE_')?error.message:'CONNECTION');const messages={HARMONIE_PENDING:'Deze voorspelling is nog niet opgeslagen of bevat geen uren voor deze dag. De achtergrondtaak verwerkt nieuwe runs automatisch. Historische runs zijn beschikbaar vanaf het starten van de opslag.',HARMONIE_STORAGE:'De voorspellingenopslag is nog niet beschikbaar.',HARMONIE_P2B_ARCHIVE:'P2b-runs worden door KNMI slechts 72 uur bewaard. Kies een recente run of gebruik P1 voor het archief vanaf 8 januari 2026.',HARMONIE_MEMBER_CONFLICT:'Het P2b-bestand bevat niet eenduidig te scheiden ensembleleden. Er wordt geen gemengde voorspelling getoond.',HARMONIE_RUN_NOT_FOUND:'Deze historische HARMONIE-run ontbreekt in het KNMI-archief. Kies een ander modeluur.',HARMONIE_INVALID_HISTORY:'De historische modelrun of grafiekdag is ongeldig.',HARMONIE_NOT_CONFIGURED:'De KNMI Open Data API-key is nog niet ingesteld.',HARMONIE_AUTH:'De KNMI Open Data API-key geeft geen toegang tot HARMONIE.',HARMONIE_RATE_LIMIT:'Het KNMI-aanvraaglimiet is bereikt. Probeer later opnieuw.',HARMONIE_INCOMPLETE:'De modelrun bevat nog onvoldoende complete voorspellingsuren.',HARMONIE_DOWNLOAD_HOST:'Het downloadadres van KNMI wordt nog niet ondersteund.'};return answer({error:messages[error?.message]||'HARMONIE ophalen of lezen is niet gelukt. Probeer later opnieuw. Er worden geen voorbeeldwaarden als voorspelling getoond.'},502);}
+      if(url.pathname==='/api/harmonie'){console.error('HARMONIE_REQUEST_FAILED',error?.message?.startsWith('HARMONIE_')?error.message:'CONNECTION');const messages={HARMONIE_PENDING:'Deze voorspelling bevat nog geen opgeslagen uren voor deze dag. De achtergrondtaak verwerkt nieuwe runs automatisch.',HARMONIE_STORAGE:'De voorspellingenopslag is nog niet beschikbaar.',HARMONIE_P2B_ARCHIVE:'P2b-runs worden door KNMI slechts 72 uur bewaard. Kies een recente run of gebruik P1 voor het archief vanaf 8 januari 2026.',HARMONIE_MEMBER_CONFLICT:'Het P2b-bestand bevat niet eenduidig te scheiden ensembleleden. Er wordt geen gemengde voorspelling getoond.',HARMONIE_RUN_NOT_FOUND:'Deze historische HARMONIE-run ontbreekt in het KNMI-archief. Kies een ander modeluur.',HARMONIE_INVALID_HISTORY:'De historische modelrun of grafiekdag is ongeldig.',HARMONIE_NOT_CONFIGURED:'De KNMI Open Data API-key is nog niet ingesteld.',HARMONIE_AUTH:'De KNMI Open Data API-key geeft geen toegang tot HARMONIE.',HARMONIE_RATE_LIMIT:'Het KNMI-aanvraaglimiet is bereikt. Probeer later opnieuw.',HARMONIE_INCOMPLETE:'De modelrun bevat nog onvoldoende complete voorspellingsuren.',HARMONIE_DOWNLOAD_HOST:'Het downloadadres van KNMI wordt nog niet ondersteund.'};return answer({error:messages[error?.message]||'HARMONIE ophalen of lezen is niet gelukt. Probeer later opnieuw. Er worden geen voorbeeldwaarden als voorspelling getoond.'},502);}
       if(url.pathname==='/api/atlas/catalogue'){console.error('ATLAS_CATALOG_REQUEST_FAILED',error?.name||'Error');return answer({error:'De verbinding met Waterstofatlas is onderbroken of duurt te lang. Probeer opnieuw.'},502);}
       if(url.pathname==='/api/wind') {
         const code=error?.message;
