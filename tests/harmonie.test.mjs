@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {gribWindPoints,extractHarmonie,readHarmonie,forecastWindow} from '../src/harmonie.mjs';
+import {gribWindPoints,extractHarmonie,readHarmonie,forecastWindow,historicalHarmonieOptions} from '../src/harmonie.mjs';
 function message(component=33,hour=0){
  const a=new Uint8Array(8+28+32+15+4),p=8,g=36,b=68;
  const str=(p,s)=>a.set(new TextEncoder().encode(s),p),u16=(p,v)=>{a[p]=v>>8;a[p+1]=v&255;},u24=(p,v)=>{a[p]=v>>16;a[p+1]=v>>8&255;a[p+2]=v&255;};
@@ -30,4 +30,21 @@ test('incomplete latest archive falls back to complete hours without forwarding 
   assert.equal(options.headers,undefined);return new Response(tar(url.endsWith('latest')?2:9));
  };
  try{const d=await readHarmonie({KNMI_OPEN_DATA_API_KEY:'fallback-fixture-key'});assert.equal(d.rows.length,7);assert.equal(d.filename,'previous.tar');assert.equal(d.partial,false);assert.equal(calls,5);}finally{globalThis.fetch=originalFetch;Date.now=originalNow;}
+});
+
+test('historical selection validates real dates, archive start and Dutch daylight-saving day windows',()=>{
+ const now=Date.now;Date.now=()=>Date.parse('2026-11-01T12:00:00Z');
+ try{
+  const spring=historicalHarmonieOptions('2026-03-28T18','2026-03-29');assert.equal(spring.limit,23);assert.equal(spring.until-spring.start,23*3600000);
+  const autumn=historicalHarmonieOptions('2026-10-24T18','2026-10-25');assert.equal(autumn.limit,25);assert.equal(autumn.until-autumn.start,25*3600000);
+  assert.throws(()=>historicalHarmonieOptions('2026-01-07T23','2026-01-08'),/INVALID/);
+  assert.throws(()=>historicalHarmonieOptions('2026-02-30T06','2026-03-01'),/INVALID/);
+  assert.throws(()=>historicalHarmonieOptions('2026-12-01T06','2026-12-01'),/INVALID/);
+  assert.throws(()=>historicalHarmonieOptions('2026-10-20T06','2026-10-25'),/INVALID/);
+ }finally{Date.now=now;}
+});
+test('historical retrieval retains past forecast hours and reads the exact selected run without latest-run fallback',async()=>{
+ const oldFetch=globalThis.fetch,oldNow=Date.now;Date.now=()=>Date.parse('2026-10-23T12:00:00Z');let calls=0;
+ globalThis.fetch=async(url,options)=>{calls++;if(url.endsWith('/url')){assert.match(url,/HARM43_V1_P1_2026102206\.tar\/url$/);return Response.json({temporaryDownloadUrl:'https://storage.googleapis.com/history'});}assert.equal(options.headers,undefined);return new Response(tar());};
+ try{const d=await readHarmonie({KNMI_OPEN_DATA_API_KEY:'archive-fixture-key'},{run:'2026-10-22T06',day:'2026-10-22'});assert.equal(d.historical,true);assert.equal(d.stale,false);assert.equal(d.rows.length,9);assert.equal(d.run,'2026-10-22T06:00:00.000Z');assert.equal(calls,2);}finally{globalThis.fetch=oldFetch;Date.now=oldNow;}
 });

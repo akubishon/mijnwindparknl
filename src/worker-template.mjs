@@ -115,7 +115,8 @@ export default {
     try {
       if(url.pathname==='/api/harmonie'){
         const forecastOptions=url.searchParams.has('park')?modelOptions(url.searchParams):null;
-        const forecast=await readHarmonie(env);
+        let history={};if(url.searchParams.has('run')){try{history=historicalHarmonieOptions(url.searchParams.get('run'),url.searchParams.get('day'));}catch{return answer({error:'Kies een geldig modeluur vanaf 8 januari 2026, niet in de toekomst en binnen de voorspellingshorizon van de gekozen grafiekdag.'},400);}}
+        const forecast=await readHarmonie(env,history.historical?{run:url.searchParams.get('run'),day:url.searchParams.get('day')}:{});
         return answer({...forecast,rows:forecast.rows.map(row=>{const parks=row.parks.map(park=>({...park,powerMW:windPowerModel(row.time.slice(0,10),(forecastOptions?.park===park.id?forecastOptions:modelOptions(new URLSearchParams({park:park.id}))))(park.windSpeedMS)}));return {...row,parks,allocatedMW:parks.find(p=>p.id==='fryslan').powerMW*.1+parks.find(p=>p.id==='beabuorren').powerMW};})});
       }
       if(url.pathname==='/api/atlas/catalogue'){
@@ -172,7 +173,7 @@ export default {
       }
       return answer({ error: 'Not found' }, 404);
     } catch (error) {
-      if(url.pathname==='/api/harmonie'){console.error('HARMONIE_REQUEST_FAILED',error?.message?.startsWith('HARMONIE_')?error.message:'CONNECTION');const messages={HARMONIE_NOT_CONFIGURED:'De KNMI Open Data API-key is nog niet ingesteld.',HARMONIE_AUTH:'De KNMI Open Data API-key geeft geen toegang tot HARMONIE.',HARMONIE_RATE_LIMIT:'Het KNMI-aanvraaglimiet is bereikt. Probeer later opnieuw.',HARMONIE_INCOMPLETE:'De modelrun bevat nog onvoldoende complete voorspellingsuren.',HARMONIE_DOWNLOAD_HOST:'Het downloadadres van KNMI wordt nog niet ondersteund.'};return answer({error:messages[error?.message]||'HARMONIE ophalen of lezen is niet gelukt. Probeer later opnieuw. Er worden geen voorbeeldwaarden als voorspelling getoond.'},502);}
+      if(url.pathname==='/api/harmonie'){console.error('HARMONIE_REQUEST_FAILED',error?.message?.startsWith('HARMONIE_')?error.message:'CONNECTION');const messages={HARMONIE_RUN_NOT_FOUND:'Deze historische HARMONIE-run ontbreekt in het KNMI-archief. Kies een ander modeluur.',HARMONIE_INVALID_HISTORY:'De historische modelrun of grafiekdag is ongeldig.',HARMONIE_NOT_CONFIGURED:'De KNMI Open Data API-key is nog niet ingesteld.',HARMONIE_AUTH:'De KNMI Open Data API-key geeft geen toegang tot HARMONIE.',HARMONIE_RATE_LIMIT:'Het KNMI-aanvraaglimiet is bereikt. Probeer later opnieuw.',HARMONIE_INCOMPLETE:'De modelrun bevat nog onvoldoende complete voorspellingsuren.',HARMONIE_DOWNLOAD_HOST:'Het downloadadres van KNMI wordt nog niet ondersteund.'};return answer({error:messages[error?.message]||'HARMONIE ophalen of lezen is niet gelukt. Probeer later opnieuw. Er worden geen voorbeeldwaarden als voorspelling getoond.'},502);}
       if(url.pathname==='/api/atlas/catalogue'){console.error('ATLAS_CATALOG_REQUEST_FAILED',error?.name||'Error');return answer({error:'De verbinding met Waterstofatlas is onderbroken of duurt te lang. Probeer opnieuw.'},502);}
       if(url.pathname==='/api/wind') {
         const code=error?.message;

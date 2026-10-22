@@ -33,13 +33,14 @@ async function streamReader(body){
  const reader=body.getReader();let chunk=new Uint8Array(),offset=0,total=0;
  return {async read(n,keep=true){if(n<0||n>100000000)throw Error('HARMONIE_SIZE');const out=keep?new Uint8Array(n):null;let done=0;while(done<n){if(offset===chunk.length){const r=await reader.read();if(r.done)throw Error('HARMONIE_TRUNCATED');chunk=r.value;offset=0;total+=chunk.length;if(total>900000000)throw Error('HARMONIE_SIZE');}const size=Math.min(n-done,chunk.length-offset);if(out)out.set(chunk.subarray(offset,offset+size),done);offset+=size;done+=size;}return out;},cancel:()=>reader.cancel().catch(()=>{})};
 }
-export function forecastWindow(rows,now){
- const complete=rows.filter(x=>x.u&&x.v&&Date.parse(x.time)>=now).sort((a,b)=>a.time.localeCompare(b.time));
+export function forecastWindow(rows,now,limit=7,until=Infinity){
+ const complete=rows.filter(x=>x.u&&x.v&&Date.parse(x.time)>=now&&Date.parse(x.time)<until).sort((a,b)=>a.time.localeCompare(b.time));
  const first=complete[0];if(!first)return [];const consecutive=[first];
- for(const row of complete.slice(1)){if(Date.parse(row.time)-Date.parse(consecutive.at(-1).time)!==3600000)break;consecutive.push(row);if(consecutive.length>=7)break;}
+ for(const row of complete.slice(1)){if(Date.parse(row.time)-Date.parse(consecutive.at(-1).time)!==3600000)break;consecutive.push(row);if(consecutive.length>=limit)break;}
  return consecutive;
 }
-export async function extractHarmonie(body,now=Date.now()){
+export async function extractHarmonie(body,now=Date.now(),options={}){
+ const limit=options.limit||7,until=options.until??Infinity;
  const r=await streamReader(body),rows=new Map();let run=null;
  const add=m=>{if(!m)return;if(run&&run!==m.run)throw Error('HARMONIE_MIXED_RUN');run=m.run;const row=rows.get(m.time)||{time:m.time};row[m.component]=m.values;rows.set(m.time,row);};
  try {for(let file=0;file<80;file++){
@@ -53,21 +54,32 @@ export async function extractHarmonie(body,now=Date.now()){
    if(remaining)await r.read(remaining,false);
   }
   if(size%512)await r.read(512-size%512,false);
-  if(forecastWindow([...rows.values()],now).length>=7)break;
+  if(forecastWindow([...rows.values()],now,limit,until).length>=limit)break;
  }}finally{await r.cancel();}
- if(!run||Date.parse(run)>now+300000)throw Error('HARMONIE_FORMAT');
- const complete=forecastWindow([...rows.values()],now);
+ if(!run||Date.parse(run)>Math.max(now,options.expectedRun?Date.parse(options.expectedRun):now)+300000||options.expectedRun&&run!==options.expectedRun)throw Error('HARMONIE_FORMAT');
+ const complete=forecastWindow([...rows.values()],now,limit,until);
  console.info('HARMONIE_WINDOW',JSON.stringify({run,fields:rows.size,completeFuture:[...rows.values()].filter(x=>x.u&&x.v&&Date.parse(x.time)>=now).length,consecutive:complete.length,first:[...rows.keys()].sort()[0],last:[...rows.keys()].sort().at(-1)}));
  return {run,points,rows:complete.map(row=>({time:row.time,parks:points.map((pt,i)=>({id:pt.id,windSpeedMS:Math.hypot(row.u[i].value,row.v[i].value),gridLatitude:row.u[i].latitude,gridLongitude:row.u[i].longitude}))}))};
 }
-export async function readHarmonie(env){
+export function historicalHarmonieOptions(run,day){
+ if(!/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(run||'')||!/^\d{4}-\d{2}-\d{2}$/.test(day||''))throw Error('HARMONIE_INVALID_HISTORY');
+ const stamp=Date.parse(run+':00:00Z'),dayStamp=Date.parse(day+'T00:00:00Z');
+ if(!Number.isFinite(stamp)||new Date(stamp).toISOString().slice(0,13)!==run||!Number.isFinite(dayStamp)||new Date(dayStamp).toISOString().slice(0,10)!==day||stamp<Date.parse('2026-01-08T00:00:00Z')||stamp>Date.now()||dayStamp-stamp>61*3600000||stamp-dayStamp>27*3600000)throw Error('HARMONIE_INVALID_HISTORY');
+ const df=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Amsterdam',year:'numeric',month:'2-digit',day:'2-digit'});
+ const hours=[];for(let t=dayStamp-3*3600000;t<dayStamp+27*3600000;t+=3600000)if(df.format(new Date(t))===day)hours.push(t);
+ if(!hours.length)throw Error('HARMONIE_INVALID_HISTORY');
+ const start=hours[0],until=hours.at(-1)+3600000;
+ return {historical:true,filename:'HARM43_V1_P1_'+run.replace(/[-T]/g,'')+'.tar',expectedRun:new Date(stamp).toISOString(),start,until,limit:hours.length,day};
+}
+export async function readHarmonie(env,selection={}){
+ const history=selection.run?historicalHarmonieOptions(selection.run,selection.day):null;
  if(!env.KNMI_OPEN_DATA_API_KEY)throw Error('HARMONIE_NOT_CONFIGURED');
- const key=env.KNMI_OPEN_DATA_API_KEY.trim(),hit=harmonieCache.get(key);if(hit&&hit.expires>Date.now())return hit.promise;
+ const key=env.KNMI_OPEN_DATA_API_KEY.trim(),cacheKey=key+'|'+(history?history.filename+'|'+history.day:'live'),hit=harmonieCache.get(cacheKey);if(hit&&hit.expires>Date.now())return hit.promise;
  const promise=(async()=>{
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
- async function api(url){const r=await fetch(url,{headers:{Authorization:key,Accept:'application/json'},redirect:'manual',signal:controller.signal});if(!r.ok){console.error('HARMONIE_API_STATUS',r.status);throw Error(r.status===401||r.status===403?'HARMONIE_AUTH':r.status===429?'HARMONIE_RATE_LIMIT':'HARMONIE_UNAVAILABLE');}return r.json();}
+ async function api(url){const r=await fetch(url,{headers:{Authorization:key,Accept:'application/json'},redirect:'manual',signal:controller.signal});if(!r.ok){console.error('HARMONIE_API_STATUS',r.status);throw Error(r.status===401||r.status===403?'HARMONIE_AUTH':r.status===404?'HARMONIE_RUN_NOT_FOUND':r.status===429?'HARMONIE_RATE_LIMIT':'HARMONIE_UNAVAILABLE');}return r.json();}
  try{
-  const listing=await api(HARMONIE_BASE+'?maxKeys=4&sorting=desc&orderBy=filename');
+  const listing=history?{files:[{filename:history.filename}]}:await api(HARMONIE_BASE+'?maxKeys=4&sorting=desc&orderBy=filename');
   let best=null;
   for(const file of (listing.files||[]).slice(0,4)){
   const filename=file.filename;
@@ -76,15 +88,15 @@ export async function readHarmonie(env){
   // Signed object-store URLs must never receive the KNMI Authorization header.
   if(target.protocol!=='https:'||!(/(^|\.)knmi\.nl$|(^|\.)knmi\.cloud$|(^|\.)amazonaws\.com$|(^|\.)googleapis\.com$|(^|\.)blob\.core\.windows\.net$/.test(target.hostname)))throw Error('HARMONIE_DOWNLOAD_HOST');
   const response=await fetch(target.href,{redirect:'manual',signal:controller.signal});if(!response.ok||!response.body)throw Error('HARMONIE_UNAVAILABLE');
-  const forecast=await extractHarmonie(response.body);
+  const forecast=await extractHarmonie(response.body,history?.start??Date.now(),history||{});
   console.info('HARMONIE_FILE',JSON.stringify({filename,run:forecast.run,hours:forecast.rows.length}));
   if(forecast.rows.length&&(!best||forecast.rows.length>best.rows.length))best={...forecast,filename};
-  if(forecast.rows.length>=7)break;
+  if(history||forecast.rows.length>=7)break;
   }
   if(!best)throw Error('HARMONIE_INCOMPLETE');
-  const stale=Date.now()-Date.parse(best.run)>6*3600000;
-  return {...best,partial:best.rows.length<7,retrievedAt:new Date().toISOString(),stale,source:'KNMI HARMONIE-AROME Cy43 P1',heightM:10,productionCorrection:false};
+  const stale=!history&&Date.now()-Date.parse(best.run)>6*3600000;
+  return {...best,historical:!!history,partial:best.rows.length<(history?.limit||7),retrievedAt:new Date().toISOString(),stale,source:'KNMI HARMONIE-AROME Cy43 P1',heightM:10,productionCorrection:false};
  }finally{clearTimeout(timer);}
  })();
- harmonieCache.set(key,{promise,expires:Date.now()+15*60000});promise.catch(()=>{const entry=harmonieCache.get(key);if(entry?.promise===promise)entry.expires=Date.now()+60000;});return promise;
+ harmonieCache.set(cacheKey,{promise,expires:Date.now()+(history?86400000:15*60000)});promise.catch(()=>{const entry=harmonieCache.get(cacheKey);if(entry?.promise===promise)entry.expires=Date.now()+60000;});if(harmonieCache.size>20)harmonieCache.delete(harmonieCache.keys().next().value);return promise;
 }
