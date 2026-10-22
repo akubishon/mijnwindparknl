@@ -6,7 +6,7 @@ const SVG = "http://www.w3.org/2000/svg";
 const STORE = "opsplitsing-v2";   // v2: technologiekeuze en EU-standaardwaarden
 const COLORS = {one: "#22528F", many: "#0094C6", accent: "#00A6DE", wash: "#C3E4F2", ink: "#0C2340", muted: "#465970"};
 const nf = (value, digits = 1) => value == null || !isFinite(value) ? "–"
-  : new Intl.NumberFormat("nl-NL", {minimumFractionDigits: digits, maximumFractionDigits: digits}).format(value);
+  : new Intl.NumberFormat("nl-NL", {minimumFractionDigits: 0, maximumFractionDigits: digits}).format(value);
 const pct = (value, digits = 1) => (value > 0 ? "+" : "") + nf(value * 100, digits) + " %";
 const label = n => `${n} module${n === 1 ? "" : "s"}`;
 
