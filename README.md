@@ -224,3 +224,19 @@ HARMONIE wordt op de parkpagina’s pas opgehaald na een expliciete aanvraag. Va
 ### Overzichtelijke windparkpagina’s
 
 De daggrafiek begint met een korte uitleg van productie, windaanbod en HARMONIE. De eenheid en het theoretische scenario zijn direct te kiezen; stationsvergelijking, formules, historische modeluren en downloads zijn gegroepeerd in uitklapbare onderdelen. De voorspellingsknop heet ‘Toon voorspelling’, met behoud van de bestaande branding en het wazige voorbeeldvenster. Dagcijfers blijven over het hele park gaan; de grafiek vermeldt het gekozen parkaandeel. De berekeningen en bronnen zijn ongewijzigd.
+
+### HARMONIE P1 en P2b kiezen
+
+Bij de HARMONIE-verwachting op de parkpagina staat een modelkeuze. P1 blijft de
+standaard. P2b gebruikt dezelfde beveiligde `KNMI_OPEN_DATA_API_KEY`-binding, een
+eigen datasetendpoint en aparte cache. De pagina legt het verschil uit tussen
+stationsmetingen, de deterministische P1-run en het P2b-ensembleproduct.
+
+De P2b-lijn toont één beschikbaar lid uit één bestand: de eerste windveldidentiteit
+(producerend centrum, proces en lokale GRIB1-extensie). Velden met een andere
+identiteit worden overgeslagen; tegenstrijdige dubbele velden worden geweigerd.
+Dit is geen selectie van controlelid 0, ensemblegemiddelde of onzekerheidsband.
+Beide keuzes gebruiken in deze app wind op 10 meter, gevolgd door de bestaande
+hoogtecorrectie en turbineberekening; de hogere modelniveaus worden niet benut.
+P2b-runs ouder dan 72 uur worden vooraf geweigerd; P1 behoudt het bestaande archief.
+API: `/api/harmonie?model=p2b`; onbekende modelnamen krijgen HTTP 400.

@@ -48,3 +48,16 @@ test('historical retrieval retains past forecast hours and reads the exact selec
  globalThis.fetch=async(url,options)=>{calls++;if(url.endsWith('/url')){assert.match(url,/HARM43_V1_P1_2026102206\.tar\/url$/);return Response.json({temporaryDownloadUrl:'https://storage.googleapis.com/history'});}assert.equal(options.headers,undefined);return new Response(tar());};
  try{const d=await readHarmonie({KNMI_OPEN_DATA_API_KEY:'archive-fixture-key'},{run:'2026-10-22T06',day:'2026-10-22'});assert.equal(d.historical,true);assert.equal(d.stale,false);assert.equal(d.rows.length,9);assert.equal(d.run,'2026-10-22T06:00:00.000Z');assert.equal(calls,2);}finally{globalThis.fetch=oldFetch;Date.now=oldNow;}
 });
+
+test('P2b uses its own dataset and cache, labels a single member without claiming ensemble statistics',async()=>{
+ const oldFetch=globalThis.fetch,oldNow=Date.now;Date.now=()=>Date.parse('2026-10-22T06:30:00Z');let listed='';
+ globalThis.fetch=async(url,options)=>{
+  if(url.includes('?maxKeys=')){listed=url;return Response.json({files:[{filename:'HARM43_V1_P2B_2026102206.tar'}]});}
+  if(url.endsWith('/url'))return Response.json({temporaryDownloadUrl:'https://storage.googleapis.com/p2b'});
+  assert.equal(options.headers,undefined);return new Response(tar());
+ };
+ try{const d=await readHarmonie({KNMI_OPEN_DATA_API_KEY:'p2b-fixture-key'},{model:'p2b'});assert.match(listed,/cy43_p2b/);assert.equal(d.model,'p2b');assert.equal(d.ensemble,true);assert.equal(d.ensembleSummary,false);assert.equal(d.rows.length,7);assert.ok(d.member);assert.equal(d.heightM,10);
+ await assert.rejects(readHarmonie({KNMI_OPEN_DATA_API_KEY:'unused'},{model:'p2b',run:'2026-10-10T06',day:'2026-10-10'}),/P2B_ARCHIVE/);
+ await assert.rejects(readHarmonie({KNMI_OPEN_DATA_API_KEY:'unused'},{model:'arbitrary'}),/INVALID_MODEL/);
+ }finally{globalThis.fetch=oldFetch;Date.now=oldNow;}
+});
