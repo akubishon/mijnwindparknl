@@ -75,3 +75,27 @@ test('latest run day comparison includes past and future hours from the newest r
   const future=await readHarmonie({KNMI_OPEN_DATA_API_KEY:'day-comparison-key'});assert.equal(future.rows[0].time,'2026-10-22T11:00:00.000Z');assert.equal(future.rows.length,7);assert.equal(listings,2);
  }finally{globalThis.fetch=oldFetch;Date.now=oldNow;}
 });
+
+function memoryBucket(){const objects=new Map();return {objects,async head(k){return objects.has(k)?{}:null;},async get(k){return objects.has(k)?{json:async()=>JSON.parse(objects.get(k))}:null;},async put(k,v){objects.set(k,v);}};}
+test('background extraction persists both parks and whole horizon; repeat polls never download the same run',async()=>{
+ const {updateHarmonieSnapshot,readStoredHarmonie}=await import('../src/harmonie.mjs');
+ const oldFetch=globalThis.fetch,oldNow=Date.now;Date.now=()=>Date.parse('2026-10-22T10:30:00Z');let downloads=0;
+ const BUCKET=memoryBucket(),env={BUCKET,KNMI_OPEN_DATA_API_KEY:'snapshot-fixture'};
+ globalThis.fetch=async url=>url.includes('?maxKeys=')?Response.json({files:[{filename:'HARM43_V1_P1_2026102206.tar'}]}):url.endsWith('/url')?Response.json({temporaryDownloadUrl:'https://storage.googleapis.com/snapshot'}):(downloads++,new Response(tar(49)));
+ try{
+  const result=await updateHarmonieSnapshot(env);assert.equal(result.hours,49);assert.equal(result.updated,true);
+  assert.equal((await updateHarmonieSnapshot(env)).updated,false);assert.equal(downloads,1);
+  globalThis.fetch=()=>{throw Error('Visitor must not fetch upstream');};
+  const day=await readStoredHarmonie(env,{day:'2026-10-22'});assert.equal(day.rows[0].time,'2026-10-22T06:00:00.000Z');assert.equal(day.rows[0].parks.length,2);
+  const future=await readStoredHarmonie(env);assert.equal(future.rows.length,7);assert.equal(future.rows[0].time,'2026-10-22T11:00:00.000Z');assert.equal(future.stored,true);
+  Date.now=()=>Date.parse('2026-10-22T14:30:00Z');assert.equal((await readStoredHarmonie(env)).stale,true);
+  const history=await readStoredHarmonie(env,{run:'2026-10-22T06',day:'2026-10-22'});assert.equal(history.historical,true);assert.equal(history.stale,false);
+  await assert.rejects(readStoredHarmonie(env,{model:'p2b'}),/PENDING/);
+ }finally{globalThis.fetch=oldFetch;Date.now=oldNow;}
+});
+test('failed extraction leaves previous durable forecast unchanged',async()=>{
+ const {updateHarmonieSnapshot}=await import('../src/harmonie.mjs');const BUCKET=memoryBucket();await BUCKET.put('harmonie/v1/p1/latest.json',JSON.stringify({run:'2026-10-22T05:00:00.000Z',key:'previous'}));
+ const oldFetch=globalThis.fetch,oldNow=Date.now;Date.now=()=>Date.parse('2026-10-22T10:30:00Z');
+ globalThis.fetch=async url=>url.includes('?maxKeys=')?Response.json({files:[{filename:'HARM43_V1_P1_2026102206.tar'}]}):url.endsWith('/url')?Response.json({temporaryDownloadUrl:'https://storage.googleapis.com/incomplete'}):new Response(tar(9));
+ try{await assert.rejects(updateHarmonieSnapshot({BUCKET,KNMI_OPEN_DATA_API_KEY:'test'}),/INCOMPLETE/);assert.equal((await (await BUCKET.get('harmonie/v1/p1/latest.json')).json()).key,'previous');assert.equal(BUCKET.objects.size,1);}finally{globalThis.fetch=oldFetch;Date.now=oldNow;}
+});

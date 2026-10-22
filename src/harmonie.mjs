@@ -112,3 +112,51 @@ export async function readHarmonie(env,selection={}){
  })();
  harmonieCache.set(cacheKey,{promise,expires:Date.now()+(history?86400000:15*60000)});promise.catch(()=>{const entry=harmonieCache.get(cacheKey);if(entry?.promise===promise)entry.expires=Date.now()+60000;});if(harmonieCache.size>20)harmonieCache.delete(harmonieCache.keys().next().value);return promise;
 }
+
+
+// Durable snapshots contain both locations and the complete available run horizon.
+const snapshotKey=(model,run)=>`harmonie/v1/${model}/${run}.json`;
+export async function updateHarmonieSnapshot(env,model='p1'){
+ model=harmonieModel(model);
+ if(!env.BUCKET)throw Error('HARMONIE_STORAGE');
+ if(!env.KNMI_OPEN_DATA_API_KEY)throw Error('HARMONIE_NOT_CONFIGURED');
+ const base=HARMONIE_BASE.replace('cy43_p1','cy43_'+model);
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
+ const api=async path=>{const r=await fetch(base+path,{headers:{Authorization:env.KNMI_OPEN_DATA_API_KEY.trim(),Accept:'application/json'},redirect:'manual',signal:controller.signal});if(!r.ok)throw Error('HARMONIE_API_'+r.status);return r.json();};
+ try{
+  const listing=await api('?maxKeys=1&sorting=desc&orderBy=filename');
+  const filename=listing.files?.[0]?.filename;
+  const match=typeof filename==='string'&&filename.match(new RegExp('^HARM43_V1_'+model.toUpperCase()+'_(\\d{10})\\.tar$'));
+  if(!match)throw Error('HARMONIE_FORMAT');
+  const stamp=match[1],run=`${stamp.slice(0,4)}-${stamp.slice(4,6)}-${stamp.slice(6,8)}T${stamp.slice(8,10)}:00:00.000Z`;
+  if(!Number.isFinite(Date.parse(run))||Date.parse(run)>Date.now()+300000)throw Error('HARMONIE_FORMAT');
+  const key=snapshotKey(model,run);
+  if(await env.BUCKET.head(key))return {model,run,updated:false};
+  const link=await api('/'+encodeURIComponent(filename)+'/url');
+  const target=new URL(link.temporaryDownloadUrl);
+  if(target.protocol!=='https:'||!(/(^|\.)knmi\.nl$|(^|\.)knmi\.cloud$|(^|\.)amazonaws\.com$|(^|\.)googleapis\.com$|(^|\.)blob\.core\.windows\.net$/.test(target.hostname)))throw Error('HARMONIE_DOWNLOAD_HOST');
+  const response=await fetch(target.href,{redirect:'manual',signal:controller.signal});
+  if(!response.ok||!response.body)throw Error('HARMONIE_UNAVAILABLE');
+  const data=await extractHarmonie(response.body,Date.parse(run),{limit:61,model,expectedRun:run,validationNow:Date.now()});
+  // Never publish a short, partially uploaded archive as a completed run.
+  if(data.rows.length<48||Date.parse(data.rows[0].time)!==Date.parse(run))throw Error('HARMONIE_INCOMPLETE');
+  const snapshot={...data,filename,model,retrievedAt:new Date().toISOString(),historical:false,partial:false,ensemble:model==='p2b',ensembleSummary:false,source:'KNMI HARMONIE-AROME Cy43 '+model.toUpperCase(),heightM:10,productionCorrection:false};
+  await env.BUCKET.put(key,JSON.stringify(snapshot),{httpMetadata:{contentType:'application/json'}});
+  const pointerKey=snapshotKey(model,'latest'),previous=await env.BUCKET.get(pointerKey);
+  const old=previous?await previous.json():null;
+  if(!old||Date.parse(old.run)<Date.parse(run))await env.BUCKET.put(pointerKey,JSON.stringify({run,key}));
+  return {model,run,updated:true,hours:data.rows.length};
+ }finally{clearTimeout(timer);}
+}
+export async function readStoredHarmonie(env,selection={}){
+ const model=harmonieModel(selection.model),history=selection.run?historicalHarmonieOptions(selection.run,selection.day):null;
+ const window=history||(selection.day?harmonieDayWindow(selection.day):null);
+ if(!env.BUCKET)throw Error('HARMONIE_STORAGE');
+ let key=history?snapshotKey(model,history.expectedRun):null;
+ if(!key){const pointer=await env.BUCKET.get(snapshotKey(model,'latest'));if(!pointer)throw Error('HARMONIE_PENDING');key=(await pointer.json()).key;}
+ const object=await env.BUCKET.get(key);if(!object)throw Error('HARMONIE_PENDING');
+ const data=await object.json(),start=window?.start??Date.now(),until=window?.until??Infinity,limit=window?.limit??7;
+ const rows=data.rows.filter(r=>Date.parse(r.time)>=start&&Date.parse(r.time)<until).slice(0,limit);
+ if(!rows.length)throw Error('HARMONIE_PENDING');
+ return {...data,rows,historical:!!history,stored:true,partial:rows.length<limit,stale:!history&&Date.now()-Date.parse(data.run)>6*3600000};
+}

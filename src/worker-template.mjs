@@ -84,6 +84,16 @@ async function gateRequest(request,env,url){
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // The unattended writer has separate authorization and never opens visitor routes.
+    if(url.pathname==='/api/internal/harmonie/update'){
+      if(request.method!=='POST')return answer({error:'Method not allowed'},405);
+      const token=(request.headers.get('Authorization')||'').replace(/^Bearer /,'');
+      const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(token))),b=>b.toString(16).padStart(2,'0')).join('');
+      if(!env.FORECAST_WRITER_SHA256||digest!==env.FORECAST_WRITER_SHA256)return answer({error:'Unauthorized'},401);
+      const model=url.searchParams.get('model')||'p1';if(!['p1','p2b'].includes(model))return answer({error:'Invalid model'},400);
+      try{const result=await updateHarmonieSnapshot(env,model);const saved=await readStoredHarmonie(env,{model});return answer({...result,verifiedRun:saved.run,storedHours:saved.rows.length});}
+      catch(error){console.error('HARMONIE_UPDATE_FAILED',error.message);return answer({error:error.message},502);}
+    }
     const gate=await gateRequest(request,env,url);if(gate)return gate;
     if(url.pathname==='/opsplitsing'||url.pathname==='/elektrolyser/opsplitsen')return new Response(opsPage,{headers:{...securityHeaders,'Content-Security-Policy':opsPolicy,'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
     if(url.pathname==='/api/opsplitsing/scenarios')return answer({scenarios:[]});
@@ -118,7 +128,7 @@ export default {
         const forecastOptions=url.searchParams.has('park')?modelOptions(url.searchParams):null;
         let history={};if(url.searchParams.has('run')){try{history=historicalHarmonieOptions(url.searchParams.get('run'),url.searchParams.get('day'));}catch{return answer({error:'Kies een geldig modeluur vanaf 8 januari 2026, niet in de toekomst en binnen de voorspellingshorizon van de gekozen grafiekdag.'},400);}}
         if(!history.historical&&url.searchParams.has('day')){try{harmonieDayWindow(url.searchParams.get('day'));}catch{return answer({error:'Kies een geldige grafiekdag.'},400);}}
-        const forecast=await readHarmonie(env,history.historical?{model:selectedModel,run:url.searchParams.get('run'),day:url.searchParams.get('day')}:{model:selectedModel,day:url.searchParams.get('day')||undefined});
+        const forecast=await readStoredHarmonie(env,history.historical?{model:selectedModel,run:url.searchParams.get('run'),day:url.searchParams.get('day')}:{model:selectedModel,day:url.searchParams.get('day')||undefined});
         return answer({...forecast,rows:forecast.rows.map(row=>{const parks=row.parks.map(park=>({...park,powerMW:windPowerModel(row.time.slice(0,10),(forecastOptions?.park===park.id?forecastOptions:modelOptions(new URLSearchParams({park:park.id}))))(park.windSpeedMS)}));return {...row,parks,allocatedMW:parks.find(p=>p.id==='fryslan').powerMW*.1+parks.find(p=>p.id==='beabuorren').powerMW};})});
       }
       if(url.pathname==='/api/atlas/catalogue'){
@@ -175,7 +185,7 @@ export default {
       }
       return answer({ error: 'Not found' }, 404);
     } catch (error) {
-      if(url.pathname==='/api/harmonie'){console.error('HARMONIE_REQUEST_FAILED',error?.message?.startsWith('HARMONIE_')?error.message:'CONNECTION');const messages={HARMONIE_P2B_ARCHIVE:'P2b-runs worden door KNMI slechts 72 uur bewaard. Kies een recente run of gebruik P1 voor het archief vanaf 8 januari 2026.',HARMONIE_MEMBER_CONFLICT:'Het P2b-bestand bevat niet eenduidig te scheiden ensembleleden. Er wordt geen gemengde voorspelling getoond.',HARMONIE_RUN_NOT_FOUND:'Deze historische HARMONIE-run ontbreekt in het KNMI-archief. Kies een ander modeluur.',HARMONIE_INVALID_HISTORY:'De historische modelrun of grafiekdag is ongeldig.',HARMONIE_NOT_CONFIGURED:'De KNMI Open Data API-key is nog niet ingesteld.',HARMONIE_AUTH:'De KNMI Open Data API-key geeft geen toegang tot HARMONIE.',HARMONIE_RATE_LIMIT:'Het KNMI-aanvraaglimiet is bereikt. Probeer later opnieuw.',HARMONIE_INCOMPLETE:'De modelrun bevat nog onvoldoende complete voorspellingsuren.',HARMONIE_DOWNLOAD_HOST:'Het downloadadres van KNMI wordt nog niet ondersteund.'};return answer({error:messages[error?.message]||'HARMONIE ophalen of lezen is niet gelukt. Probeer later opnieuw. Er worden geen voorbeeldwaarden als voorspelling getoond.'},502);}
+      if(url.pathname==='/api/harmonie'){console.error('HARMONIE_REQUEST_FAILED',error?.message?.startsWith('HARMONIE_')?error.message:'CONNECTION');const messages={HARMONIE_PENDING:'Deze voorspelling is nog niet opgeslagen of bevat geen uren voor deze dag. De achtergrondtaak verwerkt nieuwe runs automatisch. Historische runs zijn beschikbaar vanaf het starten van de opslag.',HARMONIE_STORAGE:'De voorspellingenopslag is nog niet beschikbaar.',HARMONIE_P2B_ARCHIVE:'P2b-runs worden door KNMI slechts 72 uur bewaard. Kies een recente run of gebruik P1 voor het archief vanaf 8 januari 2026.',HARMONIE_MEMBER_CONFLICT:'Het P2b-bestand bevat niet eenduidig te scheiden ensembleleden. Er wordt geen gemengde voorspelling getoond.',HARMONIE_RUN_NOT_FOUND:'Deze historische HARMONIE-run ontbreekt in het KNMI-archief. Kies een ander modeluur.',HARMONIE_INVALID_HISTORY:'De historische modelrun of grafiekdag is ongeldig.',HARMONIE_NOT_CONFIGURED:'De KNMI Open Data API-key is nog niet ingesteld.',HARMONIE_AUTH:'De KNMI Open Data API-key geeft geen toegang tot HARMONIE.',HARMONIE_RATE_LIMIT:'Het KNMI-aanvraaglimiet is bereikt. Probeer later opnieuw.',HARMONIE_INCOMPLETE:'De modelrun bevat nog onvoldoende complete voorspellingsuren.',HARMONIE_DOWNLOAD_HOST:'Het downloadadres van KNMI wordt nog niet ondersteund.'};return answer({error:messages[error?.message]||'HARMONIE ophalen of lezen is niet gelukt. Probeer later opnieuw. Er worden geen voorbeeldwaarden als voorspelling getoond.'},502);}
       if(url.pathname==='/api/atlas/catalogue'){console.error('ATLAS_CATALOG_REQUEST_FAILED',error?.name||'Error');return answer({error:'De verbinding met Waterstofatlas is onderbroken of duurt te lang. Probeer opnieuw.'},502);}
       if(url.pathname==='/api/wind') {
         const code=error?.message;

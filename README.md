@@ -240,3 +240,38 @@ Beide keuzes gebruiken in deze app wind op 10 meter, gevolgd door de bestaande
 hoogtecorrectie en turbineberekening; de hogere modelniveaus worden niet benut.
 P2b-runs ouder dan 72 uur worden vooraf geweigerd; P1 behoudt het bestaande archief.
 API: `/api/harmonie?model=p2b`; onbekende modelnamen krijgen HTTP 400.
+
+### Vooraf verwerkte HARMONIE-voorspellingen
+
+De parkpagina’s en Slim schakelen lezen uitsluitend kleine, blijvend opgeslagen
+R2-snapshots via `/api/harmonie`. Een snapshot bevat de beschikbare horizon van
+één modelrun met de twee roosterlocaties. De gekozen turbine-instellingen worden
+pas op die opgeslagen windsnelheden toegepast, zodat alle instellingen dezelfde
+bronverwerking delen. Elke run blijft onder zijn model en UTC-uitgiftetijd
+bewaard. Dagfilters gebruiken Europe/Amsterdam, inclusief zomer-/wintertijd.
+Historische runs zijn beschikbaar zodra ze door deze opslag zijn verwerkt;
+ontbrekende runs geven een expliciete melding en starten geen download.
+
+Een gekoppelde cloudtaak controleert ieder kwartier beide modellen via
+`POST /api/internal/harmonie/update?model=p1` (en `p2b`). Een reeds opgeslagen
+run wordt overgeslagen. Een nieuwe TAR wordt eenmaal gestreamd en gevalideerd;
+alleen een aaneengesloten horizon van minstens 48 uren vanaf het modeluur wordt
+gepubliceerd. Een mislukte verwerking laat de vorige voorspelling intact;
+verouderde verwachtingen blijven als verouderd gemarkeerd.
+
+De writer staat los van de bezoekerslogin. De taak verkrijgt bij iedere uitvoering
+Site-serviceaccess met Sites `get_site` en stuurt deze alleen naar deze Site in
+`OAI-Sites-Authorization`. `scripts/update-harmonie.mjs` ontvangt via stdin
+`{"url":"https://mijnwindpark.nl","serviceToken":"<runtime token>"}` en leidt
+in geheugen een afzonderlijke writer-credential af: SHA-256 van
+`harmonie-writer-v1:` gevolgd door het servicetoken. De server bewaart uitsluitend
+de SHA-256 van deze afgeleide credential als geheime runtimevariabele
+`FORECAST_WRITER_SHA256`. Geen credential staat in broncode, bestanden of logs.
+Bij rotatie van Site-serviceaccess moet deze hash opnieuw worden ingesteld.
+De bestaande geheime `KNMI_OPEN_DATA_API_KEY` blijft alleen server-side.
+
+De taak moet de gepushte Site-broncode openen, het script uitvoeren met actuele
+serviceaccess via verborgen stdin, en beide modelresultaten controleren op
+`verifiedRun === run`. De update leest de duurzame opslag na iedere verwerking
+terug. Bij fouten later opnieuw proberen; nooit leegmaken of voorbeelddata
+publiceren. Hiervoor is geen nieuwe Site-publicatie nodig.
