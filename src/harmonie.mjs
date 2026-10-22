@@ -33,6 +33,12 @@ async function streamReader(body){
  const reader=body.getReader();let chunk=new Uint8Array(),offset=0,total=0;
  return {async read(n,keep=true){if(n<0||n>100000000)throw Error('HARMONIE_SIZE');const out=keep?new Uint8Array(n):null;let done=0;while(done<n){if(offset===chunk.length){const r=await reader.read();if(r.done)throw Error('HARMONIE_TRUNCATED');chunk=r.value;offset=0;total+=chunk.length;if(total>900000000)throw Error('HARMONIE_SIZE');}const size=Math.min(n-done,chunk.length-offset);if(out)out.set(chunk.subarray(offset,offset+size),done);offset+=size;done+=size;}return out;},cancel:()=>reader.cancel().catch(()=>{})};
 }
+export function forecastWindow(rows,now){
+ const complete=rows.filter(x=>x.u&&x.v&&Date.parse(x.time)>=now).sort((a,b)=>a.time.localeCompare(b.time));
+ const first=complete[0];if(!first)return [];const consecutive=[first];
+ for(const row of complete.slice(1)){if(Date.parse(row.time)-Date.parse(consecutive.at(-1).time)!==3600000)break;consecutive.push(row);if(consecutive.length>=7)break;}
+ return consecutive;
+}
 export async function extractHarmonie(body,now=Date.now()){
  const r=await streamReader(body),rows=new Map();let run=null;
  const add=m=>{if(!m)return;if(run&&run!==m.run)throw Error('HARMONIE_MIXED_RUN');run=m.run;const row=rows.get(m.time)||{time:m.time};row[m.component]=m.values;rows.set(m.time,row);};
@@ -47,13 +53,11 @@ export async function extractHarmonie(body,now=Date.now()){
    if(remaining)await r.read(remaining,false);
   }
   if(size%512)await r.read(512-size%512,false);
-  const complete=[...rows.values()].filter(x=>x.u&&x.v&&Date.parse(x.time)>=now).sort((a,b)=>a.time.localeCompare(b.time));
-  if(complete.length>=7)break;
+  if(forecastWindow([...rows.values()],now).length>=7)break;
  }}finally{await r.cancel();}
  if(!run||Date.parse(run)>now+300000)throw Error('HARMONIE_FORMAT');
- const complete=[...rows.values()].filter(x=>x.u&&x.v&&Date.parse(x.time)>=now).sort((a,b)=>a.time.localeCompare(b.time)).slice(0,7);
- if(complete.length<2)throw Error('HARMONIE_INCOMPLETE');
- if(complete.some((x,i)=>i&&Date.parse(x.time)-Date.parse(complete[i-1].time)!==3600000))throw Error('HARMONIE_INCOMPLETE');
+ const complete=forecastWindow([...rows.values()],now);
+ console.info('HARMONIE_WINDOW',JSON.stringify({run,fields:rows.size,completeFuture:[...rows.values()].filter(x=>x.u&&x.v&&Date.parse(x.time)>=now).length,consecutive:complete.length,first:[...rows.keys()].sort()[0],last:[...rows.keys()].sort().at(-1)}));
  return {run,points,rows:complete.map(row=>({time:row.time,parks:points.map((pt,i)=>({id:pt.id,windSpeedMS:Math.hypot(row.u[i].value,row.v[i].value),gridLatitude:row.u[i].latitude,gridLongitude:row.u[i].longitude}))}))};
 }
 export async function readHarmonie(env){
@@ -63,15 +67,23 @@ export async function readHarmonie(env){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
  async function api(url){const r=await fetch(url,{headers:{Authorization:key,Accept:'application/json'},redirect:'manual',signal:controller.signal});if(!r.ok){console.error('HARMONIE_API_STATUS',r.status);throw Error(r.status===401||r.status===403?'HARMONIE_AUTH':r.status===429?'HARMONIE_RATE_LIMIT':'HARMONIE_UNAVAILABLE');}return r.json();}
  try{
-  const listing=await api(HARMONIE_BASE+'?maxKeys=1&sorting=desc&orderBy=filename');const filename=listing.files?.[0]?.filename;
+  const listing=await api(HARMONIE_BASE+'?maxKeys=4&sorting=desc&orderBy=filename');
+  let best=null;
+  for(const file of (listing.files||[]).slice(0,4)){
+  const filename=file.filename;
   if(typeof filename!=='string'||!filename.endsWith('.tar')||filename.length>240)throw Error('HARMONIE_FORMAT');
   const link=await api(HARMONIE_BASE+'/'+encodeURIComponent(filename)+'/url');let target;try{target=new URL(link.temporaryDownloadUrl);}catch{throw Error('HARMONIE_FORMAT');}
   // Signed object-store URLs must never receive the KNMI Authorization header.
   if(target.protocol!=='https:'||!(/(^|\.)knmi\.nl$|(^|\.)knmi\.cloud$|(^|\.)amazonaws\.com$|(^|\.)googleapis\.com$|(^|\.)blob\.core\.windows\.net$/.test(target.hostname)))throw Error('HARMONIE_DOWNLOAD_HOST');
   const response=await fetch(target.href,{redirect:'manual',signal:controller.signal});if(!response.ok||!response.body)throw Error('HARMONIE_UNAVAILABLE');
   const forecast=await extractHarmonie(response.body);
-  const stale=Date.now()-Date.parse(forecast.run)>6*3600000;
-  return {...forecast,filename,retrievedAt:new Date().toISOString(),stale,source:'KNMI HARMONIE-AROME Cy43 P1',heightM:10,productionCorrection:false};
+  console.info('HARMONIE_FILE',JSON.stringify({filename,run:forecast.run,hours:forecast.rows.length}));
+  if(forecast.rows.length&&(!best||forecast.rows.length>best.rows.length))best={...forecast,filename};
+  if(forecast.rows.length>=7)break;
+  }
+  if(!best)throw Error('HARMONIE_INCOMPLETE');
+  const stale=Date.now()-Date.parse(best.run)>6*3600000;
+  return {...best,partial:best.rows.length<7,retrievedAt:new Date().toISOString(),stale,source:'KNMI HARMONIE-AROME Cy43 P1',heightM:10,productionCorrection:false};
  }finally{clearTimeout(timer);}
  })();
  harmonieCache.set(key,{promise,expires:Date.now()+15*60000});promise.catch(()=>{const entry=harmonieCache.get(key);if(entry?.promise===promise)entry.expires=Date.now()+60000;});return promise;

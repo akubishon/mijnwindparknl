@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {gribWindPoints,extractHarmonie,readHarmonie} from '../src/harmonie.mjs';
+import {gribWindPoints,extractHarmonie,readHarmonie,forecastWindow} from '../src/harmonie.mjs';
 function message(component=33,hour=0){
  const a=new Uint8Array(8+28+32+15+4),p=8,g=36,b=68;
  const str=(p,s)=>a.set(new TextEncoder().encode(s),p),u16=(p,v)=>{a[p]=v>>8;a[p+1]=v&255;},u24=(p,v)=>{a[p]=v>>16;a[p+1]=v>>8&255;a[p+2]=v&255;};
@@ -12,3 +12,11 @@ function tar(){const files=[];for(let hour=0;hour<9;hour++){const u=message(33,h
 test('GRIB1 point extraction respects latitude scan and time, preserves zero, rejects incompatible fields',()=>{const a=message();let d=gribWindPoints(a);assert.equal(d.run,'2026-10-22T06:00:00.000Z');assert.equal(d.values[0].value,3);assert.equal(d.values[0].latitude,54);a[79+2]=0;assert.equal(gribWindPoints(a).values[0].value,0);a[17]=100;assert.equal(gribWindPoints(a),null);const bad=message();bad[71]=128;assert.throws(()=>gribWindPoints(bad),/PACKING/);});
 test('TAR stream joins u/v from one run, extracts future hours and cancels early',async()=>{const d=await extractHarmonie(tar(),Date.parse('2026-10-22T06:30:00Z'));assert.equal(d.rows.length,7);assert.equal(d.rows[0].time,'2026-10-22T07:00:00.000Z');assert.equal(d.rows[0].parks[0].windSpeedMS,Math.hypot(3,6));});
 test('missing key is explicit and authorization failures do not fetch signed downloads',async()=>{await assert.rejects(readHarmonie({}),/NOT_CONFIGURED/);const old=globalThis.fetch;let calls=0;globalThis.fetch=async(url,options)=>{calls++;assert.equal(options.redirect,'manual');return new Response('{}',{status:403});};try{await assert.rejects(readHarmonie({KNMI_OPEN_DATA_API_KEY:'test-key'}),/AUTH/);assert.equal(calls,1);}finally{globalThis.fetch=old;}});
+
+test('unordered future hours do not make a gap look like a complete planning horizon',()=>{
+ const row=h=>({time:`2026-10-22T${String(h).padStart(2,'0')}:00:00Z`,u:[1],v:[1]});
+ const now=Date.parse('2026-10-22T06:30:00Z');
+ assert.deepEqual(forecastWindow([row(10),row(7),row(9),row(11),row(12),row(13),row(14)],now).map(x=>x.time),[row(7).time]);
+ assert.equal(forecastWindow([row(10),row(7),row(9),row(8),row(11),row(12),row(13),row(14)],now).length,7);
+ assert.equal(forecastWindow([{time:row(7).time,u:[1]},row(8)],now).length,1);
+});
