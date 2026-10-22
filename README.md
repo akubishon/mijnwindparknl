@@ -285,3 +285,17 @@ conflicterende velden voor dezelfde lididentiteit en wordt veilig afgewezen
 (`HARMONIE_MEMBER_CONFLICT`); er is hiervoor nog geen snapshot gepubliceerd.
 De uurtaak controleert beide modellen opnieuw. De planner staat maximaal één
 uitvoering per uur toe.
+
+### Modelpaneel naast de parkgrafiek
+
+Vanaf 1500 px staan de bestaande modelinstellingen rechts van het dagoverzicht,
+standaard uitgeklapt en met eigen scrollruimte. Op kleinere schermen blijft het
+paneel inklapbaar onder de grafiek. Invoer blijft een concept totdat Model
+bijwerken wordt gebruikt; een statusmelding maakt dit zichtbaar. De uitleg
+toont de hoogteformule, actieve seizoensafhankelijke alfa, windreductie door zog,
+turbinecurve en parkaandeel, met het onderscheid tussen begrensd vermogen en
+het standaard ingeschakelde onbegrensde scenario. Het KNMI-station verandert
+niet het vaste HARMONIE-roosterpunt. Alle parameters zijn ook bij Beabuorren
+zichtbaar; start- en nominale wind gelden daar alleen voor het theoretische
+scenario. De volgorde startwind < nominale wind < uitschakelwind wordt bij
+toepassen gevalideerd.
