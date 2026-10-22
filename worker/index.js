@@ -404,12 +404,17 @@ async function updateHarmonieSnapshot(env,model='p1'){
  try{
   const listing=await api('?maxKeys=1&sorting=desc&orderBy=filename');
   const filename=listing.files?.[0]?.filename;
-  const match=typeof filename==='string'&&filename.match(new RegExp('^HARM43_V1_'+model.toUpperCase()+'_(\\d{10})\\.tar$'));
-  if(!match)throw Error('HARMONIE_FORMAT');
+  const match=typeof filename==='string'&&filename.match(new RegExp('^HARM43_V1_'+model.toUpperCase()+'_(\\d{10})\\.tar$','i'));
+  console.info('HARMONIE_PREPROCESS_FILE',JSON.stringify({model,filename}));
+  if(!match)throw Error('HARMONIE_FILENAME');
   const stamp=match[1],run=`${stamp.slice(0,4)}-${stamp.slice(4,6)}-${stamp.slice(6,8)}T${stamp.slice(8,10)}:00:00.000Z`;
   if(!Number.isFinite(Date.parse(run))||Date.parse(run)>Date.now()+300000)throw Error('HARMONIE_FORMAT');
   const key=snapshotKey(model,run);
-  if(await env.BUCKET.head(key))return {model,run,updated:false};
+  if(await env.BUCKET.head(key)){
+   const pointerKey=snapshotKey(model,'latest'),pointer=await env.BUCKET.get(pointerKey),old=pointer?await pointer.json():null;
+   if(!old||Date.parse(old.run)<Date.parse(run))await env.BUCKET.put(pointerKey,JSON.stringify({run,key}));
+   return {model,run,updated:false};
+  }
   const link=await api('/'+encodeURIComponent(filename)+'/url');
   const target=new URL(link.temporaryDownloadUrl);
   if(target.protocol!=='https:'||!(/(^|\.)knmi\.nl$|(^|\.)knmi\.cloud$|(^|\.)amazonaws\.com$|(^|\.)googleapis\.com$|(^|\.)blob\.core\.windows\.net$/.test(target.hostname)))throw Error('HARMONIE_DOWNLOAD_HOST');
