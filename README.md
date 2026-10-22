@@ -252,7 +252,8 @@ bewaard. Dagfilters gebruiken Europe/Amsterdam, inclusief zomer-/wintertijd.
 Historische runs zijn beschikbaar zodra ze door deze opslag zijn verwerkt;
 ontbrekende runs geven een expliciete melding en starten geen download.
 
-Een gekoppelde cloudtaak controleert ieder kwartier beide modellen via
+Een gekoppelde cloudtaak controleert ieder uur om vijf minuten over het uur
+(Europe/Amsterdam) beide modellen via
 `POST /api/internal/harmonie/update?model=p1` (en `p2b`). Een reeds opgeslagen
 run wordt overgeslagen. Een nieuwe TAR wordt eenmaal gestreamd en gevalideerd;
 alleen een aaneengesloten horizon van minstens 48 uren vanaf het modeluur wordt
@@ -270,8 +271,15 @@ de SHA-256 van deze afgeleide credential als geheime runtimevariabele
 Bij rotatie van Site-serviceaccess moet deze hash opnieuw worden ingesteld.
 De bestaande geheime `KNMI_OPEN_DATA_API_KEY` blijft alleen server-side.
 
-De taak moet de gepushte Site-broncode openen, het script uitvoeren met actuele
+De taak moet de gepushte Site-broncode openen, het script met `node --use-env-proxy` uitvoeren met actuele
 serviceaccess via verborgen stdin, en beide modelresultaten controleren op
 `verifiedRun === run`. De update leest de duurzame opslag na iedere verwerking
 terug. Bij fouten later opnieuw proberen; nooit leegmaken of voorbeelddata
 publiceren. Hiervoor is geen nieuwe Site-publicatie nodig.
+
+Productiecontrole: P1-run 2026-10-22T11:00Z met 61 uren opgeslagen en
+teruggelezen; een tweede controle sloeg de download over. P2b heeft momenteel
+conflicterende velden voor dezelfde lididentiteit en wordt veilig afgewezen
+(`HARMONIE_MEMBER_CONFLICT`); er is hiervoor nog geen snapshot gepubliceerd.
+De uurtaak controleert beide modellen opnieuw. De planner staat maximaal één
+uitvoering per uur toe.
