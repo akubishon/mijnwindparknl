@@ -195,3 +195,10 @@ Verification: `npm test` covers the existing Worker behavior plus wind-before-po
 
 
 De daganalyse gebruikt een samenhangende werkruimte: daggrafiek, tijdschuif en productie per configuratie links; zes compacte rekenstappen rechts. De kernwaarden blijven zichtbaar, formules zijn per stap uit te klappen en ‘Alle rekenstappen tonen’ opent alles. De keuze blijft behouden bij wisselen van tijdstip. Vorige/volgende bedient één tienminutenstap. Brede schermen tonen maximaal twee grote resultaatgrafieken per rij; gewone tekst en tabellen zijn groter gezet. Op kleine schermen stapelen de onderdelen en scrolt alleen de daggrafiek horizontaal.
+
+
+## HARMONIE op Slim schakelen
+
+`/slim-schakelen` haalt via de bestaande sitelogin `/api/harmonie` op. De server gebruikt de geheime runtimevariabele `KNMI_OPEN_DATA_API_KEY` voor KNMI Open Data, niet de EDR-key. P1 1.0 wordt op bestandsnaam aflopend opgevraagd. Een ondertekende download-URL krijgt geen Authorization-header mee. De TAR wordt begrensd gestreamd; alleen reguliere lat/lon GRIB1 met eenvoudige pakking en zonder bitmap wordt geaccepteerd. Onbekende formaten geven een fout, geen nulwaarden.
+
+De eerste maximaal zeven complete toekomstige uurpunten worden getoond, met run- en ophaaltijd. Een run ouder dan zes uur krijgt een waarschuwing. Geslaagde aanvragen worden vijftien minuten in de Worker hergebruikt; fouten één minuut. Er is nog geen duurzaam voorspellingsarchief. De wind op 10 m wordt bij benaderde parkcentra uit het dichtstbijzijnde modelroosterpunt gehaald en met de bestaande hoogtecorrectie en turbinecurves naar potentieel vermogen vertaald. Toewijzing is 10% Fryslân + 100% Beabuorren vóór BoP. Productiecorrectie, aansluitbeperkingen, afregeling en automatische modulebesturing zijn niet gekoppeld. De marge blijft een handmatige aanname.

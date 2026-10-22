@@ -10,11 +10,11 @@ async function signedIn() {
  const cookie = login.headers.get('Set-Cookie').split(';')[0];
  return route => worker.fetch(new Request('https://fixture.test' + route, {headers: {Cookie: cookie}}), env);
 }
-const routes = ['/elektrolyser', '/elektrolyser/catalogus', '/elektrolyser/samenstellen', '/elektrolyser/vergelijken'];
+const routes = ['/elektrolyser', '/elektrolyser/catalogus', '/elektrolyser/samenstellen', '/elektrolyser/vergelijken', '/slim-schakelen'];
 
 test('Elektrolyser sub-tabs and the calculation worker stay behind the site login', async () => {
  const worker = await raw();
- for (const route of [...routes, '/assets/elektrolyser-rekenkern.js']) assert.equal((await worker.fetch(new Request('https://fixture.test' + route), env)).status, 401, route);
+ for (const route of [...routes, '/api/harmonie', '/assets/elektrolyser-rekenkern.js']) assert.equal((await worker.fetch(new Request('https://fixture.test' + route), env)).status, 401, route);
  const get = await signedIn();
  for (const route of routes) {
   const r = await get(route);

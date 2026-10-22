@@ -10,10 +10,11 @@ const html = `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta n
 const dataClient = readFileSync('src/wpf.mjs', 'utf8').replaceAll('export ', '');
 const scriptHash = createHash('sha256').update(client).digest('base64');
 const policy = `default-src 'none'; script-src 'sha256-${scriptHash}'; worker-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'`;
+const harmonieClient=readFileSync('src/harmonie.mjs','utf8').replaceAll('export ', '');
 const stationCatalog = readFileSync('src/stations.json', 'utf8');
 const electrolyserClient=readFileSync('src/electrolysis.mjs','utf8').replaceAll('export ', '');
 const windClient = readFileSync('src/knmi.mjs', 'utf8').replace("import stationCatalog from './stations.json' with { type: 'json' };", 'const stationCatalog = '+stationCatalog+';').replaceAll('export ', '');
-const worker = readFileSync('src/worker-template.mjs', 'utf8').replace('/* __DATA_CLIENT__ */', () => dataClient).replace('/* __WIND_CLIENT__ */', () => windClient+'\n'+electrolyserClient).replace('/* __STATIONS__ */', () => stationCatalog).replace('/* __BRAND_FONT__ */',()=>JSON.stringify(readFileSync('src/assets/tasa-orbiter.ttf').toString('base64'))).replace('/* __OPS_ASSETS__ */',()=>JSON.stringify(opsAssets)).replace('/* __OPS_PAGE__ */',()=>JSON.stringify(opsPage)).replace('/* __OPS_POLICY__ */',()=>JSON.stringify(opsPolicy)).replace('/* __PAGE__ */', () => JSON.stringify(html)).replace('/* __CALC_WORKER__ */', () => JSON.stringify(calculator)).replace('/* __CSP__ */', () => JSON.stringify(policy));
+const worker = readFileSync('src/worker-template.mjs', 'utf8').replace('/* __DATA_CLIENT__ */', () => dataClient).replace('/* __WIND_CLIENT__ */', () => windClient+'\n'+electrolyserClient+'\n'+harmonieClient).replace('/* __STATIONS__ */', () => stationCatalog).replace('/* __BRAND_FONT__ */',()=>JSON.stringify(readFileSync('src/assets/tasa-orbiter.ttf').toString('base64'))).replace('/* __OPS_ASSETS__ */',()=>JSON.stringify(opsAssets)).replace('/* __OPS_PAGE__ */',()=>JSON.stringify(opsPage)).replace('/* __OPS_POLICY__ */',()=>JSON.stringify(opsPolicy)).replace('/* __PAGE__ */', () => JSON.stringify(html)).replace('/* __CALC_WORKER__ */', () => JSON.stringify(calculator)).replace('/* __CSP__ */', () => JSON.stringify(policy));
 mkdirSync('worker', { recursive: true });
 writeFileSync('worker/index.js', worker);
 console.log('Composed the standalone app worker.');

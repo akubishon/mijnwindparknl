@@ -113,6 +113,10 @@ export default {
     if (url.pathname === '/assets/elektrolyser-rekenkern.js') return new Response(calculatorWorker, { headers: { ...securityHeaders, 'Content-Security-Policy': "default-src 'none'; connect-src 'self'", 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' } });
     if (url.pathname === '/favicon.svg') return new Response(favicon, { headers: { ...securityHeaders, 'Content-Type': 'image/svg+xml' } });
     try {
+      if(url.pathname==='/api/harmonie'){
+        const forecast=await readHarmonie(env);
+        return answer({...forecast,rows:forecast.rows.map(row=>{const parks=row.parks.map(park=>({...park,powerMW:windPowerModel(row.time.slice(0,10),modelOptions(new URLSearchParams({park:park.id})))(park.windSpeedMS)}));return {...row,parks,allocatedMW:parks.find(p=>p.id==='fryslan').powerMW*.1+parks.find(p=>p.id==='beabuorren').powerMW};})});
+      }
       if(url.pathname==='/api/atlas/catalogue'){
         if(!env.WINDPARK_CATALOG_TOKEN)return answer({error:'Waterstofatlas is nog niet gekoppeld.'},503);
         const r=await fetch('https://elektrolyser-atlas.givingsky33.chatgpt.site/api/integrations/mijnwindpark/catalogue',{headers:{Authorization:'Bearer '+env.WINDPARK_CATALOG_TOKEN,Accept:'application/json','User-Agent':'Mijnwindpark/1.0 (+https://mijnwindpark.nl)'},redirect:'manual',signal:AbortSignal.timeout(15000)});
@@ -167,6 +171,7 @@ export default {
       }
       return answer({ error: 'Not found' }, 404);
     } catch (error) {
+      if(url.pathname==='/api/harmonie'){console.error('HARMONIE_REQUEST_FAILED',error?.message?.startsWith('HARMONIE_')?error.message:'CONNECTION');const messages={HARMONIE_NOT_CONFIGURED:'De KNMI Open Data API-key is nog niet ingesteld.',HARMONIE_AUTH:'De KNMI Open Data API-key geeft geen toegang tot HARMONIE.',HARMONIE_RATE_LIMIT:'Het KNMI-aanvraaglimiet is bereikt. Probeer later opnieuw.',HARMONIE_INCOMPLETE:'De modelrun bevat nog onvoldoende complete voorspellingsuren.',HARMONIE_DOWNLOAD_HOST:'Het downloadadres van KNMI wordt nog niet ondersteund.'};return answer({error:messages[error?.message]||'HARMONIE ophalen of lezen is niet gelukt. Probeer later opnieuw. Er worden geen voorbeeldwaarden als voorspelling getoond.'},502);}
       if(url.pathname==='/api/atlas/catalogue'){console.error('ATLAS_CATALOG_REQUEST_FAILED',error?.name||'Error');return answer({error:'De verbinding met Waterstofatlas is onderbroken of duurt te lang. Probeer opnieuw.'},502);}
       if(url.pathname==='/api/wind') {
         const code=error?.message;

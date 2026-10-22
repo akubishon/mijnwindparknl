@@ -1,0 +1,78 @@
+// KNMI HARMONIE Cy43 P1: bounded streaming TAR / GRIB1 point extraction.
+// GRIB1 layout: https://codes.ecmwf.int/grib/format/grib1/
+const HARMONIE_BASE='https://api.dataplatform.knmi.nl/open-data/v1/datasets/harmonie_arome_cy43_p1/versions/1.0/files';
+const harmonieCache=new Map();
+const u24=(a,p)=>a[p]*65536+a[p+1]*256+a[p+2];
+const u16=(a,p)=>a[p]*256+a[p+1];
+const signed=(v,bits)=>v>=2**(bits-1)?-(v-2**(bits-1)):v;
+const textBytes=a=>new TextDecoder().decode(a);
+const points=[{id:'fryslan',latitude:53.017,longitude:5.367},{id:'beabuorren',latitude:53.052,longitude:5.493}];
+export function gribWindPoints(a){
+ if(a.length<36||textBytes(a.subarray(0,4))!=='GRIB'||a[7]!==1||u24(a,4)!==a.length||textBytes(a.subarray(-4))!=='7777')throw Error('HARMONIE_FORMAT');
+ const p=8,pl=u24(a,p);if(pl<28||p+pl>a.length-4)throw Error('HARMONIE_FORMAT');
+ const param=a[p+8],level=u16(a,p+10);
+ if(![33,34].includes(param)||a[p+9]!==105||level!==10||a[p+20]!==0)return null;
+ if(!(a[p+7]&128)||a[p+17]!==1)throw Error('HARMONIE_FORMAT');
+ const year=(a[p+24]-1)*100+a[p+12],run=Date.UTC(year,a[p+13]-1,a[p+14],a[p+15],a[p+16]);
+ if(!Number.isFinite(run)||year<2024||year>2100||a[p+18]>60)throw Error('HARMONIE_FORMAT');
+ const g=p+pl,gl=u24(a,g);if(gl<32||g+gl>a.length-4||a[g+5]!==0)throw Error('HARMONIE_GRID');
+ const nx=u16(a,g+6),ny=u16(a,g+8),lat=signed(u24(a,g+10),24)/1000,lon=signed(u24(a,g+13),24)/1000,dx=u16(a,g+23)/1000,dy=u16(a,g+25)/1000,scan=a[g+27];
+ if(!nx||!ny||nx===65535||ny===65535||!dx||!dy||(scan&63))throw Error('HARMONIE_GRID');
+ const indexes=points.map(pt=>{const x=Math.round((pt.longitude-lon)/((scan&128)?-dx:dx)),y=Math.round((pt.latitude-lat)/((scan&64)?dy:-dy));if(x<0||x>=nx||y<0||y>=ny)throw Error('HARMONIE_GRID');return {index:y*nx+x,latitude:lat+y*((scan&64)?dy:-dy),longitude:lon+x*((scan&128)?-dx:dx)};});
+ let b=g+gl;
+ // For safety, bitmap-packed fields are explicitly rejected rather than treating missing points as zero.
+ if(a[p+7]&64)throw Error('HARMONIE_PACKING');
+ const bl=u24(a,b);if(bl<11||b+bl!==a.length-4||(a[b+3]&240))throw Error('HARMONIE_PACKING');
+ const exponent=signed(u16(a,b+4),16),decimal=signed(u16(a,p+26),16),bits=a[b+10];
+ if(bits>32||nx*ny*bits>(bl-11)*8-(a[b+3]&15))throw Error('HARMONIE_PACKING');
+ const ref=(a[b+6]&128?-1:1)*16**((a[b+6]&127)-64)*u24(a,b+7)/16777216;
+ const values=indexes.map(pt=>{let n=0;for(let bit=pt.index*bits;bit<(pt.index+1)*bits;bit++)n=n*2+((a[b+11+(bit>>3)]>>(7-(bit&7)))&1);const value=(ref+n*2**exponent)*10**(-decimal);if(!Number.isFinite(value)||Math.abs(value)>200)throw Error('HARMONIE_FORMAT');return {...pt,value};});
+ return {run:new Date(run).toISOString(),time:new Date(run+a[p+18]*3600000).toISOString(),component:param===33?'u':'v',values};
+}
+async function streamReader(body){
+ const reader=body.getReader();let chunk=new Uint8Array(),offset=0,total=0;
+ return {async read(n,keep=true){if(n<0||n>100000000)throw Error('HARMONIE_SIZE');const out=keep?new Uint8Array(n):null;let done=0;while(done<n){if(offset===chunk.length){const r=await reader.read();if(r.done)throw Error('HARMONIE_TRUNCATED');chunk=r.value;offset=0;total+=chunk.length;if(total>900000000)throw Error('HARMONIE_SIZE');}const size=Math.min(n-done,chunk.length-offset);if(out)out.set(chunk.subarray(offset,offset+size),done);offset+=size;done+=size;}return out;},cancel:()=>reader.cancel().catch(()=>{})};
+}
+export async function extractHarmonie(body,now=Date.now()){
+ const r=await streamReader(body),rows=new Map();let run=null;
+ const add=m=>{if(!m)return;if(run&&run!==m.run)throw Error('HARMONIE_MIXED_RUN');run=m.run;const row=rows.get(m.time)||{time:m.time};row[m.component]=m.values;rows.set(m.time,row);};
+ try {for(let file=0;file<80;file++){
+  const header=await r.read(512);if(header.every(v=>v===0))break;
+  const name=textBytes(header.subarray(0,100)).split('\0')[0],size=parseInt(textBytes(header.subarray(124,136)).replace(/\0/g,'').trim(),8);
+  if(!Number.isSafeInteger(size)||size<0||size>100000000)throw Error('HARMONIE_SIZE');
+  const regular=[0,48].includes(header[156]);
+  if(!regular||!/_GB(?:\.[a-z0-9]+)?$/i.test(name)){await r.read(size,false);}else{
+   let remaining=size;
+   while(remaining>=8){const lead=await r.read(8);remaining-=8;if(textBytes(lead.subarray(0,4))!=='GRIB')throw Error('HARMONIE_FORMAT');const length=u24(lead,4);if(lead[7]!==1||length<36||length>remaining+8||length>8000000)throw Error('HARMONIE_FORMAT');const message=new Uint8Array(length);message.set(lead);message.set(await r.read(length-8),8);remaining-=length-8;add(gribWindPoints(message));}
+   if(remaining)await r.read(remaining,false);
+  }
+  if(size%512)await r.read(512-size%512,false);
+  const complete=[...rows.values()].filter(x=>x.u&&x.v&&Date.parse(x.time)>=now).sort((a,b)=>a.time.localeCompare(b.time));
+  if(complete.length>=7)break;
+ }}finally{await r.cancel();}
+ if(!run||Date.parse(run)>now+300000)throw Error('HARMONIE_FORMAT');
+ const complete=[...rows.values()].filter(x=>x.u&&x.v&&Date.parse(x.time)>=now).sort((a,b)=>a.time.localeCompare(b.time)).slice(0,7);
+ if(complete.length<2)throw Error('HARMONIE_INCOMPLETE');
+ if(complete.some((x,i)=>i&&Date.parse(x.time)-Date.parse(complete[i-1].time)!==3600000))throw Error('HARMONIE_INCOMPLETE');
+ return {run,points,rows:complete.map(row=>({time:row.time,parks:points.map((pt,i)=>({id:pt.id,windSpeedMS:Math.hypot(row.u[i].value,row.v[i].value),gridLatitude:row.u[i].latitude,gridLongitude:row.u[i].longitude}))}))};
+}
+export async function readHarmonie(env){
+ if(!env.KNMI_OPEN_DATA_API_KEY)throw Error('HARMONIE_NOT_CONFIGURED');
+ const key=env.KNMI_OPEN_DATA_API_KEY.trim(),hit=harmonieCache.get(key);if(hit&&hit.expires>Date.now())return hit.promise;
+ const promise=(async()=>{
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
+ async function api(url){const r=await fetch(url,{headers:{Authorization:key,Accept:'application/json'},redirect:'manual',signal:controller.signal});if(!r.ok){console.error('HARMONIE_API_STATUS',r.status);throw Error(r.status===401||r.status===403?'HARMONIE_AUTH':r.status===429?'HARMONIE_RATE_LIMIT':'HARMONIE_UNAVAILABLE');}return r.json();}
+ try{
+  const listing=await api(HARMONIE_BASE+'?maxKeys=1&sorting=desc&orderBy=filename');const filename=listing.files?.[0]?.filename;
+  if(typeof filename!=='string'||!filename.endsWith('.tar')||filename.length>240)throw Error('HARMONIE_FORMAT');
+  const link=await api(HARMONIE_BASE+'/'+encodeURIComponent(filename)+'/url');let target;try{target=new URL(link.temporaryDownloadUrl);}catch{throw Error('HARMONIE_FORMAT');}
+  // Signed object-store URLs must never receive the KNMI Authorization header.
+  if(target.protocol!=='https:'||!(/(^|\.)knmi\.nl$|(^|\.)knmi\.cloud$|(^|\.)amazonaws\.com$|(^|\.)googleapis\.com$|(^|\.)blob\.core\.windows\.net$/.test(target.hostname)))throw Error('HARMONIE_DOWNLOAD_HOST');
+  const response=await fetch(target.href,{redirect:'manual',signal:controller.signal});if(!response.ok||!response.body)throw Error('HARMONIE_UNAVAILABLE');
+  const forecast=await extractHarmonie(response.body);
+  const stale=Date.now()-Date.parse(forecast.run)>6*3600000;
+  return {...forecast,filename,retrievedAt:new Date().toISOString(),stale,source:'KNMI HARMONIE-AROME Cy43 P1',heightM:10,productionCorrection:false};
+ }finally{clearTimeout(timer);}
+ })();
+ harmonieCache.set(key,{promise,expires:Date.now()+15*60000});promise.catch(()=>{const entry=harmonieCache.get(key);if(entry?.promise===promise)entry.expires=Date.now()+60000;});return promise;
+}
