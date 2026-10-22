@@ -219,3 +219,8 @@ De server valideert dat de run niet in de toekomst ligt en binnen de modelhorizo
 ### Voorspellingsvenster in de grafiek
 
 HARMONIE wordt op de parkpagina’s pas opgehaald na een expliciete aanvraag. Vanaf het laatste bekende KNMI-/productiepunt tot het einde van de dag staat in de MW-grafiek een wazig venster met een decoratieve pseudowillekeurige golf en een aanvraagknop. Deze golf is uitsluitend vormgeving: geen datapunten, geen invloed op asschaal, export of berekeningen. Bij succesvolle zichtbare HARMONIE-punten verdwijnt het venster. Tijdens laden blijft de knop herkenbaar; fouten en verouderde runs kunnen opnieuw worden opgevraagd. De HARMONIE-selectieschakelaar blijft geldig. Historische runs worden via de uitklapbare runkeuze aangevraagd.
+
+
+### Overzichtelijke windparkpagina’s
+
+De daggrafiek begint met een korte uitleg van productie, windaanbod en HARMONIE. De eenheid en het theoretische scenario zijn direct te kiezen; stationsvergelijking, formules, historische modeluren en downloads zijn gegroepeerd in uitklapbare onderdelen. De voorspellingsknop heet ‘Toon voorspelling’, met behoud van de bestaande branding en het wazige voorbeeldvenster. Dagcijfers blijven over het hele park gaan; de grafiek vermeldt het gekozen parkaandeel. De berekeningen en bronnen zijn ongewijzigd.
