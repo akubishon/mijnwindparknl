@@ -1,0 +1,25 @@
+import {useEffect,useState} from 'react';
+import {clockDayFraction} from './chart-time.mjs';
+type Forecast={run:string;stale:boolean;partial:boolean;rows:{time:string;parks:{id:string;powerMW:number;windSpeedMS:number}[]}[]};
+export type ForecastPoint={time:string;powerMW:number;windSpeedMS:number};
+const localDay=(t:number|string)=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Amsterdam',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(t));
+const time=(s:string)=>new Intl.DateTimeFormat('nl-NL',{timeZone:'Europe/Amsterdam',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(s));
+const fmt=(v:number)=>new Intl.NumberFormat('nl-NL',{maximumFractionDigits:2}).format(v);
+export function useHarmonieOverlay(day:string,settings:Record<string,string>|undefined,unit:string){
+ const [enabled,setEnabled]=useState(true),[data,setData]=useState<Forecast|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(false),[revision,setRevision]=useState(0);
+ const query=settings?new URLSearchParams(settings).toString():'';
+ const isToday=day===localDay(Date.now());
+ useEffect(()=>{setData(null);setError('');setLoading(false);if(!enabled||!isToday||unit!=='MW'||!query)return;const abort=new AbortController();let stopped=false;
+ async function load(){setLoading(true);setError('');try{const r=await fetch('/api/harmonie?'+query,{signal:abort.signal});if(!r.ok){if(r.status===401)throw Error('Je sessie is verlopen. Log opnieuw in.');const d=await r.json();throw Error(d.error||'De verwachting kon niet worden geladen.');}const d=await r.json();if(!stopped)setData(d);}catch(e){if(!stopped){setData(null);setError(e instanceof Error?e.message:'HARMONIE ophalen is niet gelukt.');}}finally{if(!stopped)setLoading(false);}}
+ void load();const timer=setInterval(()=>void load(),15*60000);return()=>{stopped=true;abort.abort();clearInterval(timer);};},[enabled,isToday,unit,query,revision]);
+ const stale=!!data&&(data.stale||Date.now()-Date.parse(data.run)>6*3600000);
+ const points:ForecastPoint[]=enabled&&isToday&&unit==='MW'&&!stale?(data?.rows||[]).filter(row=>localDay(row.time)===day&&Date.parse(row.time)>=Date.now()).flatMap(row=>{const p=row.parks.find(p=>p.id===settings?.park);return p&&Number.isFinite(p.powerMW)?[{time:row.time,powerMW:p.powerMW,windSpeedMS:p.windSpeedMS}]:[];}):[];
+ return {enabled,setEnabled,data,error,loading,stale,points,isToday,retry:()=>setRevision(v=>v+1)};
+}
+export function HarmonieControls({forecast,unit}:{forecast:ReturnType<typeof useHarmonieOverlay>;unit:string}){
+ return <div className="harmonie-chart-controls"><label><input type="checkbox" checked={forecast.enabled} onChange={e=>forecast.setEnabled(e.target.checked)}/> HARMONIE-verwachting tonen</label>{forecast.enabled&&(!forecast.isToday?<p className="wind-note">De actuele verwachting is alleen beschikbaar bij Vandaag. Historische voorspellingen zijn nog niet opgeslagen.</p>:unit!=='MW'?<p className="wind-note">Kies ‘Vermogen · MW’ om de voorspelling te zien. HARMONIE geeft vermogenspunten per uur, geen uurenergie.</p>:<><p className="wind-note" role="status">{forecast.loading?'HARMONIE laden… De eerste aanvraag kan anderhalve minuut duren.':forecast.error?'HARMONIE: '+forecast.error:forecast.data?`HARMONIE-modelrun ${time(forecast.data.run)} (Nederlandse tijd). Oranje stippellijn: voorspeld potentieel vermogen; geen productiecorrectie. Zelfde turbine-instellingen en parktoewijzing als de grafiek.`:'Geen voorspelling geladen.'}</p>{forecast.error&&<button type="button" className="text-button" onClick={forecast.retry}>Verwachting opnieuw ophalen</button>}{forecast.stale&&<p className="live-error">De modelrun is ouder dan zes uur. De voorspellingslijn is daarom verborgen.</p>}{forecast.data?.partial&&<p className="wind-note">De vooruitblik is onvolledig: alleen beschikbare aaneengesloten uurpunten worden getoond.</p>}{forecast.data&&!forecast.loading&&!forecast.error&&!forecast.stale&&!forecast.points.length&&<p className="wind-note">Er zijn geen toekomstige voorspellingspunten meer voor de gekozen dag.</p>}</>)} </div>;
+}
+export function HarmonieLine({points,day,share,maximum}:{points:ForecastPoint[];day:string;share:number;maximum:number}){
+ const x=(p:ForecastPoint)=>60+(clockDayFraction(p.time,day)??0)*832,y=(p:ForecastPoint)=>260-p.powerMW*share/maximum*220;
+ return <g aria-label="HARMONIE voorspeld potentieel vermogen">{points.map((p,i)=>{const prev=points[i-1];return <g key={p.time}>{prev&&Date.parse(p.time)-Date.parse(prev.time)===3600000&&x(p)>x(prev)&&<line x1={x(prev)} x2={x(p)} y1={y(prev)} y2={y(p)} stroke="#A75C00" strokeWidth="2.5" strokeDasharray="7 5" pointerEvents="none"/>}<circle cx={x(p)} cy={y(p)} r="4.5" fill="white" stroke="#A75C00" strokeWidth="2" tabIndex={0} aria-label={`${time(p.time)}: HARMONIE ${fmt(p.powerMW*share)} MW, wind ${fmt(p.windSpeedMS)} m/s`}><title>{time(p.time)} · HARMONIE {fmt(p.powerMW*share)} MW · wind {fmt(p.windSpeedMS)} m/s · voorspelling</title></circle></g>;})}</g>;
+}

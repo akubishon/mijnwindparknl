@@ -114,8 +114,9 @@ export default {
     if (url.pathname === '/favicon.svg') return new Response(favicon, { headers: { ...securityHeaders, 'Content-Type': 'image/svg+xml' } });
     try {
       if(url.pathname==='/api/harmonie'){
+        const forecastOptions=url.searchParams.has('park')?modelOptions(url.searchParams):null;
         const forecast=await readHarmonie(env);
-        return answer({...forecast,rows:forecast.rows.map(row=>{const parks=row.parks.map(park=>({...park,powerMW:windPowerModel(row.time.slice(0,10),modelOptions(new URLSearchParams({park:park.id})))(park.windSpeedMS)}));return {...row,parks,allocatedMW:parks.find(p=>p.id==='fryslan').powerMW*.1+parks.find(p=>p.id==='beabuorren').powerMW};})});
+        return answer({...forecast,rows:forecast.rows.map(row=>{const parks=row.parks.map(park=>({...park,powerMW:windPowerModel(row.time.slice(0,10),(forecastOptions?.park===park.id?forecastOptions:modelOptions(new URLSearchParams({park:park.id}))))(park.windSpeedMS)}));return {...row,parks,allocatedMW:parks.find(p=>p.id==='fryslan').powerMW*.1+parks.find(p=>p.id==='beabuorren').powerMW};})});
       }
       if(url.pathname==='/api/atlas/catalogue'){
         if(!env.WINDPARK_CATALOG_TOKEN)return answer({error:'Waterstofatlas is nog niet gekoppeld.'},503);
