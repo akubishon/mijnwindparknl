@@ -33,3 +33,5 @@
 .station-comparison-controls .wind-note {margin:10px 0 0;}
 .station-overlay [role=button]:focus {outline:none;}
 .station-overlay [role=button]:focus circle:last-of-type {stroke:#0C2340;stroke-width:3;}
+
+.forecast-run-legend{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}.forecast-run-card{display:flex;align-items:flex-start;gap:10px;flex:1 1 240px;border:1px solid #ded3ea;border-radius:14px;background:#f5f0fa;padding:14px;color:#0c2340}.forecast-run-latest{background:#fbf0e9;border-color:#efd6c7}.forecast-run-card strong,.forecast-run-card span:not(.forecast-run-swatch),.forecast-run-card small{display:block}.forecast-run-card span:not(.forecast-run-swatch){font-size:13px;margin-top:4px}.forecast-run-card small{font-size:11px;margin-top:5px;line-height:1.5}.forecast-run-swatch{width:30px;flex:0 0 30px;border-top:3px dashed;margin-top:9px}.forecast-run-swatch.latest{border-top-style:solid}

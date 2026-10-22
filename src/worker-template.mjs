@@ -117,7 +117,8 @@ export default {
         const selectedModel=url.searchParams.get('model')||'p1';if(!['p1','p2b'].includes(selectedModel))return answer({error:'Kies HARMONIE P1 of P2b.'},400);
         const forecastOptions=url.searchParams.has('park')?modelOptions(url.searchParams):null;
         let history={};if(url.searchParams.has('run')){try{history=historicalHarmonieOptions(url.searchParams.get('run'),url.searchParams.get('day'));}catch{return answer({error:'Kies een geldig modeluur vanaf 8 januari 2026, niet in de toekomst en binnen de voorspellingshorizon van de gekozen grafiekdag.'},400);}}
-        const forecast=await readHarmonie(env,history.historical?{model:selectedModel,run:url.searchParams.get('run'),day:url.searchParams.get('day')}:{model:selectedModel});
+        if(!history.historical&&url.searchParams.has('day')){try{harmonieDayWindow(url.searchParams.get('day'));}catch{return answer({error:'Kies een geldige grafiekdag.'},400);}}
+        const forecast=await readHarmonie(env,history.historical?{model:selectedModel,run:url.searchParams.get('run'),day:url.searchParams.get('day')}:{model:selectedModel,day:url.searchParams.get('day')||undefined});
         return answer({...forecast,rows:forecast.rows.map(row=>{const parks=row.parks.map(park=>({...park,powerMW:windPowerModel(row.time.slice(0,10),(forecastOptions?.park===park.id?forecastOptions:modelOptions(new URLSearchParams({park:park.id}))))(park.windSpeedMS)}));return {...row,parks,allocatedMW:parks.find(p=>p.id==='fryslan').powerMW*.1+parks.find(p=>p.id==='beabuorren').powerMW};})});
       }
       if(url.pathname==='/api/atlas/catalogue'){

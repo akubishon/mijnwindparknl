@@ -61,3 +61,17 @@ test('P2b uses its own dataset and cache, labels a single member without claimin
  await assert.rejects(readHarmonie({KNMI_OPEN_DATA_API_KEY:'unused'},{model:'arbitrary'}),/INVALID_MODEL/);
  }finally{globalThis.fetch=oldFetch;Date.now=oldNow;}
 });
+
+test('latest run day comparison includes past and future hours from the newest run and separates the future-only cache',async()=>{
+ const oldFetch=globalThis.fetch,oldNow=Date.now;Date.now=()=>Date.parse('2026-10-22T10:30:00Z');let listings=0,downloads=0;
+ globalThis.fetch=async(url,options)=>{
+  if(url.includes('?maxKeys=')){listings++;return Response.json({files:[{filename:'newest.tar'},{filename:'older.tar'}]});}
+  if(url.endsWith('/url')){assert.match(url,/newest.tar/);return Response.json({temporaryDownloadUrl:'https://storage.googleapis.com/day-comparison'});}
+  downloads++;return new Response(tar(18));
+ };
+ try{
+  const d=await readHarmonie({KNMI_OPEN_DATA_API_KEY:'day-comparison-key'},{day:'2026-10-22'});
+  assert.equal(d.rows[0].time,'2026-10-22T06:00:00.000Z');assert.equal(d.rows.at(-1).time,'2026-10-22T21:00:00.000Z');assert.equal(d.historical,false);assert.equal(d.filename,'newest.tar');assert.equal(downloads,1);
+  const future=await readHarmonie({KNMI_OPEN_DATA_API_KEY:'day-comparison-key'});assert.equal(future.rows[0].time,'2026-10-22T11:00:00.000Z');assert.equal(future.rows.length,7);assert.equal(listings,2);
+ }finally{globalThis.fetch=oldFetch;Date.now=oldNow;}
+});
