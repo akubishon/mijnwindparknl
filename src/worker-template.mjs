@@ -129,7 +129,7 @@ export default {
         let history={};if(url.searchParams.has('run')){try{history=historicalHarmonieOptions(url.searchParams.get('run'),url.searchParams.get('day'));}catch{return answer({error:'Kies een geldig modeluur vanaf 8 januari 2026, niet in de toekomst en binnen de voorspellingshorizon van de gekozen grafiekdag.'},400);}}
         if(!history.historical&&url.searchParams.has('day')){try{harmonieDayWindow(url.searchParams.get('day'));}catch{return answer({error:'Kies een geldige grafiekdag.'},400);}}
         const forecast=await readStoredHarmonie(env,history.historical?{model:selectedModel,run:url.searchParams.get('run'),day:url.searchParams.get('day')}:{model:selectedModel,day:url.searchParams.get('day')||undefined});
-        return answer({...forecast,rows:forecast.rows.map(row=>{const parks=row.parks.map(park=>({...park,powerMW:windPowerModel(row.time.slice(0,10),(forecastOptions?.park===park.id?forecastOptions:modelOptions(new URLSearchParams({park:park.id}))))(park.windSpeedMS)}));return {...row,parks,allocatedMW:parks.find(p=>p.id==='fryslan').powerMW*.1+parks.find(p=>p.id==='beabuorren').powerMW};})});
+        return answer({...forecast,rows:forecast.rows.map(row=>{const parks=row.parks.map(park=>({...park,powerMW:windPowerModel(row.time.slice(0,10),{...(forecastOptions?.park===park.id?forecastOptions:modelOptions(new URLSearchParams({park:park.id}))),hoogte:'alpha'})(park.windSpeedMS)}));return {...row,parks,allocatedMW:parks.find(p=>p.id==='fryslan').powerMW*.1+parks.find(p=>p.id==='beabuorren').powerMW};})});
       }
       if(url.pathname==='/api/atlas/catalogue'){
         if(!env.WINDPARK_CATALOG_TOKEN)return answer({error:'Waterstofatlas is nog niet gekoppeld.'},503);
@@ -142,7 +142,7 @@ export default {
       if(url.pathname==='/api/electrolyser'||url.pathname==='/api/research/day') {
         if(url.pathname==='/api/research/day'&&!await researchAllowed(request,env))return answer({error:'Voer het onderzoekwachtwoord in.'},401);
         const day=url.searchParams.get('day');if(!validDay(day))return answer({error:'Kies een geldige datum.'},400);
-        let a,b;try {a=modelOptions(new URLSearchParams({park:'fryslan',station:url.searchParams.get('fryslanStation')||'0-20000-0-06267'}));b=modelOptions(new URLSearchParams({park:'beabuorren',station:url.searchParams.get('beabuorrenStation')||'0-20000-0-06267'}));}catch{return answer({error:'Ongeldig meetstation.'},400);}
+        let a,b;try {a=modelOptions(new URLSearchParams({park:'fryslan',station:url.searchParams.get('fryslanStation')||'gemiddelde'}));b=modelOptions(new URLSearchParams({park:'beabuorren',station:url.searchParams.get('beabuorrenStation')||'gemiddelde'}));}catch{return answer({error:'Ongeldig meetstation.'},400);}
         if(!env.KNMI_EDR_API_KEY)return answer({error:'KNMI is nog niet gekoppeld.'},503);
         if(url.pathname==='/api/electrolyser'&&url.searchParams.get('comparison')==='1'){
           const [f,bp]=await Promise.all([readWindComparison(day,env,a),readWindComparison(day,env,b)]);
@@ -151,10 +151,10 @@ export default {
             highestStation:f.combination[i].highestStation,fallbackStation:f.combination[i].fallbackStation,
             stavorenPowerMW:stavoren[i].powerMW,houtribdijkPowerMW:houtribdijk[i].powerMW,
             differenceMW:stavoren[i].powerMW===null||houtribdijk[i].powerMW===null?null:Math.abs(stavoren[i].powerMW-houtribdijk[i].powerMW)}));
-          return answer({day,stavoren,houtribdijk,combination,unavailable:[...new Set([...f.unavailable,...bp.unavailable])]});
+          return answer({day,rule:f.rule,windSource:{fryslan:f.windSource,beabuorren:bp.windSource},stavoren,houtribdijk,combination,unavailable:[...new Set([...f.unavailable,...bp.unavailable])]});
         }
         const [fryslan,beabuorren]=await Promise.all([readWind(day,env,a),readWind(day,env,b)]);
-        return answer({day,intervals:combinedSupply(fryslan.intervals,beabuorren.intervals)});
+        return answer({day,windSource:{fryslan:fryslan.windSource,beabuorren:beabuorren.windSource},intervals:combinedSupply(fryslan.intervals,beabuorren.intervals)});
       }
       if(url.pathname==='/api/stations'){const park=url.searchParams.get('park')||'fryslan';if(!['fryslan','beabuorren'].includes(park))return answer({error:'Ongeldig windpark.'},400);return answer({stations:stationsByDistance(park)});}
       if (url.pathname === '/api/wind') {

@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {modelOptions,windPowerModel,stationComparison,readWindComparison} from '../src/knmi.mjs';
+import {modelOptions,windPowerModel,stationComparison,readWindComparison,readWind,monthFactors,hubFactor,averageObservations} from '../src/knmi.mjs';
+import heightTable from '../src/opsplitsing/python/data/ashoogte.json' with { type: 'json' };
 import {comparisonHours,comparisonCoverage,differencePolygons} from '../src/comparison-display.mjs';
 const day='2026-01-01';
-const options=modelOptions(new URLSearchParams('height=10&seasonal=0&wake=0'));
+// Old height method: the old combination rule (highest wind, fallback to one station) stays reproducible.
+const options=modelOptions(new URLSearchParams('hoogte=alpha&height=10&seasonal=0&wake=0'));
 const power=windPowerModel(day,options);
 const point=(i,wind)=>{const start=new Date(Date.parse(day+'T00:00:00Z')+i*600000).toISOString();return {start,end:new Date(Date.parse(start)+600000).toISOString(),windSpeedMS:wind,powerMW:power(wind)};};
 
@@ -63,4 +65,50 @@ test('a station request failure still returns the available station without expo
   assert.equal(available.length,2);assert.ok(available.every(p=>p.fallbackStation==='Stavoren'&&p.differenceMW===null));
   assert.doesNotMatch(JSON.stringify(result),/upstream-secret|fixture/);
  }finally{global.fetch=prior;}
+});
+
+test('default wind source: mean of Houtribdijk and Stavoren with the WINS50 month factor, no fallback',()=>{
+ const o=modelOptions(new URLSearchParams('wake=0'));
+ assert.equal(o.stationId,'gemiddelde');assert.equal(o.hoogte,'wins50');
+ assert.deepEqual(monthFactors('fryslan','gemiddelde').factor,heightTable.parken.fryslan.factor);
+ assert.equal(hubFactor('2026-07-15',o),heightTable.parken.fryslan.factor[6]);
+ assert.equal(hubFactor('2026-07-15',{...o,stationId:'0-20000-0-06267'}),heightTable.parken.fryslan.bronvergelijking.find(b=>b.naam==='Stavoren').factor[6]);
+ assert.equal(hubFactor('2026-07-15',{...o,stationId:'0-20000-0-06270',park:'beabuorren'}),heightTable.parken.beabuorren.bronvergelijking.find(b=>b.naam==='Leeuwarden').factor[6]);
+ assert.equal(hubFactor('2026-07-15',{...o,stationId:'0-20000-0-06260'}),heightTable.parken.fryslan.schering[6]);
+ const p=windPowerModel(day,o);
+ const r=stationComparison([point(0,6),point(1,7)],[point(0,8)],day,o);
+ const [first,second]=r.combination.filter(x=>x.start>=day+'T00:00:00.000Z');
+ assert.equal(r.rule,'gemiddelde');assert.equal(first.windSpeedMS,7);assert.equal(first.powerMW,p(7));
+ assert.equal(second.powerMW,null);assert.equal(second.fallbackStation,null);
+});
+
+test('averaged observations keep gaps, average direction as vectors and need both stations',async()=>{
+ const raw=(id,ff,dd)=>({parameters:{ff:{unit:{symbol:{value:'m/s'}}}},coverages:[{'eumetnet:locationId':id,domain:{axes:{t:{values:ff.map((_,i)=>point(i,0).end)}}},ranges:{ff:{values:ff},dd:{values:dd}}}]});
+ const m=averageObservations(raw('a',[4,null,6],[350,90,null]),raw('b',[8,5,6],[10,90,180]));
+ assert.deepEqual(m.coverages[0].ranges.ff.values,[6,null,6]);
+ assert.ok(Math.abs(m.coverages[0].ranges.dd.values[0])<1e-9||Math.abs(m.coverages[0].ranges.dd.values[0]-360)<1e-9);
+ assert.equal(m.coverages[0].ranges.dd.values[2],null);
+ // Raw station responses are cached per day, so this part uses a day no other test fetches.
+ const other='2026-02-10',stamps=[1,2,3].map(i=>new Date(Date.parse(other+'T00:00:00Z')+i*600000).toISOString());
+ const prior=global.fetch,seen=[];
+ global.fetch=async url=>{const id=new URL(url).pathname.split('/').at(-1);seen.push(id);
+  if(id.endsWith('06258')&&seen.includes('fail'))return new Response('x',{status:500});
+  return Response.json({parameters:{ff:{unit:{symbol:{value:'m/s'}}}},coverages:[{'eumetnet:locationId':id,domain:{axes:{t:{values:stamps}}},ranges:{ff:{values:[id.endsWith('06258')?8:6,7,null]},dd:{values:[0,0,0]}}}]});};
+ try{
+  const d=await readWind(other,{KNMI_EDR_API_KEY:'k'},modelOptions(new URLSearchParams('wake=0')));
+  assert.deepEqual(seen.sort(),['0-20000-0-06258','0-20000-0-06267']);
+  assert.deepEqual(d.intervals.map(p=>p.windSpeedMS),[7,7,null]);assert.match(d.windSource,/gemiddelde per tien minuten/);
+  seen.push('fail');
+  await assert.rejects(readWind('2026-02-11',{KNMI_EDR_API_KEY:'k'},modelOptions(new URLSearchParams('wake=0'))));
+ }finally{global.fetch=prior;}
+});
+
+test('default park power equals park_mw() of the Python opsplitsing for the same 10 m wind',()=>{
+ // Reference: windprofiel opsplitsing.park_mw(park, v, 15th 12:00 UTC, load_curve(park), method 'onafhankelijk').
+ const expected={fryslan:[45.531332,20.538383,274.172597,140.226011,382.7,382.7],beabuorren:[0.525317,0.24242,3.643137,2.215341,8.735496,6.395807]};
+ for(const park of ['fryslan','beabuorren']){
+  const o=modelOptions(new URLSearchParams({park}));
+  const actual=[4,7,10].flatMap(v=>['2025-01-15','2025-07-15'].map(d=>windPowerModel(d,o)(v)));
+  actual.forEach((v,i)=>assert.ok(Math.abs(v-expected[park][i])<1e-6,park+' '+i));
+ }
 });

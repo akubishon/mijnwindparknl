@@ -11,7 +11,7 @@ async function fresh(){
  return {fetch(request,settings){const headers=new Headers(request.headers);if(!headers.has('Cookie'))headers.set('Cookie',cookie);return worker.fetch(new Request(request,{headers}),settings);}};
 }
 const get = (worker, route) => worker.fetch(new Request('https://fixture.test' + route), env);
-test('comparison APIs use highest wind per park before power and apply allocation and BoP afterwards',async()=>{
+test('comparison APIs combine wind per park before power (old method: highest, default: mean) and apply allocation and BoP afterwards',async()=>{
  const worker=await fresh(),prior=global.fetch;
  global.fetch=async url=>{
   const station=new URL(url).pathname.split('/').at(-1);
@@ -22,18 +22,20 @@ test('comparison APIs use highest wind per park before power and apply allocatio
  const settings={...env,KNMI_EDR_API_KEY:'fixture'};
  try{
   for(const park of ['fryslan','beabuorren']){
-   const r=await worker.fetch(new Request(`https://fixture.test/api/wind?comparison=1&day=2025-01-15&park=${park}&height=10&seasonal=0&wake=0`),settings);
+   const r=await worker.fetch(new Request(`https://fixture.test/api/wind?comparison=1&day=2025-01-15&park=${park}&hoogte=alpha&height=10&seasonal=0&wake=0`),settings);
    assert.equal(r.status,200);const d=await r.json();assert.equal(d.combination.length,144);
    assert.ok(d.stavoren.every(p=>p.powerMW>0));
    assert.ok(d.combination.every(p=>p.powerMW===0&&p.highestStation==='Houtribdijk'&&p.fallbackStation===null));
   }
   const response=await worker.fetch(new Request('https://fixture.test/api/electrolyser?comparison=1&day=2025-01-15'),settings);
   assert.equal(response.status,200);const d=await response.json();
-  assert.equal(d.combination.length,144);assert.ok(d.combination.every(p=>p.powerMW===0&&p.highestStation==='Houtribdijk'));
+  // Default: mean of Stavoren (10) and Houtribdijk (30) = 20 m/s with the WINS50 factor for that source.
+  assert.equal(d.rule,'gemiddelde');assert.equal(d.combination.length,144);assert.ok(d.combination.every(p=>p.highestStation==='Houtribdijk'&&p.fallbackStation===null));
+  assert.match(d.windSource.fryslan,/Houtribdijk \+ Stavoren.*WINS50/);
   const {windPowerModel,modelOptions}=await import('../src/knmi.mjs');
-  const f=windPowerModel('2025-01-15',modelOptions(new URLSearchParams('park=fryslan')))(10);
-  const b=windPowerModel('2025-01-15',modelOptions(new URLSearchParams('park=beabuorren')))(10);
-  assert.ok(Math.abs(d.stavoren[0].powerMW-(.1*f+b)/1.1)<1e-9);
+  const supply=(station,v)=>(.1*windPowerModel('2025-01-15',modelOptions(new URLSearchParams({park:'fryslan',station})))(v)+windPowerModel('2025-01-15',modelOptions(new URLSearchParams({park:'beabuorren',station})))(v))/1.1;
+  assert.ok(Math.abs(d.combination[0].powerMW-supply('gemiddelde',20))<1e-9);
+  assert.ok(Math.abs(d.stavoren[0].powerMW-supply('0-20000-0-06267',10))<1e-9);
   assert.equal(d.combination[0].differenceMW,d.stavoren[0].powerMW);
   assert.equal((await worker.fetch(new Request('https://fixture.test/api/wind?day=2025-01-15&comparison=1&height=0'),settings)).status,400);
  }finally{global.fetch=prior;}
@@ -135,8 +137,8 @@ test('KNMI request uses Worker-compatible redirect mode and returns model hours'
 
 test('model settings reject invalid values and Beabuorren uses its own turbine curve', async()=>{
   const {modelOptions,modelHours}=await import('../src/knmi.mjs');
-  for(const q of ['height=0','alpha=NaN','station=../../secret','wake=2','cutIn=9&ratedSpeed=8','park=unknown'])assert.throws(()=>modelOptions(new URLSearchParams(q)));
-  const o=modelOptions(new URLSearchParams('park=beabuorren&height=10&wake=0&seasonal=0'));
+  for(const q of ['height=0','alpha=NaN','station=../../secret','wake=2','cutIn=9&ratedSpeed=8','park=unknown','hoogte=log'])assert.throws(()=>modelOptions(new URLSearchParams(q)));
+  const o=modelOptions(new URLSearchParams('park=beabuorren&hoogte=alpha&height=10&wake=0&seasonal=0'));
   assert.equal(o.height,10);assert.equal(o.ratedKW,1300);assert.equal(o.alpha,.2);
   const values=Array(180).fill(8),stamps=values.map((_,i)=>new Date(Date.parse('2026-10-12T21:00:00Z')+i*600000).toISOString());
   const raw={parameters:{ff:{unit:{symbol:{value:'m/s'}}}},coverages:[{'eumetnet:locationId':o.stationId,domain:{axes:{t:{values:stamps}}},ranges:{ff:{values}}}]};

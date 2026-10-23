@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {theoreticalWindMW,potentialPoints,potentialComparison} from '../src/wind-potential.mjs';
 import {modelOptions,windPowerModel} from '../src/knmi.mjs';
-const settings={park:'fryslan',height:'10',alpha:'0.115',wake:'0',wakePercent:'5',ratedKW:'4300',cutIn:'3',ratedSpeed:'11.5',cutOut:'25',seasonal:'0'};
+const settings={park:'fryslan',hoogte:'alpha',height:'10',alpha:'0.115',wake:'0',wakePercent:'5',ratedKW:'4300',cutIn:'3',ratedSpeed:'11.5',cutOut:'25',seasonal:'0'};
 const date='2026-10-22T12:00:00Z';
 test('theoretical curve agrees below rated, rises above nominal and stays separate from physical cut-out',()=>{
  const physical=windPowerModel(date.slice(0,10),modelOptions(new URLSearchParams(settings)));
@@ -19,3 +19,5 @@ test('missing wind remains unknown, and theoretical display never mutates origin
  const c=potentialComparison({stavoren:source,houtribdijk:[{...source[0],windSpeedMS:18}],combination:[{...source[0],windSpeedMS:18,highestStation:'Houtribdijk'}]},settings);
  assert.equal(c.combination[0].powerMW,c.houtribdijk[0].powerMW);assert.ok(c.combination[0].differenceMW>0);assert.equal(c.combination[0].highestStation,'Houtribdijk');
 });
+
+test("WINS50 theoretical KNMI curve shares the physical height factor below rated",()=>{ const s={...settings,hoogte:"wins50",station:"gemiddelde"}; const physical=windPowerModel(date.slice(0,10),modelOptions(new URLSearchParams(s))); assert.ok(Math.abs(theoreticalWindMW(5,date,s)-physical(5))<1e-9); });
