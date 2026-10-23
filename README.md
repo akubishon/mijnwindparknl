@@ -320,3 +320,12 @@ toepassen gevalideerd.
 ### GitHub-import 23 oktober 2026
 
 De wijzigingen tot en met `73565c8` uit `windpark-fryslan` zijn samengevoegd met de recentere Sites-bron. De Atlas-vergelijking en modelversie 11 waren daar al aanwezig. KNMI gebruikt standaard het gemiddelde van Houtribdijk en Stavoren met de WINS50-factor per maand. HARMONIE behoudt zijn bestaande hoogtevertaling met ashoogte en α; WINS50-stationsfactoren worden niet op modelroosterwind toegepast. De bestaande R2-binding, HARMONIE-archieven en modelzijbalk blijven behouden.
+
+
+## Actieve turbinecurve Fryslân
+
+De begrensde KNMI- en HARMONIE-berekeningen gebruiken de gedigitaliseerde
+SWT-DD-130-curve bij 4,3 MW / 107 dB. De parkpagina start met dit model. De
+jaarreeksen 2022–2025 voor elektrolyse zijn opnieuw uit de opgeslagen wind berekend.
+De grens 28,01 m/s is een technische bereikgrens, geen bevestigde uitschakeling.
+Zie [bron, omzetting en beperkingen](docs/curves/README.md).

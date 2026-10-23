@@ -25,7 +25,7 @@ PARKS = {
         "wake_deficit": 0.05,
         "station": windbron.station_id(windbron.METHODS[windbron.DEFAULT]["fryslan"].stations[0]),
         "assumptions": "Ashoogte 115 m boven water: 180 m tiphoogte boven water (exploitant) min de halve rotordiameter van "
-                       "130 m. Turbinecurve en zogverlies zijn scenario-aannames; 100 % beschikbaarheid, geen afregeling.",
+                       "130 m. Gedigitaliseerde fabrikantgrafiek als turbinecurve; zogverlies als scenario-aanname; 100 % beschikbaarheid, geen afregeling.",
     },
     "beabuorren": {
         "name": "Wynpark Beabuorren",

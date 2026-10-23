@@ -1,3 +1,4 @@
+import fryslanCurve from './opsplitsing/python/data/fryslan.json' with { type: 'json' };
 import stationCatalog from './stations.json' with { type: 'json' };
 import heightTable from './opsplitsing/python/data/ashoogte.json' with { type: 'json' };
 // Same wind source as windprofiel/windbron.py (method 'onafhankelijk'): per ten minutes the mean of
@@ -18,7 +19,7 @@ export function modelOptions(params) {
   if(!selectedStation)throw Error('INVALID_MODEL_OPTIONS');
   const wake=params.get('wake')??'1', seasonal=params.get('seasonal')??(isBea?'0':'1'), hoogte=params.get('hoogte')||'wins50';
   if(!['0','1'].includes(wake)||!['0','1'].includes(seasonal)||!['wins50','alpha'].includes(hoogte))throw Error('INVALID_MODEL_OPTIONS');
-  const o={park,station,stationId,stationName:selectedStation.name,hoogte,wake:wake==='1',seasonal:seasonal==='1',height:number('height',isBea?60:115,10,250),alpha:number('alpha',isBea?.2:.115,0,.5),wakePercent:number('wakePercent',isBea?2:5,0,30),ratedKW:number('ratedKW',isBea?1300:4300,100,10000),cutIn:number('cutIn',3,0,10),ratedSpeed:number('ratedSpeed',11.5,1,25),cutOut:number('cutOut',25,5,40)};
+  const o={park,station,stationId,stationName:selectedStation.name,hoogte,wake:wake==='1',seasonal:seasonal==='1',height:number('height',isBea?60:115,10,250),alpha:number('alpha',isBea?.2:.115,0,.5),wakePercent:number('wakePercent',isBea?2:5,0,30),ratedKW:number('ratedKW',isBea?1300:4300,100,10000),cutIn:number('cutIn',3,0,10),ratedSpeed:number('ratedSpeed',11.5,1,25),cutOut:number('cutOut',isBea?25:fryslanCurve.cut_out,5,40)};
   if(!(o.cutIn<o.ratedSpeed&&o.ratedSpeed<o.cutOut))throw Error('INVALID_MODEL_OPTIONS');
   return o;
 }
@@ -45,13 +46,17 @@ export function describeWind(day,options) {
 }
 export function windPowerModel(day,options) {
   const factor=hubFactor(day,options);
-  const cubic=v=>v<options.cutIn||v>options.cutOut?0:v>=options.ratedSpeed?options.ratedKW:options.ratedKW*(v**3-options.cutIn**3)/(options.ratedSpeed**3-options.cutIn**3);
+  const isBea=options.park==='beabuorren';
+  const curve=isBea?beabuorrenCurve:fryslanCurve.points;
+  // A lower user limit may stop production earlier; it cannot extend the digitized source range.
+  const cutOut=isBea?options.cutOut:Math.min(options.cutOut,fryslanCurve.cut_out);
   const turbine=v=>{
-    if(options.park!=='beabuorren')return cubic(v);
-    if(v<beabuorrenCurve[0][0]||v>=options.cutOut)return 0;
-    let i=beabuorrenCurve.findIndex(p=>p[0]>v);if(i<0)return options.ratedKW;
-    const [v0,p0]=beabuorrenCurve[i-1], [v1,p1]=beabuorrenCurve[i];
-    return (p0+(p1-p0)*(v-v0)/(v1-v0))*options.ratedKW/1300;
+    if(v<curve[0][0]||v>=cutOut)return 0;
+    const i=curve.findIndex(p=>p[0]>v);
+    const nominal=isBea?1300:4300;
+    if(i<0)return curve.at(-1)[1]*options.ratedKW/nominal;
+    const [v0,p0]=curve[i-1], [v1,p1]=curve[i];
+    return (p0+(p1-p0)*(v-v0)/(v1-v0))*options.ratedKW/nominal;
   };
   return v=>{if(v===null)return null;const hub=v*factor, unperturbed=turbine(hub);return (options.wake&&unperturbed>0?turbine(hub*(1-options.wakePercent/100)):unperturbed)*(options.park==='beabuorren'?8:89)/1000;};
 }

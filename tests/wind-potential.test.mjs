@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {theoreticalWindMW,potentialPoints,potentialComparison} from '../src/wind-potential.mjs';
-import {modelOptions,windPowerModel} from '../src/knmi.mjs';
+import {modelOptions,windPowerModel,hubFactor} from '../src/knmi.mjs';
 const settings={park:'fryslan',hoogte:'alpha',height:'10',alpha:'0.115',wake:'0',wakePercent:'5',ratedKW:'4300',cutIn:'3',ratedSpeed:'11.5',cutOut:'25',seasonal:'0'};
 const date='2026-10-22T12:00:00Z';
-test('theoretical curve agrees below rated, rises above nominal and stays separate from physical cut-out',()=>{
+test('theoretical cubic scenario stays separate from the digitized turbine curve',()=>{
  const physical=windPowerModel(date.slice(0,10),modelOptions(new URLSearchParams(settings)));
- assert.ok(Math.abs(theoreticalWindMW(8,date,settings)-physical(8))<1e-9);
+ assert.ok(Math.abs(physical(8)-1920*89/1000)<1e-9);
+ assert.ok(Math.abs(theoreticalWindMW(8,date,settings)-physical(8))>1);
  assert.equal(theoreticalWindMW(11.5,date,settings),89*4300/1000);
  assert.ok(theoreticalWindMW(15,date,settings)>89*4300/1000);
  assert.equal(physical(15),89*4300/1000);
@@ -20,4 +21,11 @@ test('missing wind remains unknown, and theoretical display never mutates origin
  assert.equal(c.combination[0].powerMW,c.houtribdijk[0].powerMW);assert.ok(c.combination[0].differenceMW>0);assert.equal(c.combination[0].highestStation,'Houtribdijk');
 });
 
-test("WINS50 theoretical KNMI curve shares the physical height factor below rated",()=>{ const s={...settings,hoogte:"wins50",station:"gemiddelde"}; const physical=windPowerModel(date.slice(0,10),modelOptions(new URLSearchParams(s))); assert.ok(Math.abs(theoreticalWindMW(5,date,s)-physical(5))<1e-9); });
+test('WINS50 theoretical scenario retains the same height translation as the turbine model',()=>{
+ const s={...settings,hoogte:'wins50',station:'gemiddelde'};
+ const o=modelOptions(new URLSearchParams(s)),v=5*hubFactor(date.slice(0,10),o);
+ const cubic=4300*Math.max(0,(v**3-3**3)/(11.5**3-3**3))*89/1000;
+ assert.ok(Math.abs(theoreticalWindMW(5,date,s)-cubic)<1e-9);
+ const digitized=windPowerModel(date.slice(0,10),o)(5);
+ assert.ok(Math.abs(digitized-cubic)>1);
+});

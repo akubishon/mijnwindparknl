@@ -1,12 +1,12 @@
 {
   "repository": "https://github.com/akubishon/windprofiel",
-  "commit": "zie git-geschiedenis van src/opsplitsing (modelversie 11, windbron.py)",
-  "retrieved_on": "2026-10-22",
+  "commit": "zie git-geschiedenis van src/opsplitsing (modelversie 12, gedigitaliseerde SWT-DD-130-curve)",
+  "retrieved_on": "2026-10-23",
   "python_sha256": {
     "windprofiel/__init__.py": "17e3726bf973a77277508ede49a8f3772029b72101f5251c1c53ed89ff5126b0",
-    "windprofiel/application.py": "65d17ee2a6e003f9e970245f65ba5149167b682e8b9e5c093bb691b57ec30996",
+    "windprofiel/application.py": "fb6a38d798e3762315cf5fa8948ed50dbaf56b3228037e7349e6ed4770126928",
     "windprofiel/knmi.py": "6e8fff72c352a7d1670e2020f034186daad8b9ab2d62ba94dec314b8736814d7",
-    "windprofiel/opsplitsing.py": "ee8e6f39fa476576cb47eb8db6754868404faabb8decf383163203b8d7149dfe",
+    "windprofiel/opsplitsing.py": "71ea1c249d6546344ea0cbb905e7d69fa4475c79c8621fc0ddceb4c4ffd1cb49",
     "windprofiel/profile.py": "e08d80c2732eb0406a70a3f231c924933e936daf192849c4d022ad4e72cd50ba",
     "windprofiel/scenarios.py": "01e4e464feebba947bb60a705ee8343191032cc4660be883036c598298d0ec20",
     "windprofiel/windbron.py": "5a059b542b1d04b28ed389354a857f8b5d5858ddbb697b1a5769f07109fc54da",
@@ -18,13 +18,14 @@
     2024,
     2025
   ],
-  "source": "KNMI EDR (Houtribdijk en Stavoren, gemiddelde per tien minuten); hoogtevertaling WINS50 uit windprofiel/data/ashoogte.json; supply_year met de standaard windmethode",
+  "source": "KNMI EDR (Houtribdijk en Stavoren, gemiddelde per tien minuten); hoogtevertaling WINS50 uit windprofiel/data/ashoogte.json; supply_year met de standaard windmethode; SWT-DD-130 bij 4,3 MW / 107 dB uit Siemens Gamesa-presentatie 2023 pagina 39, modelbereik tot 28,01 m/s (technische aanname)",
   "runtime": "Pyodide 0.29.3; Python gelijk aan windprofiel/; SerialPool vervangt ProcessPoolExecutor; meegeleverde jaarreeksen vervangen KNMI-aanvragen; alleen de standaard windmethode; browser-local saved scenarios",
   "timezone_source": "IANA Europe/Amsterdam from system zoneinfo",
   "data_sha256": {
     "windprofiel/data/beabuorren.json": "ef066eb7f6abe2efe750bff97f22dbee0c20c8c44fac5f40ff215b8bf10c2fbb",
     "windprofiel/data/productie_fryslan.csv": "2fc5f36744512cccfe7293e5c062bca7d07fbc42f1d8b9d6a6e902b771c7417d",
-    "windprofiel/data/ashoogte.json": "d15675e1e01778976b962681d5bda20815fe50dfac92bab7e03a21203e32de87"
+    "windprofiel/data/ashoogte.json": "d15675e1e01778976b962681d5bda20815fe50dfac92bab7e03a21203e32de87",
+    "windprofiel/data/fryslan.json": "883e8e42eca13c32bd50e69c2d169041cfa6091cec500b6292c04abab96ac963"
   },
   "wind_method": "onafhankelijk"
 }

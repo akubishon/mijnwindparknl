@@ -32,7 +32,7 @@ from . import windbron
 from .application import HYDROGEN_SHARE, PARKS, ROOT, load_curve, park_power_mw, parse_wind
 from .knmi import KNMIClient, KNMIError, load_env_file
 
-MODEL_VERSION = 11  # verhogen bij elke rekenwijziging; maakt oude uitkomsten in de cache ongeldig (11: windbron.py)
+MODEL_VERSION = 12  # 12: gedigitaliseerde SWT-DD-130-curve als standaard; oude caches vervallen.
 STEP_H = 1 / 6
 FRYSLAN_SHARE = HYDROGEN_SHARE["fryslan"]
 CACHE = ROOT / ".cache" / "opsplitsing"

@@ -13,7 +13,7 @@ export default function TenMinuteWind({points,share,station,loading,error,day,ho
  const [selected,setSelected]=useState<string|null>(null),[selectedHour,setSelectedHour]=useState<number|null>(null);
  const [unit,setUnit]=useState<'MW'|'MWh'|'kWh'>(()=>{try{const saved=localStorage.getItem('windpark-chart-unit');return saved==='MWh'||saved==='kWh'?saved:'MW';}catch{return 'MW';}});
  useEffect(()=>{try{localStorage.setItem('windpark-chart-unit',unit);}catch{}},[unit]);
- const [unbounded,setUnbounded]=useState(true);
+ const [unbounded,setUnbounded]=useState(false);
  const theoretical=unit==='MW'&&unbounded;
  const boundedPoints=points,boundedComparison=comparison;
  const plottedPoints=useMemo(()=>theoretical?potentialPoints(points,forecastSettings):points,[theoretical,points,forecastSettings]);

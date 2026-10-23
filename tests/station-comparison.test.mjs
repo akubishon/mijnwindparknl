@@ -105,7 +105,7 @@ test('averaged observations keep gaps, average direction as vectors and need bot
 
 test('default park power equals park_mw() of the Python opsplitsing for the same 10 m wind',()=>{
  // Reference: windprofiel opsplitsing.park_mw(park, v, 15th 12:00 UTC, load_curve(park), method 'onafhankelijk').
- const expected={fryslan:[45.531332,20.538383,274.172597,140.226011,382.7,382.7],beabuorren:[0.525317,0.24242,3.643137,2.215341,8.735496,6.395807]};
+ const expected={"fryslan":[68.687352,34.265,314.366423,190.626875,382.7,371.575],"beabuorren":[0.525317,0.24242,3.643137,2.215341,8.735496,6.395807]};
  for(const park of ['fryslan','beabuorren']){
   const o=modelOptions(new URLSearchParams({park}));
   const actual=[4,7,10].flatMap(v=>['2025-01-15','2025-07-15'].map(d=>windPowerModel(d,o)(v)));

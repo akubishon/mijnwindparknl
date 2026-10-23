@@ -1,0 +1,138 @@
+{
+  "model": "Siemens Gamesa SWT-DD-130",
+  "source": "https://www.windindustrie-in-deutschland.de/f/4104/0/643d565004491b4732569ca3/GeneralpresentationOnshoreDE1.pdf#page=39",
+  "status": "Gedigitaliseerde fabrikantgrafiek, Siemens Gamesa Onshore 2023, pdf-pagina 39: SWT-DD-130 @ 4.3; 107 dB. Benaderde waarden, afgerond op 10 kW; referentieluchtdichtheid onbekend. Inclusief vermogensafname bij hoge wind. De bron toont 0–28 m/s en vermeldt geen fysieke cut-out. cut_out=28.01 m/s is uitsluitend een technische bereikgrens voor het importformaat: het model geeft daarboven nul, niet een uit de bron bevestigde uitschakeling. Deze Japan/IEC IB-presentatie bevestigt geen projectspecifieke curve voor Fryslân.",
+  "cut_out": 28.01,
+  "points": [
+    [
+      0,
+      0
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      2,
+      0
+    ],
+    [
+      3,
+      20
+    ],
+    [
+      4,
+      190
+    ],
+    [
+      5,
+      450
+    ],
+    [
+      6,
+      810
+    ],
+    [
+      7,
+      1300
+    ],
+    [
+      8,
+      1920
+    ],
+    [
+      9,
+      2630
+    ],
+    [
+      10,
+      3350
+    ],
+    [
+      11,
+      3930
+    ],
+    [
+      12,
+      4210
+    ],
+    [
+      13,
+      4290
+    ],
+    [
+      14,
+      4300
+    ],
+    [
+      15,
+      4300
+    ],
+    [
+      16,
+      4300
+    ],
+    [
+      17,
+      4300
+    ],
+    [
+      18,
+      4300
+    ],
+    [
+      19,
+      4300
+    ],
+    [
+      20,
+      4300
+    ],
+    [
+      21,
+      4300
+    ],
+    [
+      22,
+      4300
+    ],
+    [
+      23,
+      4300
+    ],
+    [
+      24,
+      3610
+    ],
+    [
+      25,
+      2930
+    ],
+    [
+      26,
+      2230
+    ],
+    [
+      27,
+      1550
+    ],
+    [
+      28,
+      860
+    ]
+  ],
+  "provenance": {
+    "document": "Siemens Gamesa Onshore, 2023",
+    "pdf_page": 39,
+    "curve_label": "SWT-DD-130 @ 4.3; 107 dB",
+    "pdf_sha256": "1cdea27db383169d5525f5cc2f30f713c46574160cd65b97f8361a3dcd6c0d33",
+    "method": "PDF-vectorlijn; x-eindpunten op 0 en 28 m/s, snelheden afgerond op gehele m/s; y-nul en 4300 kW-plateau als ankers; vermogen afgerond op 10 kW. Lineaire interpolatie door windprofiel.",
+    "wind_speed_unit": "m/s",
+    "power_unit": "kW",
+    "source_range_ms": [
+      0,
+      28
+    ],
+    "cut_out_is_assumption": true
+  }
+}
