@@ -106,7 +106,7 @@ Elk rekenveld heeft één status: **bron** (letterlijk uit de datasheet via de A
 
 ### Berekening
 
-De vergelijking gebruikt `src/electrolyser-kernel.mjs`, een JavaScript-versie van `simulate()` en `simulate_with_replacements()` uit `opsplitsing.py` (MODEL_VERSION 10). De Python-kern kost 1–3 s per opstelling en windjaar; in de browser met Pyodide duurt een vergelijking van vier opstellingen over vier jaar daardoor al gauw een minuut. De JavaScript-versie doet hetzelfde in enkele seconden, in een aparte worker (`/assets/elektrolyser-rekenkern.js`) met voortgang. De port volgt de Python-bewerkingsvolgorde, inclusief `sum()` met compensatie, `round(x, 2)`, `random.Random` (MT19937) en Europe/Amsterdam-wandkloktijd voor onderhoud. Tests tonen gelijke uitkomsten (verschil 0 in alle referentiegevallen; toegestaan 1e-9 relatief).
+De vergelijking gebruikt `src/electrolyser-kernel.mjs`, een JavaScript-versie van `simulate()` en `simulate_with_replacements()` uit `opsplitsing.py` (MODEL_VERSION 11; `simulate()` is sinds versie 10 ongewijzigd, het windaanbod is vervangen). De Python-kern kost 1–3 s per opstelling en windjaar; in de browser met Pyodide duurt een vergelijking van vier opstellingen over vier jaar daardoor al gauw een minuut. De JavaScript-versie doet hetzelfde in enkele seconden, in een aparte worker (`/assets/elektrolyser-rekenkern.js`) met voortgang. De port volgt de Python-bewerkingsvolgorde, inclusief `sum()` met compensatie, `round(x, 2)`, `random.Random` (MT19937) en Europe/Amsterdam-wandkloktijd voor onderhoud. Tests tonen gelijke uitkomsten (verschil 0 in alle referentiegevallen; toegestaan 1e-9 relatief).
 
 Een opstelling wordt `Aannames(capaciteit_mw, minimumlast, systeemverbruik_vol, deellastvoordeel, BoP, …)` met n modules. De standaardbesturing is `verdelen`; `bijschakelen` en `samen` zijn te kiezen. Algemene aannames zijn voor alle opstellingen gelijk: besturing, minimale aan- en uit-tijd, startvertraging, opstarttijden, koud na, warmhouden, onderhoud, storingen, hersteltijd en stilstand per stackwissel. Standaard zijn dat de waarden van `Aannames()` (PEM/EU-tool, deels plaatshouders). Storingen volgen in elke opstelling dezelfde vaste trekking per module en jaar (zaad jaar × 100 + modulenummer); meer modules betekent meer, kleinere storingen.
 
@@ -170,9 +170,9 @@ Iframe embedding is permitted: responses omit X-Frame-Options and CSP frame-ance
 
 ## Elektrolyser opsplitsen
 
-`/opsplitsing` (ook `/elektrolyser/opsplitsen`) bevat de pagina uit `akubishon/windprofiel`, commit `0c3cba2` (21 oktober 2026). De oorspronkelijke Python-bestanden staan ongewijzigd in `src/opsplitsing/python/`; herkomst en hashes staan in `src/opsplitsing/PROVENANCE.json`.
+`/opsplitsing` (ook `/elektrolyser/opsplitsen`) bevat de pagina uit `akubishon/windprofiel`, bijgewerkt in oktober 2026 naar modelversie 11 (productie-onafhankelijke windbron, `windbron.py`). De Python-bestanden in `src/opsplitsing/python/` zijn kopieën van `windprofiel/`; herkomst en hashes staan in `src/opsplitsing/PROVENANCE.json`.
 
-De site draait als JavaScript Worker en kan geen Python-processen starten. Daarom voert een aparte browserworker het oorspronkelijke model uit met Pyodide 0.29.3, geladen van de vaste versie op jsDelivr. De browseradapter vervangt uitsluitend multiprocessing door seriële uitvoering, en KNMI-verzoeken door de meegeleverde jaarreeksen 2022–2025. Deze zijn met de oorspronkelijke `supply_year` opgehaald en berekend. Minimumlast, technologieën, kosten, storingen, drie besturingen, dagvoorbeelden, gevoeligheidsanalyse, omslagkaart en CSV-export gebruiken de oorspronkelijke code. Grote analyses kunnen enkele minuten duren; de pagina moet openblijven. De vier historische windjaren zijn een momentopname en worden niet automatisch uitgebreid.
+De site draait als JavaScript Worker en kan geen Python-processen starten. Daarom voert een aparte browserworker het oorspronkelijke model uit met Pyodide 0.29.3, geladen van de vaste versie op jsDelivr. De browseradapter vervangt uitsluitend multiprocessing door seriële uitvoering, en KNMI-verzoeken door de meegeleverde jaarreeksen 2022–2025. Deze zijn met `supply_year` en de standaard windmethode `onafhankelijk` berekend: per tien minuten het gemiddelde van Houtribdijk en Stavoren, met de WINS50-hoogtevertaling uit `windprofiel/data/ashoogte.json`; de oude reeksen (hoogste van beide stations, op productie geijkte α) zijn vervangen. De oude windmethoden draaien alleen lokaal in Python. Opgeslagen scenario’s van vóór modelversie 11 staan als verouderd in de lijst. Minimumlast, technologieën, kosten, storingen, drie besturingen, dagvoorbeelden, gevoeligheidsanalyse, omslagkaart en CSV-export gebruiken de oorspronkelijke code. Grote analyses kunnen enkele minuten duren; de pagina moet openblijven. De vier historische windjaren zijn een momentopname en worden niet automatisch uitgebreid.
 
 Opgeslagen scenario’s worden op dit apparaat in localStorage bewaard, met een knop op de pagina. Er stonden geen scenario-JSON-bestanden in de bronrepository. De CLI-versie voor bulkberekeningen blijft beschikbaar als `src/opsplitsing/python/scenarios.py`. Alle nieuwe pagina’s en brongegevens vallen onder de bestaande sitewachtwoordcontrole.
 
@@ -237,7 +237,10 @@ De P2b-lijn toont één beschikbaar lid uit één bestand: de eerste windveldide
 identiteit worden overgeslagen; tegenstrijdige dubbele velden worden geweigerd.
 Dit is geen selectie van controlelid 0, ensemblegemiddelde of onzekerheidsband.
 Beide keuzes gebruiken in deze app wind op 10 meter, gevolgd door de bestaande
-hoogtecorrectie en turbineberekening; de hogere modelniveaus worden niet benut.
+hoogtecorrectie en turbineberekening; de hogere modelniveaus worden niet benut. De P1-bestanden
+bevatten u en v ook op 50, 100, 200 en 300 m (gecontroleerd op run 2026-10-22 00 UTC); zie
+`docs/databronnen.md`. De parkpagina’s gebruiken nog de oude, op productie geijkte seizoens-α met
+standaard Stavoren; zie `docs/afhankelijkheden.md`.
 P2b-runs ouder dan 72 uur worden vooraf geweigerd; P1 behoudt het bestaande archief.
 API: `/api/harmonie?model=p2b`; onbekende modelnamen krijgen HTTP 400.
 

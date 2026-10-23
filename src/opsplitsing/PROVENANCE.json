@@ -1,14 +1,16 @@
 {
   "repository": "https://github.com/akubishon/windprofiel",
-  "commit": "0c3cba267e355bbfa38265e1c87a5804afff6aaa",
-  "retrieved_on": "2026-10-21",
+  "commit": "zie git-geschiedenis van src/opsplitsing (modelversie 11, windbron.py)",
+  "retrieved_on": "2026-10-22",
   "python_sha256": {
     "windprofiel/__init__.py": "17e3726bf973a77277508ede49a8f3772029b72101f5251c1c53ed89ff5126b0",
+    "windprofiel/application.py": "65d17ee2a6e003f9e970245f65ba5149167b682e8b9e5c093bb691b57ec30996",
+    "windprofiel/knmi.py": "6e8fff72c352a7d1670e2020f034186daad8b9ab2d62ba94dec314b8736814d7",
+    "windprofiel/opsplitsing.py": "ee8e6f39fa476576cb47eb8db6754868404faabb8decf383163203b8d7149dfe",
     "windprofiel/profile.py": "e08d80c2732eb0406a70a3f231c924933e936daf192849c4d022ad4e72cd50ba",
-    "windprofiel/opsplitsing.py": "2da24a8dca4d2298a325881c628dd4b0a3846b12beba5eee58ce2a21d092fa72",
-    "windprofiel/scenarios.py": "27654e0b8332f6faceb51390be41bee9b309d4428e8eec482a1718ca159ce2a4",
-    "windprofiel/application.py": "bbcd93eb0ff579e1f42643d545f56352dd1dcf5257b19ccbd7a5cc838613e5de",
-    "windprofiel/knmi.py": "6e8fff72c352a7d1670e2020f034186daad8b9ab2d62ba94dec314b8736814d7"
+    "windprofiel/scenarios.py": "01e4e464feebba947bb60a705ee8343191032cc4660be883036c598298d0ec20",
+    "windprofiel/windbron.py": "5a059b542b1d04b28ed389354a857f8b5d5858ddbb697b1a5769f07109fc54da",
+    "windprofiel/productie.py": "ab090cdf0bf5bbe3b444548062d7271195990d83f92de2be5073f8d4be9fd367"
   },
   "wind_years": [
     2022,
@@ -16,7 +18,13 @@
     2024,
     2025
   ],
-  "source": "KNMI EDR; upstream supply_year with original park curves and assumptions",
-  "runtime": "Pyodide 0.29.3; upstream Python unchanged; SerialPool replaces ProcessPoolExecutor; precomputed supply replaces KNMI requests; browser-local saved scenarios",
-  "timezone_source": "IANA Europe/Amsterdam from system zoneinfo"
+  "source": "KNMI EDR (Houtribdijk en Stavoren, gemiddelde per tien minuten); hoogtevertaling WINS50 uit windprofiel/data/ashoogte.json; supply_year met de standaard windmethode",
+  "runtime": "Pyodide 0.29.3; Python gelijk aan windprofiel/; SerialPool vervangt ProcessPoolExecutor; meegeleverde jaarreeksen vervangen KNMI-aanvragen; alleen de standaard windmethode; browser-local saved scenarios",
+  "timezone_source": "IANA Europe/Amsterdam from system zoneinfo",
+  "data_sha256": {
+    "windprofiel/data/beabuorren.json": "ef066eb7f6abe2efe750bff97f22dbee0c20c8c44fac5f40ff215b8bf10c2fbb",
+    "windprofiel/data/productie_fryslan.csv": "2fc5f36744512cccfe7293e5c062bca7d07fbc42f1d8b9d6a6e902b771c7417d",
+    "windprofiel/data/ashoogte.json": "d15675e1e01778976b962681d5bda20815fe50dfac92bab7e03a21203e32de87"
+  },
+  "wind_method": "onafhankelijk"
 }

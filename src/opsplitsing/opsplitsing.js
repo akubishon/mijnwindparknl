@@ -490,7 +490,7 @@ function resultCsv(result) {
   const rowKeys = [...new Set(result.rijen.flatMap(Object.keys))];
   const assumptionKeys = Object.keys(result.aannames);
   const stepKeys = ["deltaKg", "deltaCost", "deltaHours", "deltaLcoh", "vsLowest", "marginal"];
-  const headers = ["berekening.windjaren", "berekening.strategie", "berekening.technologie", ...rowKeys, "stap.van_modules", ...stepKeys.map(k => "stap." + k), ...assumptionKeys.map(k => "aanname." + k)];
+  const headers = ["berekening.windjaren", "berekening.strategie", "berekening.technologie", "berekening.windmethode", ...rowKeys, "stap.van_modules", ...stepKeys.map(k => "stap." + k), ...assumptionKeys.map(k => "aanname." + k)];
   const cell = value => {
     if (value == null) return "";
     if (typeof value === "number") return Number.isFinite(value) ? String(value).replace(".", ",") : "";
@@ -500,7 +500,7 @@ function resultCsv(result) {
   };
   const rows = result.rijen.map((row, i) => {
     const s = i ? steps[i - 1] : {vsLowest: difference(row.lcoh_eur_kg, lowestCost(result.rijen))};
-    return [result.jaren.join(", "), result.strategie, result.technologie ?? "", ...rowKeys.map(k => row[k]),
+    return [result.jaren.join(", "), result.strategie, result.technologie ?? "", result.windmethode ?? "", ...rowKeys.map(k => row[k]),
       s.before?.modules, ...stepKeys.map(k => s[k]), ...assumptionKeys.map(k => result.aannames[k])];
   });
   return "\ufeff" + [headers, ...rows].map(row => row.map(cell).join(";")).join("\r\n");
@@ -818,7 +818,9 @@ function drawSaved(list) {
   for (const item of list) {
     const tr = document.createElement("tr");
     tr.classList.toggle("shown", item.id === shownSaved);
-    const cells = [item.naam, span(item.modules), label(item.beste.modules),
+    // Berekend met een eerdere rekenwijze (bijvoorbeeld de oude windmethode): zichtbaar markeren.
+    const name = item.verouderd ? `${item.naam} (verouderd: ${item.windmethode}, opnieuw berekenen)` : item.naam;
+    const cells = [name, span(item.modules), label(item.beste.modules),
       `${nf(item.een_module.lcoh_eur_kg, 3)} → ${nf(item.beste.lcoh_eur_kg, 3)} €/kg`,
       pct(item.beste.waterstof_t / item.een_module.waterstof_t - 1),
       new Date(item.gemaakt).toLocaleString("nl-NL", {dateStyle: "short", timeStyle: "short", timeZone: "Europe/Amsterdam"})];
@@ -891,7 +893,15 @@ function headline(rows, result) {
         : `${label(knee.modules)} is per kilo duurder dan ${label(base.modules)}, ook als extra modules niets kosten. Zie de uitsplitsing hieronder.`}
         Nu aangenomen: ${nf(result.aannames.vaste_kosten_module_meur, 2)} M€.</p></div>`;
   const years = result.jaren.join(", ");
-  $("result-sub").textContent = `Besturing ‘${result.strategie}’, windjaren ${years}. Aanbod gemiddeld ${nf(Object.values(result.aanbod).reduce((s, a) => s + a.mwh, 0) / result.jaren.length / 1000, 0)} GWh per jaar.`;
+  // Gemodelleerd aanbod en het deel per park; een oud resultaat zonder parkverdeling toont alleen het totaal.
+  const supply = Object.values(result.aanbod);
+  const perPark = park => supply.reduce((s, a) => s + (a.parken?.[park]?.naar_waterstof_mwh ?? NaN), 0) / result.jaren.length / 1000;
+  const parts = Number.isFinite(perPark("fryslan"))
+    ? ` (Fryslân ${nf(perPark("fryslan"), 0)} GWh = 10 % van ${nf(supply.reduce((s, a) => s + a.parken.fryslan.park_mwh, 0) / result.jaren.length / 1000, 0)} GWh modelopbrengst, Beabuorren ${nf(perPark("beabuorren"), 0)} GWh)`
+    : "";
+  $("result-sub").textContent = `Besturing ‘${result.strategie}’, windjaren ${years}. Gemodelleerd aanbod gemiddeld `
+    + `${nf(supply.reduce((s, a) => s + a.mwh, 0) / result.jaren.length / 1000, 0)} GWh per jaar${parts}. `
+    + (result.windmethode_uitleg ? `Wind: ${result.windmethode_uitleg}.` : "Wind: oude methode (vóór modelversie 11).");
 }
 
 function render(result) {
@@ -1204,7 +1214,11 @@ function renderWalk() {
   };
   const windLine = park => {
     const w = wind[park];
-    return `<p class="calc"><b>${data.parken[park]}</b><br>${nf(w.v10)} × (${w.ashoogte}/10)<sup>${nf(w.alpha, 3)}</sup> = <b>${nf(w.v_as)} m/s</b> op ${w.ashoogte} m<br>
+    // Oude methode: seizoens-α; standaard: maandfactor F uit WINS50, met de gelijkwaardige α erbij.
+    const height = w.hoogtevertaling === "alpha"
+      ? `${nf(w.v10)} × (${w.ashoogte}/10)<sup>${nf(w.alpha, 3)}</sup>`
+      : `${nf(w.v10)} × F ${nf(w.factor, 3)} <span class="why">(≈ α ${nf(w.alpha, 3)})</span>`;
+    return `<p class="calc"><b>${data.parken[park]}</b><br>${height} = <b>${nf(w.v_as)} m/s</b> op ${w.ashoogte} m<br>
       − ${nf(w.zog * 100, 0)} % zog = ${nf(w.v_turbine)} m/s → ${nf(w.turbine_kw, 0)} kW per turbine<br>
       × ${w.turbines} turbines = <b>${nf(w.mw)} MW</b></p>`;
   };
@@ -1241,14 +1255,24 @@ function renderWalk() {
 
   const legend = `<p class="legend small">${stations.map((key, k) => `<span>${swatch(k ? COLORS.many : COLORS.one)} ${data.stations[key]}</span>`).join("")}</p>`;
   const measured = stations.map(key => `${data.stations[key]} ${wind.knmi[key] == null ? "geen meting" : `<b>${nf(wind.knmi[key])} m/s</b>`}`).join(" · ");
+  // Oudere antwoorden (vóór modelversie 11) kennen alleen de hoogste-regel voor Fryslân en Stavoren voor Beabuorren.
+  const perPark = data.station_per_park || {fryslan: ["Houtribdijk", "Stavoren"], beabuorren: ["Stavoren"]};
+  const rules = data.regel_per_park || {fryslan: "hoogste", beabuorren: "een"};
+  const source = park => rules[park] === "hoogste"
+    ? `de hoogste, <b>${nf(wind[park].v10)} m/s</b> van ${data.stations[wind.gekozen]} (oude methode)`
+    : rules[park] === "gemiddelde"
+      ? `gemiddelde van ${perPark[park].join(" en ")}, <b>${nf(wind[park].v10)} m/s</b>`
+      : `${perPark[park].join(", ")}, <b>${nf(wind[park].v10)} m/s</b>`;
   $("walk").replaceChildren(
     card("A", "KNMI-wind op 10 m", [legend, windSpark(data, index),
-      `<p class="calc">${measured}<br>Fryslân: de hoogste, <b>${nf(wind.fryslan.v10)} m/s</b> van ${data.stations[wind.gekozen]}.
-       <br>Beabuorren: Stavoren, <b>${nf(wind.beabuorren.v10)} m/s</b>.</p>
-       <p class="note">Tienminutengemiddelden van het KNMI. Voor Fryslân past de hoogste lijn beter bij wat het park zelf levert dan één station.</p>`], `${nf(wind.fryslan.v10)} m/s voor Fryslân · ${nf(wind.beabuorren.v10)} m/s voor Beabuorren`),
-    card("B", "Wind op ashoogte en parkvermogen", parks.map(windLine), `${nf(wind.fryslan.mw)} MW + ${nf(wind.beabuorren.mw)} MW`),
+      `<p class="calc">${measured}<br>Fryslân: ${source("fryslan")}.
+       <br>Beabuorren: ${source("beabuorren")}.</p>
+       <p class="note">Tienminutengemiddelden van het KNMI, gemeten op de stations, niet in de parken. ${data.windmethode_uitleg || ""}.</p>`], `${nf(wind.fryslan.v10)} m/s voor Fryslân · ${nf(wind.beabuorren.v10)} m/s voor Beabuorren`),
+    card("B", "Wind op ashoogte en gemodelleerd parkvermogen", [...parks.map(windLine),
+      `<p class="note">Mogelijke opbrengst: turbinecurve, zogverlies en 100 % beschikbaarheid; geen afregeling of stilstand. De hoogtevertaling is een onderbouwde aanname zonder meting op ashoogte.</p>`],
+      `${nf(wind.fryslan.mw)} MW + ${nf(wind.beabuorren.mw)} MW`),
     card("C", "Aanbod voor de elektrolyser", `<p class="calc">${nf(share, 1)} × ${nf(wind.fryslan.mw)} + ${nf(wind.beabuorren.mw)}<br><b class="big">= ${nf(a.aanbod)} MW</b></p>
-      <p class="note">10 % van Windpark Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl.</p>`, `${nf(a.aanbod)} MW beschikbaar`),
+      <p class="note">10 % van het gemodelleerde Windpark Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl.</p>`, `${nf(a.aanbod)} MW beschikbaar`),
     card("D", "Modules inzetten", [deploy(one, a, COLORS.one, 1), deploy(many, b, COLORS.many, n)], `${a.stack.filter(x => x > 0).length} van 1 aan · ${b.stack.filter(x => x > 0).length} van ${n} aan`),
     card("E", "Waterstof in deze tien minuten", [produce(one, a, 1), produce(many, b, n)], `${nf(sumKg(a), 2)} kg met 1 module · ${nf(sumKg(b), 2)} kg met ${n}`),
     card("F", "Optellen", `<p class="calc">Dit moment: <b>${nf(sumKg(a))} kg</b> met 1 module, <b>${nf(sumKg(b))} kg</b> met ${n}.</p>

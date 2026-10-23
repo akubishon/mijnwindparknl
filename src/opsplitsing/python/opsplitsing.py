@@ -2,10 +2,9 @@
 
 Vraag: levert een 44 MW-elektrolyser in N modules meer waterstof en een lagere
 LCOH op dan in minder, grotere modules? De voeding is hetzelfde aandeel als op
-mijnwindpark.nl: 10 % van Windpark Fryslân plus Wynpark Beabuorren, uit
-KNMI-tienminutenwaarden met het rekenmodel van deze app. Fryslân krijgt per tien
-minuten de hoogste wind van Houtribdijk en Stavoren (`combine_wind`), Beabuorren
-alleen Stavoren.
+mijnwindpark.nl: 10 % van de gemodelleerde mogelijke opbrengst van Windpark Fryslân
+plus die van Wynpark Beabuorren, uit KNMI-tienminutenwaarden. Station en hoogtevertaling
+komen uit `windbron.py`, dezelfde methode als het dagprofiel.
 
 Alle elektrolyser- en kostengetallen in `Aannames` zijn plaatshouders, geen
 leveranciers- of literatuurwaarden. Vervang ze door datasheets en offertes;
@@ -29,19 +28,17 @@ from math import ceil, floor
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from .application import PARKS, ROOT, load_curve, park_power_mw, parse_wind, shear_exponent
+from . import windbron
+from .application import HYDROGEN_SHARE, PARKS, ROOT, load_curve, park_power_mw, parse_wind
 from .knmi import KNMIClient, KNMIError, load_env_file
 
-MODEL_VERSION = 10  # verhogen bij elke rekenwijziging; maakt oude uitkomsten in de cache ongeldig
+MODEL_VERSION = 11  # verhogen bij elke rekenwijziging; maakt oude uitkomsten in de cache ongeldig (11: windbron.py)
 STEP_H = 1 / 6
-FRYSLAN_SHARE = 0.10
+FRYSLAN_SHARE = HYDROGEN_SHARE["fryslan"]
 CACHE = ROOT / ".cache" / "opsplitsing"
 LOCAL = ZoneInfo("Europe/Amsterdam")
 FIRST_YEAR = 2022   # eerste volledige jaar met Windpark Fryslân in bedrijf
-# Windpark Fryslân krijgt per tien minuten de hoogste wind van deze twee stations: meet Stavoren
-# weinig terwijl Houtribdijk wel wind ziet, dan past de hoogste lijn beter bij de productie van Fryslân.
-# Wynpark Beabuorren houdt alleen Stavoren, het dichtstbijzijnde station.
-STATIONS = {"houtribdijk": ("Houtribdijk", "0-20000-0-06258"), "stavoren": ("Stavoren", "0-20000-0-06267")}
+STATIONS = windbron.STATIONS
 MODULE_COUNTS = [1, 2, 3, 4, 5, 6, 8, 10, 11, 16]   # keuzelijst op de pagina
 MAX_MODULES = 64                                     # bovengrens voor opgeslagen scenario's en aanvragen
 STRATEGIES = {
@@ -241,7 +238,8 @@ def meta_json() -> dict:
         for key, label, unit, low, high, scale, hint in items]} for name, items in AANNAMES_META],
         "technologieen": {key: {"naam": name, "waarden": shown(a), "toelichting": TOELICHTING.get(key, "")}
                           for key, (name, a) in TECHNOLOGIES.items()},
-        "strategieen": STRATEGIES, "modules": MODULE_COUNTS, "jaren": available_years()}
+        "strategieen": STRATEGIES, "modules": MODULE_COUNTS, "jaren": available_years(),
+        "windmethode": {"standaard": windbron.DEFAULT, "uitleg": windbron.LABELS, "aandeel": HYDROGEN_SHARE}}
 
 
 def available_years() -> list[int]:
@@ -250,48 +248,48 @@ def available_years() -> list[int]:
 
 # ---------------------------------------------------------------- windaanbod
 
-def combine_wind(series: dict[str, dict]) -> tuple[list, list[float], list[str]]:
-    """Per moment de hoogste windsnelheid van de stations; ontbreekt er één, dan telt de andere."""
-    moments, speeds, sources = [], [], []
-    for moment in sorted(set().union(*(values.keys() for values in series.values()))):
-        present = [(values[moment], key) for key, values in series.items() if values.get(moment) is not None]
-        if not present:
-            continue
-        speed, key = max(present)
-        moments.append(moment)
-        speeds.append(speed)
-        sources.append(key)
-    return moments, speeds, sources
+def supply_year(year: int, client: KNMIClient | None = None, method: str = windbron.DEFAULT) -> dict:
+    """Bruto toegewezen modelvermogen (MW) per tien minuten met tijdstempels; meetgaten vallen weg.
 
-
-def supply_year(year: int, client: KNMIClient | None = None) -> dict:
-    """Bruto toegewezen windvermogen (MW) per tien minuten met tijdstempels; meetgaten vallen weg.
-
-    Bewaard per jaar en per parkmodel, zodat een volgende run niets bij KNMI hoeft op te halen.
+    Een moment telt alleen mee als beide parken wind hebben volgens de methode; er wordt geen station
+    ingevuld voor een ander. Bewaard per jaar, methode en parkmodel, zodat een volgende run niets bij
+    KNMI hoeft op te halen.
     """
-    model = hashlib.sha256(json.dumps([PARKS, STATIONS, FRYSLAN_SHARE, load_curve("fryslan"), load_curve("beabuorren")],
+    methods = windbron.method(method)
+    keys = windbron.stations_needed(methods)
+    heights = (hashlib.sha256(windbron.TABLE.read_bytes()).hexdigest()
+               if any(pm.height == "wins50" for pm in methods.values()) else None)
+    curves = {park_id: load_curve(park_id) for park_id in PARKS}
+    model = hashlib.sha256(json.dumps([PARKS, {k: asdict(pm) for k, pm in methods.items()}, heights, HYDROGEN_SHARE, curves],
                                       sort_keys=True, default=str).encode()).hexdigest()[:12]
-    path = CACHE / f"aanbod4-{year}-{model}.json"   # aanbod4: Fryslân hoogste van beide stations, Beabuorren Stavoren
+    path = CACHE / f"aanbod5-{method}-{year}-{model}.json"
     if path.exists():
         return json.loads(path.read_text())
     client = client or KNMIClient(ROOT / ".cache" / "knmi")
     start = datetime(year, 1, 1, tzinfo=LOCAL).astimezone(timezone.utc)
     end = datetime(year + 1, 1, 1, tzinfo=LOCAL).astimezone(timezone.utc)
     measured = {}
-    for key, (_, station) in STATIONS.items():
+    for key in keys:
+        station = windbron.station_id(key)
         samples = parse_wind(client.observations_range(station, start, end), station)
         measured[key] = {moment: speed for moment, speed in samples if speed is not None and start <= moment < end}
-    combined = combine_wind(measured)
-    stavoren = measured["stavoren"]
-    # Zonder Stavoren-meting is Beabuorren onbekend; zo'n moment valt weg, net als andere meetgaten.
-    rows = [(t, v, source) for t, v, source in zip(*combined) if t in stavoren]
-    curves = {park_id: load_curve(park_id) for park_id in PARKS}
-    data = {"jaar": year, "t": [int(t.timestamp()) for t, _, _ in rows],
-            "mw": [round(FRYSLAN_SHARE * park_mw("fryslan", v, t, curves["fryslan"])
-                         + park_mw("beabuorren", stavoren[t], t, curves["beabuorren"]), 4) for t, v, _ in rows],
-            "v10": {"fryslan": [v for _, v, _ in rows], "beabuorren": [stavoren[t] for t, _, _ in rows]},
-            "bron": [source for _, _, source in rows],
-            "stations": {key: [measured[key].get(t) for t, _, _ in rows] for key in STATIONS}}
+    rows = []
+    for moment in sorted(set().union(*(values.keys() for values in measured.values()))):
+        values = {key: measured[key].get(moment) for key in keys}
+        fryslan, source = windbron.select(methods["fryslan"], values)
+        beabuorren, _ = windbron.select(methods["beabuorren"], values)
+        if fryslan is not None and beabuorren is not None:
+            rows.append((moment, fryslan, source, beabuorren))
+    parks = {"fryslan": [park_mw("fryslan", v, t, curves["fryslan"], methods["fryslan"]) for t, v, _, _ in rows],
+             "beabuorren": [park_mw("beabuorren", v, t, curves["beabuorren"], methods["beabuorren"]) for t, _, _, v in rows]}
+    data = {"jaar": year, "methode": method, "t": [int(t.timestamp()) for t, _, _, _ in rows],
+            "mw": [round(HYDROGEN_SHARE["fryslan"] * a + HYDROGEN_SHARE["beabuorren"] * b, 4)
+                   for a, b in zip(parks["fryslan"], parks["beabuorren"])],
+            "v10": {"fryslan": [v for _, v, _, _ in rows], "beabuorren": [v for _, _, _, v in rows]},
+            "bron": [source for _, _, source, _ in rows],
+            "stations": {key: [measured[key].get(t) for t, _, _, _ in rows] for key in keys},
+            # Volledige parkopbrengst over de aanwezige momenten, om het toegewezen deel zichtbaar te maken.
+            "park_mwh": {park_id: sum(values) * STEP_H for park_id, values in parks.items()}}
     CACHE.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps(data))
@@ -299,23 +297,23 @@ def supply_year(year: int, client: KNMIClient | None = None) -> dict:
     return data
 
 
-def park_mw(park_id: str, speed: float, moment: datetime, curve: dict | None) -> float:
-    """KNMI-wind op 10 m naar parkvermogen, met hetzelfde model als de windprofielpagina."""
-    park = PARKS[park_id]
-    alpha = shear_exponent(park, moment.astimezone(LOCAL).date())
-    return park_power_mw(speed * (park["hub_height"] / 10) ** alpha, park_id, curve, wake=True)
+def park_mw(park_id: str, speed: float, moment: datetime, curve: dict | None, pm: windbron.ParkMethod) -> float:
+    """KNMI-wind op 10 m naar gemodelleerd mogelijk parkvermogen, met hetzelfde model als het dagprofiel."""
+    return park_power_mw(windbron.hub_wind(park_id, pm, speed, moment), park_id, curve, wake=True)
 
 
-def wind_steps(park_id: str, speed: float, stamp: int, curve: dict | None) -> dict:
+def wind_steps(park_id: str, speed: float, stamp: int, curve: dict | None, pm: windbron.ParkMethod) -> dict:
     """Tussenwaarden van KNMI-wind tot parkvermogen, voor het rekenvoorbeeld."""
     park = PARKS[park_id]
     moment = datetime.fromtimestamp(stamp, timezone.utc)
-    alpha = shear_exponent(park, moment.astimezone(LOCAL).date())
-    hub = speed * (park["hub_height"] / 10) ** alpha
+    factor = windbron.factor(park_id, pm, moment)
+    hub = speed * factor
     mw = park_power_mw(hub, park_id, curve, wake=True)
-    return {"v10": speed, "alpha": round(alpha, 4), "ashoogte": park["hub_height"], "v_as": round(hub, 3),
+    return {"v10": speed, "factor": round(factor, 4), "alpha": round(windbron.alpha_equivalent(park_id, factor, pm), 4),
+            "hoogtevertaling": pm.height, "ashoogte": park["hub_height"], "v_as": round(hub, 3),
             "zog": park["wake_deficit"], "v_turbine": round(hub * (1 - park["wake_deficit"]), 3),
-            "turbines": park["count"], "turbine_kw": round(mw * 1000 / park["count"], 1), "mw": round(mw, 3)}
+            "turbines": park["count"], "turbine_kw": round(mw * 1000 / park["count"], 1), "mw": round(mw, 3),
+            "aandeel": HYDROGEN_SHARE[park_id]}
 
 
 # ---------------------------------------------------------------- module
@@ -658,14 +656,35 @@ def _job(args):
     return simulate_with_replacements(supply, n, a, strategy)
 
 
-def run(a: Aannames, years: list[int], counts: list[int], strategy: str, workers: int | None = None) -> dict:
+def supply_key(supplies: dict) -> list:
+    """Wat van het aanbod in een cachesleutel hoort: methode, lengte en een controlesom van de reeks."""
+    return [[s.get("methode"), len(s["t"]), hashlib.sha256(json.dumps(s["mw"]).encode()).hexdigest()[:16]]
+            for s in supplies.values()]
+
+
+def supply_summary(supplies: dict) -> dict:
+    """Aanbod per jaar, herschaald naar 8.760 uur, met het deel dat elk park levert."""
+    out = {}
+    for year, s in supplies.items():
+        hours = len(s["mw"]) * STEP_H
+        scale = 8760 / hours if hours else 0.0
+        parks = s.get("park_mwh", {})
+        out[year] = {"mwh": sum(s["mw"]) * STEP_H * scale, "dekking_uur": hours, "methode": s.get("methode"),
+                     "parken": {park_id: {"park_mwh": value * scale, "aandeel": HYDROGEN_SHARE[park_id],
+                                          "naar_waterstof_mwh": value * scale * HYDROGEN_SHARE[park_id]}
+                                for park_id, value in parks.items()}}
+    return out
+
+
+def run(a: Aannames, years: list[int], counts: list[int], strategy: str, workers: int | None = None,
+        method: str = windbron.DEFAULT) -> dict:
     """Alle configuraties over alle windjaren; uitkomst bewaard per set invoer."""
     if strategy not in STRATEGIES or not years or not counts:
         raise ValueError("Kies een besturing, minstens één windjaar en minstens één moduleaantal.")
     counts = sorted(set(counts))
-    supplies = {year: supply_year(year) for year in years}
+    supplies = {year: supply_year(year, method=method) for year in years}
     key = hashlib.sha256(json.dumps([MODEL_VERSION, asdict(a), years, counts, strategy,
-                                     [len(s["t"]) for s in supplies.values()]]).encode()).hexdigest()[:20]
+                                     supply_key(supplies)]).encode()).hexdigest()[:20]
     path = CACHE / f"uitkomst-{key}.json"
     began = time.perf_counter()
     steps = sum(len(s["t"]) for s in supplies.values())
@@ -681,9 +700,8 @@ def run(a: Aannames, years: list[int], counts: list[int], strategy: str, workers
     break_even(rows, a)
     example = example_day(results, counts, years)
     data = {"sleutel": key, "aannames": asdict(a), "strategie": strategy, "jaren": years, "rijen": rows,
-            "voorbeelddag": example,
-            "aanbod": {y: {"mwh": sum(s["mw"]) * STEP_H * 8760 / (len(s["mw"]) * STEP_H),
-                           "dekking_uur": len(s["mw"]) * STEP_H} for y, s in supplies.items()},
+            "voorbeelddag": example, "windmethode": method, "windmethode_uitleg": windbron.LABELS[method],
+            "model_versie": MODEL_VERSION, "aanbod": supply_summary(supplies),
             "omvang": {"tijdstappen": steps, "configuraties": len(counts), "modules": sum(counts),
                        "modulestappen": steps * sum(counts), "processen": workers or os.cpu_count()}}
     data["eerste_rekentijd_s"] = time.perf_counter() - began
@@ -714,13 +732,14 @@ def variants(a: Aannames, key: str) -> list[tuple[float, Aannames]]:
     return out
 
 
-def sensitivity(a: Aannames, years: list[int], n: int, strategy: str, workers: int | None = None) -> dict:
+def sensitivity(a: Aannames, years: list[int], n: int, strategy: str, workers: int | None = None,
+                method: str = windbron.DEFAULT) -> dict:
     """Hoe het voordeel van n modules boven één module (€/kg) verschuift als elke aanname 25 % verandert."""
     if not 1 < n <= MAX_MODULES or strategy not in STRATEGIES or not years:
         raise ValueError("Kies een aantal modules groter dan 1, een besturing en minstens één windjaar.")
-    supplies = {year: supply_year(year) for year in years}
+    supplies = {year: supply_year(year, method=method) for year in years}
     key = hashlib.sha256(json.dumps([MODEL_VERSION, "gevoeligheid", asdict(a), years, n, strategy, SENSITIVITY_STEP,
-                                     [len(s["t"]) for s in supplies.values()]]).encode()).hexdigest()[:20]
+                                     supply_key(supplies)]).encode()).hexdigest()[:20]
     path = CACHE / f"gevoeligheid-{key}.json"
     if path.exists():
         return json.loads(path.read_text())
@@ -758,7 +777,8 @@ OMSLAG_MINIMUMLAST = [0.10, 0.20, 0.30, 0.40, 0.50]
 OMSLAG_VASTE_KOSTEN = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5]
 
 
-def omslagkaart(a: Aannames, years: list[int], counts: list[int], strategy: str, workers: int | None = None) -> dict:
+def omslagkaart(a: Aannames, years: list[int], counts: list[int], strategy: str, workers: int | None = None,
+                method: str = windbron.DEFAULT) -> dict:
     """Het goedkoopste aantal modules per combinatie van minimumlast en vaste kosten per module.
 
     De minimumlast vraagt een nieuwe simulatie; de vaste kosten alleen een nieuwe kostenberekening.
@@ -766,9 +786,9 @@ def omslagkaart(a: Aannames, years: list[int], counts: list[int], strategy: str,
     counts = sorted(set(counts))
     if len(counts) < 2 or strategy not in STRATEGIES or not years:
         raise ValueError("Kies minstens twee moduleaantallen, een besturing en minstens één windjaar.")
-    supplies = {year: supply_year(year) for year in years}
+    supplies = {year: supply_year(year, method=method) for year in years}
     key = hashlib.sha256(json.dumps([MODEL_VERSION, "omslag", asdict(a), years, counts, strategy, OMSLAG_MINIMUMLAST,
-                                     OMSLAG_VASTE_KOSTEN, [len(s["t"]) for s in supplies.values()]]).encode()).hexdigest()[:20]
+                                     OMSLAG_VASTE_KOSTEN, supply_key(supplies)]).encode()).hexdigest()[:20]
     path = CACHE / f"omslag-{key}.json"
     if path.exists():
         return json.loads(path.read_text())
@@ -819,9 +839,10 @@ def example_day(results: list[dict], counts: list[int], years: list[int]) -> str
     return sorted(gains)[int(len(gains) * .75)][1] if gains else None
 
 
-def day_trace(a: Aannames, day: date, counts: list[int], strategy: str) -> dict:
+def day_trace(a: Aannames, day: date, counts: list[int], strategy: str, method: str = windbron.DEFAULT) -> dict:
     """Tijdstappen van één dag per configuratie; de simulatie start twee dagen eerder om warm te lopen."""
-    supply = supply_year(day.year)
+    supply = supply_year(day.year, method=method)
+    methods = windbron.method(method)
     start = datetime.combine(day, datetime.min.time(), LOCAL)
     lo = (start - timedelta(days=2)).timestamp()
     first, end = start.timestamp(), (start + timedelta(days=1)).timestamp()
@@ -839,16 +860,23 @@ def day_trace(a: Aannames, day: date, counts: list[int], strategy: str) -> dict:
                   "waterstof_kg": result["dagen"].get(day.isoformat(), [0])[0],
                   "drempel_mw": draw_mw(a.minimumlast * result["module_mw"], result["module_mw"], a)}
     curves = {park_id: load_curve(park_id) for park_id in PARKS}
-    wind = [{**{park_id: wind_steps(park_id, supply["v10"][park_id][picked[i]], window["t"][i], curves[park_id]) for park_id in PARKS},
-             "knmi": {key: supply["stations"][key][picked[i]] for key in STATIONS}, "gekozen": supply["bron"][picked[i]]}
+    wind = [{**{park_id: wind_steps(park_id, supply["v10"][park_id][picked[i]], window["t"][i], curves[park_id], methods[park_id])
+                for park_id in PARKS},
+             "knmi": {key: supply["stations"][key][picked[i]] for key in supply["stations"]}, "gekozen": supply["bron"][picked[i]]}
             for i in visible]
     return {"datum": day.isoformat(), "configuraties": out, "wind": wind, "aandeel_fryslan": FRYSLAN_SHARE,
-            "stations": {key: name for key, (name, _) in STATIONS.items()}, "parken": {park_id: park["name"] for park_id, park in PARKS.items()}}
+            "aandeel": HYDROGEN_SHARE, "windmethode": method, "windmethode_uitleg": windbron.LABELS[method],
+            "stations": {key: STATIONS[key][0] for key in supply["stations"]},
+            "station_per_park": {park_id: [STATIONS[k][0] for k in pm.stations] for park_id, pm in methods.items()},
+            "regel_fryslan": methods["fryslan"].rule, "regel_per_park": {park_id: pm.rule for park_id, pm in methods.items()},
+            "hoogtevertaling": {park_id: windbron.describe(park_id, pm, datetime.combine(day, datetime.min.time(), LOCAL))
+                                for park_id, pm in methods.items()},
+            "parken": {park_id: park["name"] for park_id, park in PARKS.items()}}
 
 
 # ---------------------------------------------------------------- opdrachtregel
 
-CSV_FIELDS = ["scenario", "strategie", "modules", "module_mw", "waterstof_t", "benutting", "bedrijfsuren_gem", "productie_uur",
+CSV_FIELDS = ["scenario", "windmethode", "strategie", "modules", "module_mw", "waterstof_t", "benutting", "bedrijfsuren_gem", "productie_uur",
               "starts_warm_per_module", "starts_koud_per_module", "jaren_tot_stackwissel", "capex_meur",
               "stack_meur_jaar", "kosten_meur_jaar", "lcoh_eur_kg", "netto_eur_kg", "capex_break_even_meur", "vaste_kosten_break_even_meur", "extra_waterstof_t",
               "extra_kosten_meur_jaar", "marginale_eur_kg", "beste"]
@@ -861,13 +889,15 @@ def main() -> int:
     parser.add_argument("--technologie", choices=TECHNOLOGIES, default="pem")
     parser.add_argument("--aannames", type=Path, help="JSON-bestand met afwijkende aannames, in getoonde eenheden (minimumlast 20 = 20 %).")
     parser.add_argument("--uit", type=Path, default=ROOT / "uitvoer" / "opsplitsing")
+    parser.add_argument("--windmethode", choices=windbron.METHODS, default=windbron.DEFAULT,
+                        help="Standaard productie-onafhankelijk; de oude methoden zijn er om te vergelijken.")
     args = parser.parse_args()
     load_env_file(ROOT / ".env")
     try:
         preset = shown(TECHNOLOGIES[args.technologie][1])
         base = parse_aannames({**preset, **(json.loads(args.aannames.read_text()) if args.aannames else {})})
         for year in args.jaren:
-            supply_year(year)
+            supply_year(year, method=args.windmethode)
     except (KNMIError, ValueError) as exc:
         print(str(exc))
         return 1
@@ -883,8 +913,8 @@ def main() -> int:
     for name, (changes, strategies) in scenarios.items():
         years = [int(name[-4:])] if name.startswith("windjaar") else args.jaren
         for strategy in strategies:
-            for row in run(replace(base, **changes), years, args.modules, strategy)["rijen"]:
-                rows.append({"scenario": name, **row})
+            for row in run(replace(base, **changes), years, args.modules, strategy, method=args.windmethode)["rijen"]:
+                rows.append({"scenario": name, "windmethode": args.windmethode, **row})
     args.uit.mkdir(parents=True, exist_ok=True)
     with (args.uit / "resultaten.csv").open("w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, CSV_FIELDS, extrasaction="ignore")

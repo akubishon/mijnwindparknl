@@ -2,45 +2,45 @@
 
 import json
 from bisect import bisect_left
-from datetime import date, datetime, timedelta, timezone
-from math import cos, isfinite, pi
+from datetime import date, datetime, time, timedelta, timezone
+from math import isfinite
 from pathlib import Path
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
+from . import productie, windbron
 from .knmi import KNMIClient, KNMIError
 from .profile import combined_mw, cubic_power_kw, day_minutes, power_kw, today
 
 ROOT = Path(__file__).resolve().parent.parent
-# Parkgegevens en modelaannames; bronnen en onderbouwing staan in docs/.
+# Parkgegevens en modelaannames; bronnen en onderbouwing staan in docs/. Station en hoogtevertaling
+# komen uit windbron.py, zodat dagprofiel en opsplitsing dezelfde methode gebruiken.
 PARKS = {
     "fryslan": {
         "name": "Windpark Fryslân",
         "model": "Siemens Gamesa SWT-DD-130",
         "count": 89,
         "rated_kw": 4300,
-        "hub_height": 115,
-        # Seizoensexponent: alpha + alpha_seasonal * cos(...), zie shear_exponent.
-        "alpha": 0.115,
-        "alpha_seasonal": 0.065,
+        "hub_height": windbron.HUB_HEIGHT["fryslan"],
         "wake_deficit": 0.05,
-        "station": "0-20000-0-06258",  # Houtribdijk
-        "assumptions": "115 m ashoogte afgeleid uit tiphoogte en rotordiameter; seizoensexponent (circa 0,18 in de winter, "
-                       "0,05 in de zomer) en station Houtribdijk zijn geijkt op productiedagen uit 2025 en 2026, geen parkmeting.",
+        "station": windbron.station_id(windbron.METHODS[windbron.DEFAULT]["fryslan"].stations[0]),
+        "assumptions": "Ashoogte 115 m boven water: 180 m tiphoogte boven water (exploitant) min de halve rotordiameter van "
+                       "130 m. Turbinecurve en zogverlies zijn scenario-aannames; 100 % beschikbaarheid, geen afregeling.",
     },
     "beabuorren": {
         "name": "Wynpark Beabuorren",
         "model": "Siemens SWT-1.3-62",
         "count": 8,
         "rated_kw": 1300,
-        "hub_height": 60,
-        "alpha": 0.20,
+        "hub_height": windbron.HUB_HEIGHT["beabuorren"],
         "wake_deficit": 0.02,
-        "station": "0-20000-0-06267",  # Stavoren
-        "assumptions": "60 m ashoogte uit historisch lokaal nieuws, nog te bevestigen voor alle turbines; exponent 0,20 is een "
-                       "land-aanname. Stavoren is het dichtstbijzijnde KNMI-station (circa 19 km), geen parkmeting.",
+        "station": windbron.station_id(windbron.METHODS[windbron.DEFAULT]["beabuorren"].stations[0]),
+        "assumptions": "60 m ashoogte uit historisch lokaal nieuws, nog te bevestigen voor alle turbines; secundaire "
+                       "gepubliceerde curve, zogverlies als scenario; 100 % beschikbaarheid, geen afregeling.",
     },
 }
+# Deel van de modelopbrengst dat de waterstofsimulatie (opsplitsing) als aanbod krijgt, zoals op mijnwindpark.nl.
+HYDROGEN_SHARE = {"fryslan": 0.10, "beabuorren": 1.0}
 FRYSLAN_SCENARIO = {
     "kind": "cubic_scenario", "model": PARKS["fryslan"]["model"],
     "rated_kw": 4300, "cut_in": 3, "rated_speed": 11.5, "cut_out": 25,
@@ -48,12 +48,6 @@ FRYSLAN_SCENARIO = {
     "status": "Benaderd kubisch scenario, geen fabrikantcurve. 3 / 11,5 / 25 m/s zijn gekozen modelaannames, "
               "geen bevestigde turbinespecificaties.",
 }
-
-
-def shear_exponent(park: dict, day: date) -> float:
-    """Hoogte-exponent; met alpha_seasonal hoogst begin januari en laagst begin juli."""
-    phase = 2 * pi * (day.timetuple().tm_yday - 1) / 365
-    return park["alpha"] + park.get("alpha_seasonal", 0) * cos(phase)
 
 
 ALPHA_RANGE = (0.0, 0.6)
@@ -191,25 +185,40 @@ def load_curve(park_id: str) -> dict | None:
     return validate_curve(json.loads(path.read_text()), park_id) if path.exists() else None
 
 
-def day_energy(power: list[float | None], timestamps: list[str], running: bool) -> tuple[float | None, str | None]:
-    """Dagopbrengst in MWh; voor vandaag de opbrengst tot het laatste meetmoment.
+def day_energy(power: list[float | None], timestamps: list[str], running: bool,
+               per_hour: int = 60) -> tuple[float | None, str | None]:
+    """Opbrengst in MWh uit vermogens van `per_hour` gelijke stappen per uur; voor vandaag tot het laatste meetmoment.
 
-    Alleen ontbrekende minuten aan het eind van een lopende dag worden genegeerd;
+    Alleen ontbrekende stappen aan het eind van een lopende dag worden genegeerd;
     een gat eerder op de dag maakt de opbrengst onbekend.
     """
     if None not in power:
-        return sum(power) / 60, None
+        return sum(power) / per_hour, None
     known = len(power)
     while known and power[known - 1] is None:
         known -= 1
     if not running or not known or None in power[:known]:
         return None, None
-    return sum(power[:known]) / 60, timestamps[known - 1]
+    return sum(power[:known]) / per_hour, timestamps[known - 1]
 
 
-CSV_HEADER = ["tijd_Europe_Amsterdam", "fryslan_wind_10m_ms", "beabuorren_wind_10m_ms",
+def day_intervals(day: date) -> list[datetime]:
+    """Midden (UTC) van elk KNMI-tienminuteninterval van de Nederlandse kalenderdag: 144, of 138/150 bij de klokwissel."""
+    minutes = day_minutes(day)
+    return [minutes[0] + timedelta(minutes=5 + 10 * i) for i in range(len(minutes) // 10)]
+
+
+def station_samples(pm: windbron.ParkMethod, raws: dict[str, list[tuple[datetime, float | None]]]
+                    ) -> list[tuple[datetime, float | None, str | None]]:
+    """Per tienminutenmoment de stationswind volgens de methode, met het gebruikte station."""
+    lookup = {key: dict(samples) for key, samples in raws.items()}
+    moments = sorted({t for samples in raws.values() for t, _ in samples})
+    return [(t, *windbron.select(pm, {key: values.get(t) for key, values in lookup.items()})) for t in moments]
+
+
+CSV_HEADER = ["tijd_Europe_Amsterdam", "fryslan_stationswind_10m_ms", "beabuorren_stationswind_10m_ms",
               "fryslan_wind_ashoogte_ms", "beabuorren_wind_ashoogte_ms",
-              "fryslan_geschat_MW", "beabuorren_geschat_MW", "gecombineerd_geschat_MW"]
+              "fryslan_model_mogelijk_MW", "beabuorren_model_mogelijk_MW", "gecombineerd_model_mogelijk_MW"]
 
 
 def nl_time(timestamp: str, repeated_hour: bool = False) -> str:
@@ -237,60 +246,112 @@ def csv_rows(profile: dict) -> list[list[str]]:
     return rows
 
 
+
+
 def build_profile(day: date, stations: dict[str, str] | None = None, client: KNMIClient | None = None,
-                  wake: bool = True, alphas: dict[str, float | None] | None = None) -> dict:
-    """Minuutprofielen voor beide parken; `alphas` vervangt per park de standaard hoogte-exponent."""
+                  wake: bool = True, alphas: dict[str, float | None] | None = None,
+                  method: str = windbron.DEFAULT) -> dict:
+    """Minuutprofielen voor beide parken; `alphas` vervangt per park de standaard hoogtevertaling.
+
+    Drie grootheden blijven gescheiden: wind op ashoogte (m/s), gemodelleerde mogelijke elektrische
+    opbrengst (MW, MWh) en, voor Fryslân op dagen in het archief, de gemeten dagproductie.
+    De dagopbrengst komt uit de oorspronkelijke tienminutenwaarden; de minuutlijn is alleen voor de grafiek.
+    """
     moments = day_minutes(day)
     client = client or KNMIClient(ROOT / ".cache" / "knmi")
     features = client.locations().get("features", [])
     available = {f["id"]: f for f in features}
+    methods = windbron.method(method)
     profiles = {}
     local = ZoneInfo("Europe/Amsterdam")
     stamps = [t.astimezone(local).isoformat() for t in moments]
+    noon = datetime.combine(day, time(12), local)
     running = day == today()
+    slots = day_intervals(day)
+    slot_ends = [(t + timedelta(minutes=5)).astimezone(local).isoformat() for t in slots]
+    fetched = {}
     for park_id, park in PARKS.items():
-        station_id = (stations or {}).get(park_id) or park["station"]
-        if station_id not in available:
+        pm = methods[park_id]
+        chosen = (stations or {}).get(park_id)
+        if chosen:
+            pm = windbron.with_station(pm, chosen)
+        ids = [windbron.station_id(key) for key in pm.stations]
+        if any(station_id not in available for station_id in ids):
             raise ValueError("Kies een KNMI-station uit de beschikbare stationslijst.")
-        raw = client.observations(station_id, day)
-        samples = parse_wind(raw, station_id)
-        wind = interpolate_minutes(samples, moments)
-        alpha_default = shear_exponent(park, day)
+        for station_id in ids:
+            if station_id not in fetched:
+                fetched[station_id] = parse_wind(client.observations(station_id, day), station_id)
+        samples = station_samples(pm, {key: fetched[sid] for key, sid in zip(pm.stations, ids)})
+        wind = interpolate_minutes([(t, v) for t, v, _ in samples], moments)
         custom = (alphas or {}).get(park_id)
-        alpha = alpha_default if custom is None else custom
-        hub = [None if v is None else v * (park["hub_height"] / 10) ** alpha for v in wind]
+        factor = windbron.factor(park_id, pm, noon, custom)
+        factor_default = windbron.factor(park_id, pm, noon)
+        hub = [None if v is None else v * factor for v in wind]
         curve = load_curve(park_id)
         power = [park_power_mw(v, park_id, curve, wake=wake) for v in hub]
+        by_slot = {t: v for t, v, _ in samples}
+        interval_power = [park_power_mw(None if by_slot.get(t) is None else by_slot[t] * factor, park_id, curve, wake=wake)
+                          for t in slots]
         reference_points = []
-        for t, value in samples:
+        for t, value, source in samples:
             if moments[0] <= t < moments[-1] + timedelta(minutes=1):
-                aswind = None if value is None else value * (park["hub_height"] / 10) ** alpha
-                reference_points.append({"timestamp": t.astimezone(local).isoformat(), "wind_ms": value,
-                                         "power_mw": park_power_mw(aswind, park_id, curve, wake=wake)})
+                aswind = None if value is None else value * factor
+                reference_points.append({"timestamp": t.astimezone(local).isoformat(), "wind_ms": value, "hub_wind_ms": aswind,
+                                         "power_mw": park_power_mw(aswind, park_id, curve, wake=wake), "station": source})
         curve_metadata = ({k: v for k, v in curve.items() if k != "points"} if curve is not None
                           else dict(FRYSLAN_SCENARIO) if park_id == "fryslan" else None)
+        energy, until = day_energy(interval_power, slot_ends, running, per_hour=6)
         profiles[park_id] = {
-            **park, "alpha": alpha, "alpha_default": alpha_default, "alpha_custom": custom is not None, "station": available[station_id], "wind_ms": wind, "hub_wind_ms": hub,
-            "power_mw": power, "missing_wind_minutes": wind.count(None),
-            "curve": curve_metadata, "reference_points": reference_points,
-            **dict(zip(("energy_mwh", "energy_until"), day_energy(power, stamps, running))),
-            "observations": [{"interval_end": (t + timedelta(minutes=5)).isoformat(), "wind_ms": v} for t, v in samples],
+            **park, "station": available[ids[0]], "stations": [available[i] for i in ids], "station_rule": pm.rule,
+            "height_method": windbron.describe(park_id, pm, noon, custom),
+            "factor": factor, "factor_default": factor_default,
+            "alpha": custom if custom is not None else windbron.alpha_equivalent(park_id, factor, pm),
+            "alpha_default": windbron.alpha_equivalent(park_id, factor_default, pm), "alpha_custom": custom is not None,
+            "wind_ms": wind, "hub_wind_ms": hub, "power_mw": power, "missing_wind_minutes": wind.count(None),
+            "interval_power_mw": interval_power, "missing_intervals": interval_power.count(None),
+            "curve": curve_metadata, "reference_points": reference_points, "energy_mwh": energy, "energy_until": until,
+            "observations": [{"interval_end": (t + timedelta(minutes=5)).isoformat(), "wind_ms": v, "station": source}
+                             for t, v, source in samples],
         }
     combined = combined_mw(profiles["fryslan"]["power_mw"], profiles["beabuorren"]["power_mw"])
+    combined_intervals = combined_mw(profiles["fryslan"]["interval_power_mw"], profiles["beabuorren"]["interval_power_mw"])
     references = [{p["timestamp"]: p["power_mw"] for p in profiles[key]["reference_points"]} for key in PARKS]
     combined_points = []
     for stamp in sorted(set(references[0]) | set(references[1]), key=datetime.fromisoformat):
         a, b = references[0].get(stamp), references[1].get(stamp)
         combined_points.append({"timestamp": stamp, "power_mw": None if a is None or b is None else a + b})
-    method = ("KNMI-tienminutengemiddelden, geplaatst op intervalmidden en lineair geïnterpoleerd. "
-              "Geen extrapolatie of overbrugging van meetgaten. Hoogtecorrectie met een exponent per park "
-              "(seizoensafhankelijk voor Fryslân); geen afregeling, stilstand of luchtdichtheidcorrectie.")
+    combined_energy, combined_until = day_energy(combined_intervals, slot_ends, running, per_hour=6)
+    method_text = (windbron.LABELS[method] + ". KNMI-tienminutengemiddelden op het intervalmidden; de dagopbrengst is de som "
+                   "van de oorspronkelijke tienminutenwaarden, de minuutlijn is lineair geïnterpoleerd voor de grafiek. "
+                   "Meetgaten worden niet overbrugd. Gemodelleerde mogelijke opbrengst: turbinecurve, zogverlies en 100 % "
+                   "beschikbaarheid; geen afregeling, stilstand, netbeperking of luchtdichtheidcorrectie.")
     changed = [PARKS[key]["name"] for key in PARKS if profiles[key]["alpha_custom"]]
     if changed:
-        method += " Eigen hoogte-exponent voor " + " en ".join(changed) + "."
-    method += " " + (WAKE_STATUS if wake else "Zogverlies uitgeschakeld: alle turbines krijgen de ongestoorde wind.")
-    return {"date": day.isoformat(), "timezone": "Europe/Amsterdam", "minutes": len(moments), "wake": wake,
-            "timestamps": stamps, "parks": profiles,
+        method_text += " Eigen hoogte-exponent voor " + " en ".join(changed) + "."
+    method_text += " " + (WAKE_STATUS if wake else "Zogverlies uitgeschakeld: alle turbines krijgen de ongestoorde wind.")
+    return {"date": day.isoformat(), "timezone": "Europe/Amsterdam", "minutes": len(moments), "intervals": len(slots),
+            "wake": wake, "wind_method": method, "timestamps": stamps, "parks": profiles,
             "combined_mw": combined, "combined_reference_points": combined_points,
-            **dict(zip(("combined_energy_mwh", "combined_energy_until"), day_energy(combined, stamps, running))),
-            "method": method}
+            "combined_energy_mwh": combined_energy, "combined_energy_until": combined_until,
+            "measured": measured_day(day, profiles["fryslan"]["energy_mwh"], running),
+            "hydrogen": hydrogen_share({key: profiles[key]["energy_mwh"] for key in PARKS}),
+            "method": method_text}
+
+
+def measured_day(day: date, model_mwh: float | None, running: bool) -> dict | None:
+    """Gemeten dagproductie van Fryslân naast het model; het verschil krijgt geen oorzaak toegeschreven."""
+    measured = productie.load().get(day)
+    if measured is None:
+        return None
+    difference = None if model_mwh is None or running else model_mwh - measured
+    return {"park": "fryslan", "energy_mwh": measured, "source": productie.SOURCE,
+            "model_minus_measured_mwh": difference,
+            "note": "Dagtotaal. Verschil tussen model en gemeten productie; het model kent geen afregeling, "
+                    "stilstand of netbeperking, maar een verschil is daarmee niet verklaard."}
+
+
+def hydrogen_share(energies: dict[str, float | None]) -> dict:
+    """Welk deel van de modelopbrengst de waterstofsimulatie als bruto aanbod krijgt (vóór BoP)."""
+    parts = {key: None if value is None else value * HYDROGEN_SHARE[key] for key, value in energies.items()}
+    total = None if None in parts.values() else sum(parts.values())
+    return {"share": HYDROGEN_SHARE, "energy_mwh": parts, "total_mwh": total}

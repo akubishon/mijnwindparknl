@@ -26,7 +26,7 @@ test('Python source files stay identical to the hashes in PROVENANCE.json', () =
 
 test('JavaScript kernel matches the unchanged Python kernel for all reference cases', () => {
  const reference = read('./fixtures/elektrolyser-kern-python.json');
- assert.equal(reference.model_version, 10);
+ assert.equal(reference.model_version, 11);
  for (const c of reference.cases) {
   const r = kernel.simulate_with_replacements(supplies[c.jaar], c.modules, c.aannames, c.strategie);
   for (const [key, expected] of Object.entries(c.uitkomst)) {
@@ -156,7 +156,8 @@ test('acceptance 5: measurement gaps are dropped, never counted as zero, and cov
  assert.notEqual(gap.waterstof_t, zero.waterstof_t);
  const resolved = resolveSetup(fixture, {id: 'a', modelId: fixture.id, modules: 10, choices: {}});
  const [result] = compareNow([resolved], {strategy: 'verdelen', years: [2024], values: {}}, supplies);
- assert.ok(result.perYear[0].dekking > 0.98 && result.perYear[0].dekking < 1);
+ // Sinds modelversie 11 moeten Houtribdijk én Stavoren meten; in 2024 is de dekking daardoor circa 96 %.
+ assert.ok(result.perYear[0].dekking > 0.9 && result.perYear[0].dekking < 1);
  assert.equal(result.perYear[0].uren_in_jaar, 8784);
 });
 

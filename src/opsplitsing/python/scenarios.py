@@ -19,10 +19,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from . import windbron
 from .application import ROOT
 from .knmi import KNMIError, load_env_file
-from .opsplitsing import (CSV_FIELDS, LOCAL, MAX_MODULES, STRATEGIES, TECHNOLOGIES, available_years, parse_aannames, run,
-                          shown, supply_year)
+from .opsplitsing import (CSV_FIELDS, LOCAL, MAX_MODULES, MODEL_VERSION, STRATEGIES, TECHNOLOGIES, available_years,
+                          parse_aannames, run, shown, supply_year)
 
 FOLDER = ROOT / "scenarios"
 ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
@@ -50,13 +51,22 @@ def span(counts: list[int]) -> str:
     return f"{counts[0]}–{counts[-1]}" if counts == list(range(counts[0], counts[-1] + 1)) else ", ".join(map(str, counts))
 
 
+def wind_method(stored: dict) -> str:
+    """Windmethode van een opgeslagen scenario; vóór modelversie 11 was dat altijd de oude opsplitsing."""
+    return stored["resultaat"].get("windmethode", "productie_hoogste")
+
+
 def summary(stored: dict) -> dict:
     """Eén regel per scenario voor de lijst op de webpagina."""
     rows = stored["resultaat"]["rijen"]
+    version = stored["resultaat"].get("model_versie")
     best = min(rows, key=lambda r: r["lcoh_eur_kg"] if r["lcoh_eur_kg"] is not None else float("inf"))
     return {"id": stored["id"], "naam": stored["naam"], "technologie": stored["technologie"],
             "strategie": stored["resultaat"]["strategie"], "jaren": stored["resultaat"]["jaren"],
             "modules": [r["modules"] for r in rows], "eigen_aannames": stored["eigen_aannames"], "gemaakt": stored["gemaakt"],
+            "windmethode": wind_method(stored), "model_versie": version,
+            # Berekend met een eerdere rekenwijze: opnieuw draaien met dezelfde naam geeft de huidige uitkomst.
+            "verouderd": version != MODEL_VERSION,
             "beste": {"modules": best["modules"], "lcoh_eur_kg": best["lcoh_eur_kg"], "waterstof_t": best["waterstof_t"]},
             "een_module": {"lcoh_eur_kg": rows[0]["lcoh_eur_kg"], "waterstof_t": rows[0]["waterstof_t"]}}
 
@@ -103,6 +113,7 @@ def write_overview(folder: Path = FOLDER) -> Path:
             stored = load(item["id"], folder)
             for row in stored["resultaat"]["rijen"]:
                 writer.writerow({**row, "scenario": stored["naam"], "technologie": stored["technologie"],
+                                 "windmethode": wind_method(stored),
                                  "jaren": " ".join(map(str, stored["resultaat"]["jaren"]))})
     return path
 
@@ -115,6 +126,8 @@ def main() -> int:
     parser.add_argument("--modules", default="1-16", help=f"Bijvoorbeeld 1-16, 1-{MAX_MODULES} of 1,2,4,8 (standaard 1-16).")
     parser.add_argument("--aannames", type=Path, help="JSON met afwijkende aannames in getoonde eenheden (minimumlast 40 = 40 %%).")
     parser.add_argument("--naam", help="Naam op de webpagina; standaard uit technologie, besturing, jaren en modules.")
+    parser.add_argument("--windmethode", choices=windbron.METHODS, default=windbron.DEFAULT,
+                        help="Standaard productie-onafhankelijk; de oude methoden zijn er om te vergelijken.")
     parser.add_argument("--lijst", action="store_true", help="Toon de opgeslagen scenario's.")
     parser.add_argument("--verwijder", metavar="ID", help="Verwijder een opgeslagen scenario.")
     args = parser.parse_args()
@@ -123,7 +136,8 @@ def main() -> int:
         for item in listing():
             best = item["beste"]
             print(f'{item["id"]:50} {span(item["modules"]):>8} modules  laagste €/kg bij {best["modules"]:2} '
-                  f'({best["lcoh_eur_kg"]:.2f} €/kg)  {item["gemaakt"]}')
+                  f'({best["lcoh_eur_kg"]:.2f} €/kg)  {item["gemaakt"]}  {item["windmethode"]}'
+                  + ("  VEROUDERD" if item["verouderd"] else ""))
         return 0
     if args.verwijder:
         try:
@@ -146,7 +160,7 @@ def main() -> int:
             raise ValueError(f"Kies windjaren uit {available_years()}.")
         years = sorted(set(args.jaren))
         for year in years:
-            supply_year(year)   # eerst alle wind ophalen, zodat een KNMI-fout niet halverwege komt
+            supply_year(year, method=args.windmethode)   # eerst alle wind ophalen, zodat een KNMI-fout niet halverwege komt
         plans = [(tech, strategy, parse_aannames({**shown(TECHNOLOGIES[tech][1]), **changes}))
                  for tech in args.technologie for strategy in args.strategie]
     except (KNMIError, ValueError, OSError) as exc:
@@ -160,8 +174,10 @@ def main() -> int:
             name = f"{args.naam} · {TECHNOLOGIES[tech][0]} · {strategy}"
         if changes and not args.naam:
             name += " · eigen aannames"
+        if args.windmethode != windbron.DEFAULT:
+            name += f" · {args.windmethode}"
         began = time.perf_counter()
-        result = run(a, years, counts, strategy)
+        result = run(a, years, counts, strategy, method=args.windmethode)
         path = save(name, tech, changes, result)
         best = min(result["rijen"], key=lambda r: r["lcoh_eur_kg"] if r["lcoh_eur_kg"] is not None else float("inf"))
         print(f"[{index}/{len(plans)}] {name}: laagste kostprijs per kilo bij {best['modules']} modules, {best['lcoh_eur_kg']:.2f} €/kg "

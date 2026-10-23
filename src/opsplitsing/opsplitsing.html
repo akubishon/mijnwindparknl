@@ -32,13 +32,13 @@
         </div></div>
         <ol class="flow">
           <li><span class="flow-n">A</span><h3>KNMI-wind</h3>
-            <p>Tienminutengemiddelden van Houtribdijk en Stavoren, vier volledige jaren. Fryslân krijgt per tien minuten de hoogste van de twee, Beabuorren Stavoren.</p>
+            <p>Tienminutengemiddelden, vier volledige jaren: per tien minuten het gemiddelde van Houtribdijk en Stavoren, de twee stations op het IJsselmeer, voor beide parken. Gekozen op ligging en op hoe goed de bron de HARMONIE-wind op de parklocatie volgt; meetgaten blijven gaten.</p>
             <code>v₁₀ per 10 min</code></li>
-          <li><span class="flow-n">B</span><h3>Parkvermogen</h3>
-            <p>Wind naar ashoogte met de seizoensexponent, door de vermogenscurve, minus zogverlies. Hetzelfde model als de windprofielpagina.</p>
-            <code>v = v₁₀ · (h/10)<sup>α</sup></code></li>
+          <li><span class="flow-n">B</span><h3>Gemodelleerd parkvermogen</h3>
+            <p>Wind naar ashoogte met een factor per maand uit de HARMONIE-heranalyse WINS50 (geen productiegegevens), door de vermogenscurve, minus zogverlies, bij 100 % beschikbaarheid. Hetzelfde model als de windprofielpagina.</p>
+            <code>v = F<sub>maand</sub> · v₁₀</code></li>
           <li><span class="flow-n">C</span><h3>Aanbod</h3>
-            <p>De elektrolyser krijgt 10 % van Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl.</p>
+            <p>De elektrolyser krijgt 10 % van het gemodelleerde Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl. Het is mogelijke opbrengst, geen gemeten levering.</p>
             <code>P = 0,1 · Fryslân + Beabuorren</code></li>
           <li><span class="flow-n">D</span><h3>Modules inzetten</h3>
             <p>Per tien minuten kiest de besturing hoeveel modules draaien. Grenzen: minimumlast, BoP, aan- en uittijden, startvertraging, onderhoud en storingen.</p>

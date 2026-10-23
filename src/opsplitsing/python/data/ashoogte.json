@@ -1,0 +1,1230 @@
+{
+ "bron": "KNMI WINS50 (HARMONIE-AROME Cy43, 2,5 km, run zonder windparken), EDR-collectie wins50, uurwaarden; KNMI 10-minute-in-situ-meteorological-observations (ff, representatief voor 10 m)",
+ "wins50_sha256": "ca9bc6330d9ea205bd5e62ec965ed7e5ee0f48959ac52991dba90e2e7a9dc90d",
+ "periode": [
+  "2019-01-01T00:00:00Z",
+  "2021-12-31T23:00:00Z"
+ ],
+ "uren": 26304,
+ "locaties": {
+  "fryslan": {
+   "latitude": 53.01,
+   "longitude": 5.29,
+   "radius_km": 4.0
+  },
+  "beabuorren": {
+   "latitude": 53.052,
+   "longitude": 5.493,
+   "radius_km": 0.0
+  },
+  "houtribdijk": {
+   "latitude": 52.6481,
+   "longitude": 5.4006,
+   "radius_km": 0.0
+  },
+  "stavoren": {
+   "latitude": 52.8967,
+   "longitude": 5.3833,
+   "radius_km": 0.0
+  }
+ },
+ "regel": "Stations op het IJsselmeer; gemiddelde per tien minuten, alleen als alle stations meten.",
+ "parken": {
+  "fryslan": {
+   "bron": "Houtribdijk + Stavoren",
+   "stations": [
+    "0-20000-0-06258",
+    "0-20000-0-06267"
+   ],
+   "regel": "gemiddelde",
+   "hoogte_m": 115,
+   "factor": [
+    1.551,
+    1.5373,
+    1.4037,
+    1.3538,
+    1.2501,
+    1.276,
+    1.25,
+    1.3231,
+    1.4375,
+    1.5114,
+    1.5404,
+    1.6111
+   ],
+   "alpha_equivalent": [
+    0.1797,
+    0.1761,
+    0.1388,
+    0.124,
+    0.0914,
+    0.0998,
+    0.0914,
+    0.1146,
+    0.1486,
+    0.1691,
+    0.1769,
+    0.1953
+   ],
+   "factor_per_jaar": {
+    "2019": [
+     1.5352,
+     1.5787,
+     1.3832,
+     1.3936,
+     1.234,
+     1.2714,
+     1.3049,
+     1.2859,
+     1.3565,
+     1.4613,
+     1.4932,
+     1.6284
+    ],
+    "2020": [
+     1.5884,
+     1.4549,
+     1.4162,
+     1.3852,
+     1.2408,
+     1.2657,
+     1.2317,
+     1.3659,
+     1.5161,
+     1.5068,
+     1.548,
+     1.5739
+    ],
+    "2021": [
+     1.5252,
+     1.6322,
+     1.4147,
+     1.2904,
+     1.2751,
+     1.2936,
+     1.2154,
+     1.3203,
+     1.4596,
+     1.5652,
+     1.5848,
+     1.6321
+    ]
+   },
+   "uren_per_maand": [
+    2225,
+    2034,
+    2225,
+    2151,
+    2208,
+    2160,
+    2227,
+    2225,
+    2157,
+    2223,
+    2131,
+    2170
+   ],
+   "factor_jaar": 1.425,
+   "schering": [
+    1.3028,
+    1.3642,
+    1.2573,
+    1.2267,
+    1.1436,
+    1.1649,
+    1.1157,
+    1.1533,
+    1.1974,
+    1.2209,
+    1.2404,
+    1.318
+   ],
+   "alternatieven": {
+    "ashoogte_109_m": [
+     1.5392,
+     1.5241,
+     1.3937,
+     1.3452,
+     1.2454,
+     1.2699,
+     1.2467,
+     1.3181,
+     1.4296,
+     1.5012,
+     1.5304,
+     1.5982
+    ]
+   },
+   "bronvergelijking": [
+    {
+     "naam": "Houtribdijk",
+     "stations": [
+      "0-20000-0-06258"
+     ],
+     "ligging": [
+      "dijk midden in IJsselmeer en Markermeer: vrijwel alle richtingen open water"
+     ],
+     "uren": 26153,
+     "ff_gemiddeld": 7.234,
+     "model_gemiddeld": 9.1595,
+     "correlatie": 0.8327,
+     "factor": [
+      1.3874,
+      1.3657,
+      1.264,
+      1.1915,
+      1.1236,
+      1.1232,
+      1.1168,
+      1.1435,
+      1.257,
+      1.3449,
+      1.3824,
+      1.4432
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26153,
+       "rmse_relatief": 0.2751,
+       "bias_relatief": 0.0002,
+       "energie_relatief": -0.0106
+      },
+      "maand": {
+       "uren": 26153,
+       "rmse_relatief": 0.2616,
+       "bias_relatief": 0.0012,
+       "energie_relatief": -0.0278
+      },
+      "maand×dagdeel": {
+       "uren": 26153,
+       "rmse_relatief": 0.2615,
+       "bias_relatief": 0.0014,
+       "energie_relatief": -0.0275
+      }
+     }
+    },
+    {
+     "naam": "Stavoren",
+     "stations": [
+      "0-20000-0-06267"
+     ],
+     "ligging": [
+      "Friese IJsselmeerkust: west en zuid water, oost land; 13 km van het park"
+     ],
+     "uren": 26252,
+     "ff_gemiddeld": 5.6259,
+     "model_gemiddeld": 9.1704,
+     "correlatie": 0.8501,
+     "factor": [
+      1.7585,
+      1.7582,
+      1.578,
+      1.5679,
+      1.4095,
+      1.4769,
+      1.4199,
+      1.5699,
+      1.6781,
+      1.7266,
+      1.7372,
+      1.8202
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26252,
+       "rmse_relatief": 0.2694,
+       "bias_relatief": -0.0,
+       "energie_relatief": -0.0381
+      },
+      "maand": {
+       "uren": 26252,
+       "rmse_relatief": 0.2621,
+       "bias_relatief": 0.0029,
+       "energie_relatief": -0.0561
+      },
+      "maand×dagdeel": {
+       "uren": 26252,
+       "rmse_relatief": 0.2595,
+       "bias_relatief": 0.0032,
+       "energie_relatief": -0.0616
+      }
+     }
+    },
+    {
+     "naam": "Vlieland",
+     "stations": [
+      "0-20000-0-06242"
+     ],
+     "ligging": [
+      "Vliehors, zandvlakte aan Noordzee en Waddenzee, aan de andere kant van de Afsluitdijk"
+     ],
+     "uren": 26109,
+     "ff_gemiddeld": 7.6252,
+     "model_gemiddeld": 9.1665,
+     "correlatie": 0.8571,
+     "factor": [
+      1.2423,
+      1.282,
+      1.1983,
+      1.206,
+      1.169,
+      1.1487,
+      1.0943,
+      1.1137,
+      1.1731,
+      1.2146,
+      1.222,
+      1.3091
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26109,
+       "rmse_relatief": 0.2596,
+       "bias_relatief": 0.0002,
+       "energie_relatief": -0.0221
+      },
+      "maand": {
+       "uren": 26109,
+       "rmse_relatief": 0.2593,
+       "bias_relatief": 0.0021,
+       "energie_relatief": -0.0368
+      },
+      "maand×dagdeel": {
+       "uren": 26109,
+       "rmse_relatief": 0.2583,
+       "bias_relatief": 0.0025,
+       "energie_relatief": -0.0393
+      }
+     }
+    },
+    {
+     "naam": "Texelhors",
+     "stations": [
+      "0-20000-0-06229"
+     ],
+     "ligging": [
+      "zuidpunt Texel aan Noordzee en Marsdiep"
+     ],
+     "uren": 25649,
+     "ff_gemiddeld": 7.2552,
+     "model_gemiddeld": 9.1447,
+     "correlatie": 0.8483,
+     "factor": [
+      1.2987,
+      1.3481,
+      1.286,
+      1.3538,
+      1.2418,
+      1.25,
+      1.1374,
+      1.1741,
+      1.214,
+      1.2232,
+      1.2361,
+      1.3412
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 25649,
+       "rmse_relatief": 0.274,
+       "bias_relatief": 0.0004,
+       "energie_relatief": -0.0325
+      },
+      "maand": {
+       "uren": 25649,
+       "rmse_relatief": 0.2738,
+       "bias_relatief": 0.0029,
+       "energie_relatief": -0.0443
+      },
+      "maand×dagdeel": {
+       "uren": 25649,
+       "rmse_relatief": 0.2732,
+       "bias_relatief": 0.0031,
+       "energie_relatief": -0.0486
+      }
+     }
+    },
+    {
+     "naam": "Hoorn Terschelling",
+     "stations": [
+      "0-20000-0-06251"
+     ],
+     "ligging": [
+      "Waddeneiland, deels land"
+     ],
+     "uren": 26163,
+     "ff_gemiddeld": 6.2541,
+     "model_gemiddeld": 9.1713,
+     "correlatie": 0.8474,
+     "factor": [
+      1.5554,
+      1.5426,
+      1.453,
+      1.4399,
+      1.4351,
+      1.4067,
+      1.3315,
+      1.3496,
+      1.4477,
+      1.4761,
+      1.4985,
+      1.5984
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26163,
+       "rmse_relatief": 0.2765,
+       "bias_relatief": 0.0003,
+       "energie_relatief": -0.0297
+      },
+      "maand": {
+       "uren": 26163,
+       "rmse_relatief": 0.2735,
+       "bias_relatief": 0.0011,
+       "energie_relatief": -0.043
+      },
+      "maand×dagdeel": {
+       "uren": 26163,
+       "rmse_relatief": 0.2673,
+       "bias_relatief": 0.0013,
+       "energie_relatief": -0.048
+      }
+     }
+    },
+    {
+     "naam": "De Kooy",
+     "stations": [
+      "0-20000-0-06235"
+     ],
+     "ligging": [
+      "vliegveld Den Helder, land"
+     ],
+     "uren": 26181,
+     "ff_gemiddeld": 5.3766,
+     "model_gemiddeld": 9.1655,
+     "correlatie": 0.8224,
+     "factor": [
+      1.7835,
+      1.6873,
+      1.6327,
+      1.6562,
+      1.5974,
+      1.5964,
+      1.5753,
+      1.6375,
+      1.7333,
+      1.7674,
+      1.8407,
+      1.9016
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26181,
+       "rmse_relatief": 0.3182,
+       "bias_relatief": 0.0008,
+       "energie_relatief": -0.0742
+      },
+      "maand": {
+       "uren": 26181,
+       "rmse_relatief": 0.3188,
+       "bias_relatief": 0.0024,
+       "energie_relatief": -0.0826
+      },
+      "maand×dagdeel": {
+       "uren": 26181,
+       "rmse_relatief": 0.3122,
+       "bias_relatief": 0.0027,
+       "energie_relatief": -0.0922
+      }
+     }
+    },
+    {
+     "naam": "Leeuwarden",
+     "stations": [
+      "0-20000-0-06270"
+     ],
+     "ligging": [
+      "vliegveld, Fries grasland"
+     ],
+     "uren": 26262,
+     "ff_gemiddeld": 4.695,
+     "model_gemiddeld": 9.1703,
+     "correlatie": 0.8018,
+     "factor": [
+      2.0248,
+      1.9858,
+      1.8137,
+      1.7967,
+      1.766,
+      1.8017,
+      1.7689,
+      1.9021,
+      2.0697,
+      2.1548,
+      2.1496,
+      2.1897
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26262,
+       "rmse_relatief": 0.3331,
+       "bias_relatief": 0.0003,
+       "energie_relatief": -0.0744
+      },
+      "maand": {
+       "uren": 26262,
+       "rmse_relatief": 0.322,
+       "bias_relatief": 0.0018,
+       "energie_relatief": -0.0754
+      },
+      "maand×dagdeel": {
+       "uren": 26262,
+       "rmse_relatief": 0.2953,
+       "bias_relatief": 0.0022,
+       "energie_relatief": -0.087
+      }
+     }
+    },
+    {
+     "naam": "Houtribdijk + Stavoren",
+     "stations": [
+      "0-20000-0-06258",
+      "0-20000-0-06267"
+     ],
+     "ligging": [
+      "dijk midden in IJsselmeer en Markermeer: vrijwel alle richtingen open water",
+      "Friese IJsselmeerkust: west en zuid water, oost land; 13 km van het park"
+     ],
+     "uren": 26136,
+     "ff_gemiddeld": 6.4278,
+     "model_gemiddeld": 9.1597,
+     "correlatie": 0.8731,
+     "factor": [
+      1.551,
+      1.5373,
+      1.4037,
+      1.3538,
+      1.2501,
+      1.276,
+      1.25,
+      1.3231,
+      1.4375,
+      1.5114,
+      1.5404,
+      1.6111
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26136,
+       "rmse_relatief": 0.2386,
+       "bias_relatief": 0.0001,
+       "energie_relatief": -0.0215
+      },
+      "maand": {
+       "uren": 26136,
+       "rmse_relatief": 0.2251,
+       "bias_relatief": 0.0016,
+       "energie_relatief": -0.0366
+      },
+      "maand×dagdeel": {
+       "uren": 26136,
+       "rmse_relatief": 0.2231,
+       "bias_relatief": 0.0017,
+       "energie_relatief": -0.0382
+      }
+     }
+    },
+    {
+     "naam": "Houtribdijk + Vlieland",
+     "stations": [
+      "0-20000-0-06258",
+      "0-20000-0-06242"
+     ],
+     "ligging": [
+      "dijk midden in IJsselmeer en Markermeer: vrijwel alle richtingen open water",
+      "Vliehors, zandvlakte aan Noordzee en Waddenzee, aan de andere kant van de Afsluitdijk"
+     ],
+     "uren": 25991,
+     "ff_gemiddeld": 7.4267,
+     "model_gemiddeld": 9.1559,
+     "correlatie": 0.8896,
+     "factor": [
+      1.311,
+      1.3199,
+      1.2303,
+      1.1984,
+      1.1461,
+      1.1355,
+      1.1049,
+      1.1284,
+      1.2137,
+      1.276,
+      1.2961,
+      1.3766
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 25991,
+       "rmse_relatief": 0.2213,
+       "bias_relatief": 0.0001,
+       "energie_relatief": -0.0198
+      },
+      "maand": {
+       "uren": 25991,
+       "rmse_relatief": 0.2135,
+       "bias_relatief": 0.0014,
+       "energie_relatief": -0.0344
+      },
+      "maand×dagdeel": {
+       "uren": 25991,
+       "rmse_relatief": 0.2127,
+       "bias_relatief": 0.0015,
+       "energie_relatief": -0.0359
+      }
+     }
+    },
+    {
+     "naam": "Houtribdijk + Stavoren + Vlieland",
+     "stations": [
+      "0-20000-0-06258",
+      "0-20000-0-06267",
+      "0-20000-0-06242"
+     ],
+     "ligging": [
+      "dijk midden in IJsselmeer en Markermeer: vrijwel alle richtingen open water",
+      "Friese IJsselmeerkust: west en zuid water, oost land; 13 km van het park",
+      "Vliehors, zandvlakte aan Noordzee en Waddenzee, aan de andere kant van de Afsluitdijk"
+     ],
+     "uren": 25974,
+     "ff_gemiddeld": 6.8263,
+     "model_gemiddeld": 9.1561,
+     "correlatie": 0.8977,
+     "factor": [
+      1.4325,
+      1.4375,
+      1.3279,
+      1.3004,
+      1.222,
+      1.2297,
+      1.1931,
+      1.2452,
+      1.3372,
+      1.3971,
+      1.4153,
+      1.4989
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 25974,
+       "rmse_relatief": 0.2134,
+       "bias_relatief": 0.0001,
+       "energie_relatief": -0.023
+      },
+      "maand": {
+       "uren": 25974,
+       "rmse_relatief": 0.2045,
+       "bias_relatief": 0.0017,
+       "energie_relatief": -0.0383
+      },
+      "maand×dagdeel": {
+       "uren": 25974,
+       "rmse_relatief": 0.2025,
+       "bias_relatief": 0.0018,
+       "energie_relatief": -0.0395
+      }
+     }
+    }
+   ]
+  },
+  "beabuorren": {
+   "bron": "Houtribdijk + Stavoren",
+   "stations": [
+    "0-20000-0-06258",
+    "0-20000-0-06267"
+   ],
+   "regel": "gemiddelde",
+   "hoogte_m": 60,
+   "factor": [
+    1.1779,
+    1.1538,
+    1.0876,
+    1.0477,
+    1.0025,
+    0.9963,
+    1.0097,
+    1.0384,
+    1.1199,
+    1.1361,
+    1.1689,
+    1.1961
+   ],
+   "alpha_equivalent": [
+    0.0914,
+    0.0798,
+    0.0469,
+    0.026,
+    0.0014,
+    -0.0021,
+    0.0054,
+    0.021,
+    0.0632,
+    0.0712,
+    0.0871,
+    0.0999
+   ],
+   "factor_per_jaar": {
+    "2019": [
+     1.1785,
+     1.1902,
+     1.0856,
+     1.0625,
+     0.9872,
+     0.9859,
+     1.0391,
+     1.0299,
+     1.0571,
+     1.1033,
+     1.121,
+     1.2016
+    ],
+    "2020": [
+     1.1837,
+     1.1244,
+     1.0748,
+     1.0667,
+     0.9991,
+     1.0095,
+     1.0131,
+     1.0646,
+     1.1618,
+     1.1288,
+     1.1922,
+     1.186
+    ],
+    "2021": [
+     1.1703,
+     1.1669,
+     1.1046,
+     1.0178,
+     1.0209,
+     0.993,
+     0.977,
+     1.0227,
+     1.1575,
+     1.176,
+     1.1954,
+     1.201
+    ]
+   },
+   "uren_per_maand": [
+    2225,
+    2034,
+    2225,
+    2151,
+    2208,
+    2160,
+    2227,
+    2225,
+    2157,
+    2223,
+    2131,
+    2170
+   ],
+   "factor_jaar": 1.097,
+   "schering": [
+    1.4035,
+    1.4304,
+    1.4087,
+    1.5102,
+    1.4207,
+    1.4331,
+    1.4115,
+    1.4556,
+    1.4927,
+    1.4328,
+    1.4423,
+    1.4403
+   ],
+   "bronvergelijking": [
+    {
+     "naam": "Houtribdijk",
+     "stations": [
+      "0-20000-0-06258"
+     ],
+     "ligging": [
+      "dijk midden in IJsselmeer en Markermeer: vrijwel alle richtingen open water"
+     ],
+     "uren": 26153,
+     "ff_gemiddeld": 7.234,
+     "model_gemiddeld": 7.0516,
+     "correlatie": 0.8428,
+     "factor": [
+      1.0537,
+      1.025,
+      0.9793,
+      0.9221,
+      0.901,
+      0.877,
+      0.902,
+      0.8976,
+      0.9794,
+      1.011,
+      1.0494,
+      1.0715
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26153,
+       "rmse_relatief": 0.2613,
+       "bias_relatief": 0.0001,
+       "energie_relatief": 0.0196
+      },
+      "maand": {
+       "uren": 26153,
+       "rmse_relatief": 0.2529,
+       "bias_relatief": 0.0007,
+       "energie_relatief": 0.0227
+      },
+      "maand×dagdeel": {
+       "uren": 26153,
+       "rmse_relatief": 0.2524,
+       "bias_relatief": 0.0009,
+       "energie_relatief": 0.023
+      }
+     }
+    },
+    {
+     "naam": "Stavoren",
+     "stations": [
+      "0-20000-0-06267"
+     ],
+     "ligging": [
+      "Friese IJsselmeerkust: west en zuid water, oost land; 13 km van het park"
+     ],
+     "uren": 26252,
+     "ff_gemiddeld": 5.6259,
+     "model_gemiddeld": 7.0601,
+     "correlatie": 0.8681,
+     "factor": [
+      1.3354,
+      1.3196,
+      1.2226,
+      1.2132,
+      1.1305,
+      1.1532,
+      1.1467,
+      1.2321,
+      1.3077,
+      1.2985,
+      1.3183,
+      1.3531
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26252,
+       "rmse_relatief": 0.2502,
+       "bias_relatief": -0.0001,
+       "energie_relatief": 0.0235
+      },
+      "maand": {
+       "uren": 26252,
+       "rmse_relatief": 0.2463,
+       "bias_relatief": 0.0021,
+       "energie_relatief": 0.0268
+      },
+      "maand×dagdeel": {
+       "uren": 26252,
+       "rmse_relatief": 0.2474,
+       "bias_relatief": 0.0024,
+       "energie_relatief": 0.0229
+      }
+     }
+    },
+    {
+     "naam": "Vlieland",
+     "stations": [
+      "0-20000-0-06242"
+     ],
+     "ligging": [
+      "Vliehors, zandvlakte aan Noordzee en Waddenzee, aan de andere kant van de Afsluitdijk"
+     ],
+     "uren": 26109,
+     "ff_gemiddeld": 7.6252,
+     "model_gemiddeld": 7.059,
+     "correlatie": 0.87,
+     "factor": [
+      0.9434,
+      0.9636,
+      0.9283,
+      0.9333,
+      0.9376,
+      0.8963,
+      0.8839,
+      0.8738,
+      0.9141,
+      0.9135,
+      0.9285,
+      0.9732
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26109,
+       "rmse_relatief": 0.2442,
+       "bias_relatief": 0.0001,
+       "energie_relatief": 0.0306
+      },
+      "maand": {
+       "uren": 26109,
+       "rmse_relatief": 0.2446,
+       "bias_relatief": 0.0015,
+       "energie_relatief": 0.0305
+      },
+      "maand×dagdeel": {
+       "uren": 26109,
+       "rmse_relatief": 0.2465,
+       "bias_relatief": 0.0018,
+       "energie_relatief": 0.0294
+      }
+     }
+    },
+    {
+     "naam": "Texelhors",
+     "stations": [
+      "0-20000-0-06229"
+     ],
+     "ligging": [
+      "zuidpunt Texel aan Noordzee en Marsdiep"
+     ],
+     "uren": 25649,
+     "ff_gemiddeld": 7.2552,
+     "model_gemiddeld": 7.0424,
+     "correlatie": 0.8663,
+     "factor": [
+      0.9872,
+      1.0107,
+      0.9958,
+      1.0473,
+      0.9956,
+      0.9766,
+      0.9187,
+      0.9209,
+      0.9455,
+      0.92,
+      0.939,
+      0.9977
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 25649,
+       "rmse_relatief": 0.2553,
+       "bias_relatief": 0.0003,
+       "energie_relatief": 0.0466
+      },
+      "maand": {
+       "uren": 25649,
+       "rmse_relatief": 0.2544,
+       "bias_relatief": 0.0021,
+       "energie_relatief": 0.0454
+      },
+      "maand×dagdeel": {
+       "uren": 25649,
+       "rmse_relatief": 0.2567,
+       "bias_relatief": 0.0024,
+       "energie_relatief": 0.0431
+      }
+     }
+    },
+    {
+     "naam": "Hoorn Terschelling",
+     "stations": [
+      "0-20000-0-06251"
+     ],
+     "ligging": [
+      "Waddeneiland, deels land"
+     ],
+     "uren": 26163,
+     "ff_gemiddeld": 6.2541,
+     "model_gemiddeld": 7.0612,
+     "correlatie": 0.8597,
+     "factor": [
+      1.1819,
+      1.1578,
+      1.1257,
+      1.1141,
+      1.1509,
+      1.0983,
+      1.0752,
+      1.0594,
+      1.1276,
+      1.1102,
+      1.1375,
+      1.1883
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26163,
+       "rmse_relatief": 0.2632,
+       "bias_relatief": 0.0002,
+       "energie_relatief": 0.0387
+      },
+      "maand": {
+       "uren": 26163,
+       "rmse_relatief": 0.2634,
+       "bias_relatief": 0.0007,
+       "energie_relatief": 0.0388
+      },
+      "maand×dagdeel": {
+       "uren": 26163,
+       "rmse_relatief": 0.2629,
+       "bias_relatief": 0.0009,
+       "energie_relatief": 0.036
+      }
+     }
+    },
+    {
+     "naam": "De Kooy",
+     "stations": [
+      "0-20000-0-06235"
+     ],
+     "ligging": [
+      "vliegveld Den Helder, land"
+     ],
+     "uren": 26181,
+     "ff_gemiddeld": 5.3766,
+     "model_gemiddeld": 7.0559,
+     "correlatie": 0.8427,
+     "factor": [
+      1.3543,
+      1.2663,
+      1.2659,
+      1.2817,
+      1.2812,
+      1.2435,
+      1.2722,
+      1.2854,
+      1.3507,
+      1.3293,
+      1.3973,
+      1.4139
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26181,
+       "rmse_relatief": 0.3004,
+       "bias_relatief": 0.0007,
+       "energie_relatief": 0.0357
+      },
+      "maand": {
+       "uren": 26181,
+       "rmse_relatief": 0.3025,
+       "bias_relatief": 0.0019,
+       "energie_relatief": 0.0388
+      },
+      "maand×dagdeel": {
+       "uren": 26181,
+       "rmse_relatief": 0.3017,
+       "bias_relatief": 0.0023,
+       "energie_relatief": 0.0283
+      }
+     }
+    },
+    {
+     "naam": "Leeuwarden",
+     "stations": [
+      "0-20000-0-06270"
+     ],
+     "ligging": [
+      "vliegveld, Fries grasland"
+     ],
+     "uren": 26262,
+     "ff_gemiddeld": 4.695,
+     "model_gemiddeld": 7.0602,
+     "correlatie": 0.8442,
+     "factor": [
+      1.5378,
+      1.4905,
+      1.4051,
+      1.3903,
+      1.4164,
+      1.4068,
+      1.4283,
+      1.4931,
+      1.6129,
+      1.6206,
+      1.6317,
+      1.6277
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26262,
+       "rmse_relatief": 0.2971,
+       "bias_relatief": 0.0002,
+       "energie_relatief": 0.0334
+      },
+      "maand": {
+       "uren": 26262,
+       "rmse_relatief": 0.2893,
+       "bias_relatief": 0.0012,
+       "energie_relatief": 0.0378
+      },
+      "maand×dagdeel": {
+       "uren": 26262,
+       "rmse_relatief": 0.2724,
+       "bias_relatief": 0.0016,
+       "energie_relatief": 0.0179
+      }
+     }
+    },
+    {
+     "naam": "Houtribdijk + Stavoren",
+     "stations": [
+      "0-20000-0-06258",
+      "0-20000-0-06267"
+     ],
+     "ligging": [
+      "dijk midden in IJsselmeer en Markermeer: vrijwel alle richtingen open water",
+      "Friese IJsselmeerkust: west en zuid water, oost land; 13 km van het park"
+     ],
+     "uren": 26136,
+     "ff_gemiddeld": 6.4278,
+     "model_gemiddeld": 7.0515,
+     "correlatie": 0.8874,
+     "factor": [
+      1.1779,
+      1.1538,
+      1.0876,
+      1.0477,
+      1.0025,
+      0.9963,
+      1.0097,
+      1.0384,
+      1.1199,
+      1.1361,
+      1.1689,
+      1.1961
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 26136,
+       "rmse_relatief": 0.2199,
+       "bias_relatief": -0.0,
+       "energie_relatief": 0.008
+      },
+      "maand": {
+       "uren": 26136,
+       "rmse_relatief": 0.2112,
+       "bias_relatief": 0.001,
+       "energie_relatief": 0.0121
+      },
+      "maand×dagdeel": {
+       "uren": 26136,
+       "rmse_relatief": 0.2112,
+       "bias_relatief": 0.0011,
+       "energie_relatief": 0.0121
+      }
+     }
+    },
+    {
+     "naam": "Houtribdijk + Vlieland",
+     "stations": [
+      "0-20000-0-06258",
+      "0-20000-0-06242"
+     ],
+     "ligging": [
+      "dijk midden in IJsselmeer en Markermeer: vrijwel alle richtingen open water",
+      "Vliehors, zandvlakte aan Noordzee en Waddenzee, aan de andere kant van de Afsluitdijk"
+     ],
+     "uren": 25991,
+     "ff_gemiddeld": 7.4267,
+     "model_gemiddeld": 7.0505,
+     "correlatie": 0.9017,
+     "factor": [
+      0.9956,
+      0.9921,
+      0.9531,
+      0.9275,
+      0.9191,
+      0.886,
+      0.8926,
+      0.8853,
+      0.9455,
+      0.9592,
+      0.9847,
+      1.0222
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 25991,
+       "rmse_relatief": 0.2035,
+       "bias_relatief": 0.0001,
+       "energie_relatief": 0.0046
+      },
+      "maand": {
+       "uren": 25991,
+       "rmse_relatief": 0.1993,
+       "bias_relatief": 0.0008,
+       "energie_relatief": 0.0069
+      },
+      "maand×dagdeel": {
+       "uren": 25991,
+       "rmse_relatief": 0.2,
+       "bias_relatief": 0.0009,
+       "energie_relatief": 0.0068
+      }
+     }
+    },
+    {
+     "naam": "Houtribdijk + Stavoren + Vlieland",
+     "stations": [
+      "0-20000-0-06258",
+      "0-20000-0-06267",
+      "0-20000-0-06242"
+     ],
+     "ligging": [
+      "dijk midden in IJsselmeer en Markermeer: vrijwel alle richtingen open water",
+      "Friese IJsselmeerkust: west en zuid water, oost land; 13 km van het park",
+      "Vliehors, zandvlakte aan Noordzee en Waddenzee, aan de andere kant van de Afsluitdijk"
+     ],
+     "uren": 25974,
+     "ff_gemiddeld": 6.8263,
+     "model_gemiddeld": 7.0503,
+     "correlatie": 0.9119,
+     "factor": [
+      1.0879,
+      1.0804,
+      1.0287,
+      1.0064,
+      0.98,
+      0.9595,
+      0.9638,
+      0.9768,
+      1.0416,
+      1.0503,
+      1.075,
+      1.1129
+     ],
+     "structuren": {
+      "constant": {
+       "uren": 25974,
+       "rmse_relatief": 0.193,
+       "bias_relatief": 0.0,
+       "energie_relatief": 0.0029
+      },
+      "maand": {
+       "uren": 25974,
+       "rmse_relatief": 0.188,
+       "bias_relatief": 0.001,
+       "energie_relatief": 0.0061
+      },
+      "maand×dagdeel": {
+       "uren": 25974,
+       "rmse_relatief": 0.1887,
+       "bias_relatief": 0.0011,
+       "energie_relatief": 0.0055
+      }
+     }
+    }
+   ]
+  }
+ }
+}

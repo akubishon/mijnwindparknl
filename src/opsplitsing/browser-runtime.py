@@ -11,7 +11,10 @@ model.ProcessPoolExecutor = SerialPool
 os.cpu_count = lambda: 1
 model.available_years = lambda: [2022, 2023, 2024, 2025]
 _supplies = {}
-def supply_year(year):
+def supply_year(year, client=None, method='onafhankelijk'):
+    # Meegeleverde jaarreeksen zijn met de standaard windmethode berekend; de oude methoden draaien alleen lokaal.
+    if method != 'onafhankelijk':
+        raise ValueError('In de browser is alleen de standaard windmethode beschikbaar.')
     if year not in _supplies:
         _supplies[year] = json.loads(Path(f'/app/data/{year}.json').read_text())
     return _supplies[year]
