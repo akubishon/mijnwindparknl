@@ -33,9 +33,11 @@ export function gribWindPoints(a){
  const values=indexes.map(pt=>{let n=0;for(let bit=pt.index*bits;bit<(pt.index+1)*bits;bit++)n=n*2+((a[b+11+(bit>>3)]>>(7-(bit&7)))&1);const value=(ref+n*2**exponent)*10**(-decimal);if(!Number.isFinite(value)||Math.abs(value)>200)throw Error('HARMONIE_FORMAT');return {...pt,value};});
  return {run:new Date(run).toISOString(),time:new Date(run+a[p+18]*3600000).toISOString(),component:param===33?'u':'v',values};
 }
+// Archive bytes are streamed, not retained. A full 61-hour run can exceed 900 MB.
+const MAX_ARCHIVE_BYTES=8*1024**3,MAX_TAR_ENTRY_BYTES=256*1024**2,MAX_GRIB_BYTES=8000000;
 async function streamReader(body){
  const reader=body.getReader();let chunk=new Uint8Array(),offset=0,total=0;
- return {async read(n,keep=true){if(n<0||n>100000000)throw Error('HARMONIE_SIZE');const out=keep?new Uint8Array(n):null;let done=0;while(done<n){if(offset===chunk.length){const r=await reader.read();if(r.done)throw Error('HARMONIE_TRUNCATED');chunk=r.value;offset=0;total+=chunk.length;if(total>900000000)throw Error('HARMONIE_SIZE');}const size=Math.min(n-done,chunk.length-offset);if(out)out.set(chunk.subarray(offset,offset+size),done);offset+=size;done+=size;}return out;},cancel:()=>reader.cancel().catch(()=>{})};
+ return {async read(n,keep=true){if(!Number.isSafeInteger(n)||n<0||n>(keep?MAX_GRIB_BYTES:MAX_TAR_ENTRY_BYTES))throw Error('HARMONIE_SIZE');const out=keep?new Uint8Array(n):null;let done=0;while(done<n){if(offset===chunk.length){const r=await reader.read();if(r.done)throw Error('HARMONIE_TRUNCATED');chunk=r.value;offset=0;total+=chunk.length;if(total>MAX_ARCHIVE_BYTES)throw Error('HARMONIE_SIZE');}const size=Math.min(n-done,chunk.length-offset);if(out)out.set(chunk.subarray(offset,offset+size),done);offset+=size;done+=size;}return out;},cancel:()=>reader.cancel().catch(()=>{})};
 }
 export function forecastWindow(rows,now,limit=7,until=Infinity){
  const complete=rows.filter(x=>x.u&&x.v&&Date.parse(x.time)>=now&&Date.parse(x.time)<until).sort((a,b)=>a.time.localeCompare(b.time));
@@ -50,11 +52,27 @@ export async function extractHarmonie(body,now=Date.now(),options={}){
  try {for(let file=0;file<500;file++){
   const header=await r.read(512);if(header.every(v=>v===0))break;
   const name=textBytes(header.subarray(0,100)).split('\0')[0],size=parseInt(textBytes(header.subarray(124,136)).replace(/\0/g,'').trim(),8);
-  if(!Number.isSafeInteger(size)||size<0||size>100000000)throw Error('HARMONIE_SIZE');
+  if(!Number.isSafeInteger(size)||size<0||size>MAX_TAR_ENTRY_BYTES)throw Error('HARMONIE_SIZE');
   const regular=[0,48].includes(header[156]);
   if(!regular||!/_GB(?:\.[a-z0-9]+)?$/i.test(name)){await r.read(size,false);}else{
    let remaining=size;
-   while(remaining>=8){const lead=await r.read(8);remaining-=8;if(textBytes(lead.subarray(0,4))!=='GRIB')throw Error('HARMONIE_FORMAT');const length=u24(lead,4);if(lead[7]!==1||length<36||length>remaining+8||length>8000000)throw Error('HARMONIE_FORMAT');const message=new Uint8Array(length);message.set(lead);message.set(await r.read(length-8),8);remaining-=length-8;if(options.model==='p2b'){const decoded=gribWindPoints(message);if(decoded){const identity=gribMember(message);if(member===null)member=identity;if(identity===member)add(decoded);}}else add(gribWindPoints(message));}
+   while(remaining>=8){
+    const lead=await r.read(8),length=u24(lead,4);
+    if(textBytes(lead.subarray(0,4))!=='GRIB'||lead[7]!==1||length<40||length>remaining||length>MAX_GRIB_BYTES)throw Error('HARMONIE_FORMAT');
+    // Inspect only the product header before allocating a full field. Most fields
+    // are unrelated to 10 m wind and can be discarded directly from the stream.
+    const product=await r.read(28),pl=u24(product,0);
+    if(pl<28||8+pl>length-4)throw Error('HARMONIE_FORMAT');
+    if(![33,34].includes(product[8])||product[9]!==105||u16(product,10)!==10||product[20]!==0){
+     await r.read(length-40,false);
+     if(textBytes(await r.read(4))!=='7777')throw Error('HARMONIE_FORMAT');
+    }else{
+     const message=new Uint8Array(length);message.set(lead);message.set(product,8);message.set(await r.read(length-36),36);
+     const decoded=gribWindPoints(message);
+     if(options.model==='p2b'&&decoded){const identity=gribMember(message);if(member===null)member=identity;if(identity===member)add(decoded);}else add(decoded);
+    }
+    remaining-=length;
+   }
    if(remaining)await r.read(remaining,false);
   }
   if(size%512)await r.read(512-size%512,false);

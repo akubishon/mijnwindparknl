@@ -113,3 +113,38 @@ test('missing historical run is backfilled once for both parks without replacing
   assert.deepEqual(await (await BUCKET.get('harmonie/v1/p1/latest.json')).json(),latest);
  }finally{globalThis.fetch=oldFetch;Date.now=oldNow;}
 });
+
+// Reuse one chunk so the regression exercises >900 MB of streamed input without
+// allocating an archive-sized fixture. Also covers entries larger than 100 MB.
+function largeArchive(entries=8,{truncate=false}={}){
+ const chunk=new Uint8Array(1024*1024),size=128*chunk.length;
+ async function* parts(){
+  for(let i=0;i<entries;i++){
+   const header=new Uint8Array(512);header.set(new TextEncoder().encode(`unused-${i}`));
+   header.set(new TextEncoder().encode(size.toString(8).padStart(11,'0')+'\0'),124);header[156]=48;yield header;
+   for(let j=0;j<(truncate?1:128);j++)yield chunk;
+   if(truncate)return;
+  }
+  const reader=tar(49).getReader();try{while(true){const r=await reader.read();if(r.done)break;yield r.value;}}finally{await reader.cancel();}
+ }
+ const iterator=parts();let cancelled=false;
+ return {body:new ReadableStream({async pull(c){const r=await iterator.next();if(r.done)c.close();else c.enqueue(r.value);},async cancel(){cancelled=true;await iterator.return();}}),cancelled:()=>cancelled};
+}
+test('full historical horizon survives a >900 MB archive while discarding large unrelated entries',async()=>{
+ const input=largeArchive();
+ const d=await extractHarmonie(input.body,Date.parse('2026-10-22T06:00:00Z'),{limit:49});
+ assert.equal(d.rows.length,49);assert.equal(d.rows[0].parks.length,2);
+ assert.equal(d.rows.at(-1).time,'2026-10-24T06:00:00.000Z');assert.equal(input.cancelled(),true);
+});
+test('streamed archive still has a finite total-byte budget and cancels on failure',async()=>{
+ const input=largeArchive(65);
+ await assert.rejects(extractHarmonie(input.body),/HARMONIE_SIZE/);assert.equal(input.cancelled(),true);
+ const truncated=largeArchive(1,{truncate:true});await assert.rejects(extractHarmonie(truncated.body),/HARMONIE_TRUNCATED/);
+});
+test('unrelated GRIB fields are skipped but their framing is still validated',async()=>{
+ const unused=message(11),header=new Uint8Array(512);
+ header.set(new TextEncoder().encode('unrelated_GB'));header.set(new TextEncoder().encode(unused.length.toString(8).padStart(11,'0')+'\0'),124);header[156]=48;
+ const input=bad=>new ReadableStream({async start(c){const field=unused.slice();if(bad)field[field.length-1]=0;c.enqueue(header);c.enqueue(field);c.enqueue(new Uint8Array(512-unused.length));const reader=tar().getReader();while(true){const r=await reader.read();if(r.done)break;c.enqueue(r.value);}c.close();}});
+ assert.equal((await extractHarmonie(input(false),Date.parse('2026-10-22T06:30:00Z'))).rows.length,7);
+ await assert.rejects(extractHarmonie(input(true)),/HARMONIE_FORMAT/);
+});
