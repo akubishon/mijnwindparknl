@@ -48,9 +48,9 @@ Eenmalig instellen:
    npx wrangler secret put KNMI_OPEN_DATA_API_KEY
    npx wrangler secret put RESEARCH_PASSWORD        # optioneel
    ```
-4. Zet in GitHub (Settings → Secrets and variables → Actions) `CLOUDFLARE_API_TOKEN` (sjabloon *Edit Cloudflare Workers*) en `CLOUDFLARE_ACCOUNT_ID`.
+4. Koppel de repository in Cloudflare (Workers → mijnwindparknl → Settings → Builds).
 
-Daarna publiceert `.github/workflows/deploy.yml` bij iedere push naar `main`: de workflow controleert dat `worker/index.js` overeenkomt met de bronnen, draait `npm test` en voert `npx wrangler deploy` uit. Handmatig kan ook met `npx wrangler deploy`.
+Daarna publiceert Cloudflare Workers Builds bij iedere push naar `main`; pull requests krijgen een preview. Draai vóór het pushen `npm run compose` en `npm test`, want Cloudflare publiceert `worker/index.js` zoals die in de repository staat. Handmatig kan ook met `npx wrangler deploy`.
 
 De site staat eerst op `https://mijnwindparknl.<account>.workers.dev`. Voor `mijnwindpark.nl` voeg je het domein toe aan Cloudflare, zet je bij de registrar de nameservers op die van Cloudflare en koppel je het domein aan de worker (Workers → mijnwindparknl → Settings → Domains & Routes → Custom domain). Pas daarna stopt de oude hosting met verkeer ontvangen.
 
