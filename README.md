@@ -12,6 +12,8 @@ node scripts/dev.mjs
 
 Open `http://localhost:8787`. The committed standalone worker includes the browser bundle, so no dependency installation is needed to run it. Local development reads the public client's configuration from the APK into memory. Alternatively supply `WPF_PUBLIC_CLIENT_KEY` and `WPF_FIREBASE_API_KEY` as environment variables. The server binds to loopback.
 
+The whole site is behind the site password, so set `SITE_PASSWORD` (any value you choose locally) before starting, or the site stays locked. The dev server reads environment variables and a local `.env` (copy `.env.example`); variables already set take precedence. Optional: `RESEARCH_PASSWORD`, `KNMI_EDR_API_KEY` (KNMI measurements on the park pages), `KNMI_OPEN_DATA_API_KEY` (live HARMONIE) and `WINDPARK_CATALOG_TOKEN` (Waterstofatlas catalogue). Stored HARMONIE snapshots live in R2 and are not available locally.
+
 ## Edit and build
 
 Install dependencies on a filesystem that supports symlinks (Android shared storage does not):
