@@ -183,3 +183,24 @@ test('visible euro-per-kilo prices retain exactly two decimals even for a round 
   assert.match(shown,/<strong>8,50 €\/kg<\/strong>/);
  }
 });
+
+test('sensitivity summary uses saved provenance, explains both signs and resets for a new result',()=>{
+ const h=harness();
+ h.ui.setResult(h.result,h.meta);
+ assert.equal(h.node('result-sensitivity').hidden,true);
+ h.meta.groepen[0].velden.find(field=>field.key==='minimumlast').bron='live gewijzigde bron';
+ h.meta.technologieen.pem.waarden.minimumlast=80;
+ h.ui.showSensitivity({aannames:[{key:'minimumlast',label:'Minimumlast',eenheid:'%',nu:10,
+  laag:{waarde:7.5,voordeel:0.03},hoog:{waarde:12.5,voordeel:-0.02}}]},2);
+ const shown=h.node('result-sensitivity');
+ assert.equal(shown.hidden,false);
+ assert.match(shown.innerHTML,/Minimumlast/);
+ assert.match(shown.innerHTML,/plaatshouder/,'Provenance follows the calculated snapshot');
+ assert.doesNotMatch(shown.innerHTML,/live gewijzigde bron|eigen aanname/);
+ assert.match(shown.innerHTML,/0,03 €\/kg goedkoper/);
+ assert.match(shown.innerHTML,/0,02 €\/kg duurder/);
+ assert.match(shown.innerHTML,/2 modules tegenover 1 module/);
+ const newer=structuredClone(h.result);newer.sleutel='newer-sensitivity-result';
+ h.ui.setResult(newer,h.meta);
+ assert.equal(shown.hidden,true,'A new result must hide the previous sensitivity conclusion');
+});

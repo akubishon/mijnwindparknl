@@ -35,57 +35,8 @@
           windjaren, met jouw eigen aannames.</p>
       </section>
 
-      <section class="panel" aria-labelledby="how-title">
-        <div class="step-heading"><span class="step-number">1</span><div>
-          <h2 id="how-title">Zo werkt de analyse</h2>
-          <p>Zes stappen van KNMI-meting naar kosten per kilo waterstof. Elke stap gebruikt de aannames onder stap 2.</p>
-        </div></div>
-        <ol class="flow">
-          <li><span class="flow-n">A</span><h3>KNMI-wind</h3>
-            <p>Tienminutengemiddelden, vier volledige jaren: per tien minuten het gemiddelde van Houtribdijk en Stavoren, de twee stations op het IJsselmeer, voor beide parken. Gekozen op ligging en op hoe goed de bron de HARMONIE-wind op de parklocatie volgt; meetgaten blijven gaten.</p>
-            <code>v₁₀ per 10 min</code></li>
-          <li><span class="flow-n">B</span><h3>Gemodelleerd parkvermogen</h3>
-            <p>Wind naar ashoogte met een factor per maand uit de HARMONIE-heranalyse WINS50 (geen productiegegevens), door de vermogenscurve, minus zogverlies, bij 100 % beschikbaarheid. Hetzelfde model als de windprofielpagina.</p>
-            <code>v = F<sub>maand</sub> · v₁₀</code></li>
-          <li><span class="flow-n">C</span><h3>Aanbod</h3>
-            <p>De elektrolyser krijgt 10 % van het gemodelleerde Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl. Het is mogelijke opbrengst, geen gemeten levering.</p>
-            <code>P = 0,1 · Fryslân + Beabuorren</code></li>
-          <li><span class="flow-n">D</span><h3>Modules inzetten</h3>
-            <p>Per tien minuten kiest de besturing hoeveel modules draaien. Grenzen: minimumlast, aan- en uittijden, startvertraging, onderhoud en storingen.</p>
-            <code>k modules · P/k per module</code></li>
-          <li><span class="flow-n">E</span><h3>Waterstof en slijtage</h3>
-            <p>Stackvermogen door de rendementscurve geeft kilo's. Starts en lastwisselingen tellen als extra bedrijfsuren voor de stack.</p>
-            <code>kg = stack-MWh ÷ kWh/kg</code></li>
-          <li><span class="flow-n">F</span><h3>Kosten</h3>
-            <p>CAPEX met rente, vaste OPEX, stackvervanging en stroom, gedeeld door de waterstof per jaar.</p>
-            <code>LCOH = kosten ÷ kg per jaar</code></li>
-        </ol>
-
-        <div class="explain-grid">
-          <figure class="explain">
-            <h3>Waarom opsplitsen helpt</h3>
-            <p>De minimumlast geldt per module. Eén grote module start pas als het aanbod boven haar minimumlast komt; vier modules van een kwart
-              van de grootte starten bij een kwart van dat aanbod. Alles onder de drempel gaat verloren.</p>
-            <svg id="threshold-art" viewBox="0 0 440 220" role="img" aria-labelledby="threshold-title">
-              <title id="threshold-title">Schets: een golvend windaanbod met twee drempels. De lage drempel van een kleine module laat meer aanbod door dan de hoge drempel van één grote module.</title>
-            </svg>
-            <figcaption>Donker: aanbod dat één grote module benut. Licht: wat vier modules daarbovenop benutten. Schets op schaal van de aannames, geen meting.</figcaption>
-          </figure>
-          <figure class="explain">
-            <h3>Rendement per module</h3>
-            <p>Waterstof per MWh stroom, inclusief BoP en Faradayverlies, tegen de last. Onder de minimumlast produceert een module niets.</p>
-            <div id="efficiency-chart" class="chart" role="img" aria-label="Rendementscurve per module"></div>
-            <figcaption id="efficiency-caption">Volgt de aannames uit stap 2.</figcaption>
-          </figure>
-        </div>
-        <details class="speed" id="speed">
-          <summary>Hoe kan een heel jaar, elke tien minuten, zo snel?</summary>
-          <div id="speed-body"></div>
-        </details>
-      </section>
-
       <section class="panel" aria-labelledby="input-title">
-        <div class="step-heading"><span class="step-number">2</span><div>
+        <div class="step-heading"><span class="step-number">1</span><div>
           <h2 id="input-title">Aannames</h2>
           <p>Kies PEM of alkaline voor de standaardwaarden van de EU LCOH-tool (Clean Hydrogen Partnership). Wat die tool niet geeft,
             zoals minimumlast en opstarttijden, staat als plaatshouder; elk veld zegt waar de waarde vandaan komt. Alles is aan te passen
@@ -129,24 +80,13 @@
       </section>
 
       <section class="panel" aria-labelledby="result-title" id="results" hidden>
-        <div class="step-heading"><span class="step-number">3</span><div>
+        <div class="step-heading"><span class="step-number">2</span><div>
           <h2 id="result-title">Uitkomst</h2>
           <p id="result-sub"></p>
         </div></div>
         <p id="result-pending" class="result-pending" role="status" hidden>De invoer is gewijzigd. Hieronder staat de vorige berekening, met de daarbij gebruikte aannames. Kies ‘Bereken’ om de uitkomst bij te werken.</p>
         <section id="result-conclusion" class="result-conclusion" aria-label="Conclusie van de vergelijking"></section>
-        <aside class="result-context" aria-labelledby="basis-title">
-          <h3 id="basis-title">Basis van deze berekening</h3>
-          <p id="result-basis"></p>
-          <p id="result-uncertainty"></p>
-          <details><summary>Alle gebruikte aannames en herkomst van standaardwaarden</summary>
-            <p class="note">Deze waarden horen bij de getoonde uitkomst. De herkomst beschrijft de standaardwaarde; een eigen invoer is daarmee niet als bronwaarde bevestigd.</p>
-            <div id="result-assumptions" class="table-scroll" tabindex="0" role="region" aria-label="Gebruikte aannames"></div>
-          </details>
-          <div class="result-exports"><button id="export-csv" class="secondary-button" type="button">Download alle uitkomsten (CSV)</button>
-            <button id="export-json" class="secondary-button" type="button">Download volledige berekening (JSON)</button></div>
-          <p class="note">CSV bevat ongeronde uitkomsten, stapverschillen en aannames in rekeneenheden. JSON bewaart ook de uitkomsten per windjaar. Extra decimalen maken verschillen controleerbaar; ze geven geen voorspellingszekerheid aan.</p>
-        </aside>
+        <aside id="result-sensitivity" class="report-critical" aria-label="Belangrijkste aanname in de gevoeligheidscontrole" hidden></aside>
         <aside class="report-launch">
           <div><h3>Samen de berekening nalopen</h3><p>Van gebruikte invoer tot kosten per kilo, met ingevulde formules en rekencontroles. Neem het rapport mee naar je overleg.</p></div>
           <button id="explain-calculation" class="secondary-button" type="button" aria-expanded="false" aria-controls="calculation-report">Leg deze berekening uit</button>
@@ -162,6 +102,19 @@
           </div>
           <div id="report-body"></div>
         </article>
+        <details class="analysis-support"><summary>Onderbouwing en alle configuraties</summary>
+        <aside class="result-context" aria-labelledby="basis-title">
+          <h3 id="basis-title">Basis van deze berekening</h3>
+          <p id="result-basis"></p>
+          <p id="result-uncertainty"></p>
+          <details><summary>Alle gebruikte aannames en herkomst van standaardwaarden</summary>
+            <p class="note">Deze waarden horen bij de getoonde uitkomst. De herkomst beschrijft de standaardwaarde; een eigen invoer is daarmee niet als bronwaarde bevestigd.</p>
+            <div id="result-assumptions" class="table-scroll" tabindex="0" role="region" aria-label="Gebruikte aannames"></div>
+          </details>
+          <div class="result-exports"><button id="export-csv" class="secondary-button" type="button">Download alle uitkomsten (CSV)</button>
+            <button id="export-json" class="secondary-button" type="button">Download volledige berekening (JSON)</button></div>
+          <p class="note">CSV bevat ongeronde uitkomsten, stapverschillen en aannames in rekeneenheden. JSON bewaart ook de uitkomsten per windjaar. Extra decimalen maken verschillen controleerbaar; ze geven geen voorspellingszekerheid aan.</p>
+        </aside>
         <div id="headline" class="headline"></div>
         <section class="winner" aria-labelledby="winner-title">
           <span class="eyebrow">Laagste berekende kostprijs binnen deze instellingen</span>
@@ -251,10 +204,11 @@
           <summary>Alle uitkomsten in een tabel</summary>
           <div class="table-scroll"><table id="table"></table></div>
         </details>
+        </details>
       </section>
 
       <section class="panel" aria-labelledby="day-title" id="day-panel" hidden>
-        <div class="step-heading"><span class="step-number">4</span><div>
+        <div class="step-heading"><span class="step-number">3</span><div>
           <h2 id="day-title">Een dag van dichtbij</h2>
           <p>Hetzelfde aanbod, twee configuraties. Standaard een gewone dag waarop opsplitsen hielp: beter dan driekwart van de dagen, zonder onderhoud of storing. Waar de lijnen samenvallen, draaien beide even hard.</p>
         </div></div>
@@ -287,6 +241,55 @@
           </aside>
         </div>
       </section>
+
+      <details class="panel model-support"><summary>Onderbouwing van wind en rekenmodel</summary>
+        <div class="step-heading"><span class="step-number">i</span><div>
+          <h2 id="how-title">Zo werkt de analyse</h2>
+          <p>Zes stappen van KNMI-meting naar kosten per kilo waterstof. Elke stap gebruikt de aannames onder Aannames.</p>
+        </div></div>
+        <ol class="flow">
+          <li><span class="flow-n">A</span><h3>KNMI-wind</h3>
+            <p>Tienminutengemiddelden, vier volledige jaren: per tien minuten het gemiddelde van Houtribdijk en Stavoren, de twee stations op het IJsselmeer, voor beide parken. Gekozen op ligging en op hoe goed de bron de HARMONIE-wind op de parklocatie volgt; meetgaten blijven gaten.</p>
+            <code>v₁₀ per 10 min</code></li>
+          <li><span class="flow-n">B</span><h3>Gemodelleerd parkvermogen</h3>
+            <p>Wind naar ashoogte met een factor per maand uit de HARMONIE-heranalyse WINS50 (geen productiegegevens), door de vermogenscurve, minus zogverlies, bij 100 % beschikbaarheid. Hetzelfde model als de windprofielpagina.</p>
+            <code>v = F<sub>maand</sub> · v₁₀</code></li>
+          <li><span class="flow-n">C</span><h3>Aanbod</h3>
+            <p>De elektrolyser krijgt 10 % van het gemodelleerde Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl. Het is mogelijke opbrengst, geen gemeten levering.</p>
+            <code>P = 0,1 · Fryslân + Beabuorren</code></li>
+          <li><span class="flow-n">D</span><h3>Modules inzetten</h3>
+            <p>Per tien minuten kiest de besturing hoeveel modules draaien. Grenzen: minimumlast, aan- en uittijden, startvertraging, onderhoud en storingen.</p>
+            <code>k modules · P/k per module</code></li>
+          <li><span class="flow-n">E</span><h3>Waterstof en slijtage</h3>
+            <p>Stackvermogen door de rendementscurve geeft kilo's. Starts en lastwisselingen tellen als extra bedrijfsuren voor de stack.</p>
+            <code>kg = stack-MWh ÷ kWh/kg</code></li>
+          <li><span class="flow-n">F</span><h3>Kosten</h3>
+            <p>CAPEX met rente, vaste OPEX, stackvervanging en stroom, gedeeld door de waterstof per jaar.</p>
+            <code>LCOH = kosten ÷ kg per jaar</code></li>
+        </ol>
+
+        <div class="explain-grid">
+          <figure class="explain">
+            <h3>Waarom opsplitsen helpt</h3>
+            <p>De minimumlast geldt per module. Eén grote module start pas als het aanbod boven haar minimumlast komt; vier modules van een kwart
+              van de grootte starten bij een kwart van dat aanbod. Alles onder de drempel gaat verloren.</p>
+            <svg id="threshold-art" viewBox="0 0 440 220" role="img" aria-labelledby="threshold-title">
+              <title id="threshold-title">Schets: een golvend windaanbod met twee drempels. De lage drempel van een kleine module laat meer aanbod door dan de hoge drempel van één grote module.</title>
+            </svg>
+            <figcaption>Donker: aanbod dat één grote module benut. Licht: wat vier modules daarbovenop benutten. Schets op schaal van de aannames, geen meting.</figcaption>
+          </figure>
+          <figure class="explain">
+            <h3>Rendement per module</h3>
+            <p>Waterstof per MWh stroom, inclusief BoP en Faradayverlies, tegen de last. Onder de minimumlast produceert een module niets.</p>
+            <div id="efficiency-chart" class="chart" role="img" aria-label="Rendementscurve per module"></div>
+            <figcaption id="efficiency-caption">Volgt de gekozen aannames.</figcaption>
+          </figure>
+        </div>
+        <details class="speed" id="speed">
+          <summary>Hoe kan een heel jaar, elke tien minuten, zo snel?</summary>
+          <div id="speed-body"></div>
+        </details>
+      </details>
 
       <footer>KNMI EDR · rekenmodel windprofiel · plaatshouders voor leveranciersgegevens · TASA Orbiter onder SIL Open Font License</footer>
     </main>

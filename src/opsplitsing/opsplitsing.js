@@ -324,7 +324,7 @@ function drawEfficiency(v) {
     svg.append(hit);
   }
   $("efficiency-chart").replaceChildren(svg);
-  $("efficiency-caption").textContent = `Gemiddeld over het stackleven. Op vollast ${nf(1000 / kgPerMWh(1, v))} kWh/kg; een nieuwe stack ${nf(1000 / kgPerMWh(1, v, false))} kWh/kg. Volgt de aannames uit stap 2.`;
+  $("efficiency-caption").textContent = `Gemiddeld over het stackleven. Op vollast ${nf(1000 / kgPerMWh(1, v))} kWh/kg; een nieuwe stack ${nf(1000 / kgPerMWh(1, v, false))} kWh/kg. Volgt de gekozen aannames.`;
 }
 
 // ---------------------------------------------------------------- grafieken per aantal modules
@@ -1259,7 +1259,7 @@ function renderWalk() {
     const r1 = rowOf(1), rn = rowOf(n);
     return r1 && rn ? `<p class="calc">Een jaar heeft ${nf(52560, 0)} van zulke stappen. Gemiddeld over de windjaren:
       <b>${nf(r1.waterstof_t, 0)} t</b> met 1 module, <b>${nf(rn.waterstof_t, 0)} t</b> met ${n}. Kosten per kilo
-      ${price(r1.lcoh_eur_kg)} en ${price(rn.lcoh_eur_kg)} € (stap 3).</p>` : "";
+      ${price(r1.lcoh_eur_kg)} en ${price(rn.lcoh_eur_kg)} € (zie de jaaruitkomst).</p>` : "";
   })();
 
   const legend = `<p class="legend small">${stations.map((key, k) => `<span>${swatch(k ? COLORS.many : COLORS.one)} ${data.stations[key]}</span>`).join("")}</p>`;
@@ -1439,6 +1439,7 @@ function drawTornado(data, n) {
       ${i.soort === "kosten" ? "Kostenaanname: zelfde simulatie, andere kosten." : "Bedrijfsvoering: opnieuw gesimuleerd."}`,
   })), {marker: base}));
   const top = items[0];
+  globalThis.OpsReportUI?.showSensitivity(data, n);
   const signed = v => (v > 0 ? "+" : v < 0 ? "−" : "") + nf(Math.abs(v), 3);
   $("tornado-legend").innerHTML = `<span>${swatch(COLORS.one)} Aanname 25 % lager</span><span>${swatch(COLORS.many)} 25 % hoger</span>`;
   $("tornado-status").innerHTML = `<span class="heaviest">Het zwaarst weegt: <b>${top.label}</b>. Bij ${value(top, top.laag)} is het voordeel
