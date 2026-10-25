@@ -95,7 +95,14 @@ export default {
       catch(error){console.error('HARMONIE_UPDATE_FAILED',error.message);return answer({error:error.message},502);}
     }
     const gate=await gateRequest(request,env,url);if(gate)return gate;
-    if(url.pathname==='/opsplitsing'||url.pathname==='/elektrolyser/opsplitsen')return new Response(opsPage,{headers:{...securityHeaders,'Content-Security-Policy':opsPolicy,'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
+    if(url.pathname==='/opsplitsing'||url.pathname==='/elektrolyser/opsplitsen'){
+      // Cloudflare propagates header nonces to its injected JavaScript Detections script.
+      // Generate a fresh nonce for each response, never in the shared page or asset policy.
+      const nonce=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
+      const html=opsPage.replaceAll('<script ',`<script nonce="${nonce}" `);
+      const policy=opsPolicy.replace('script-src ',`script-src 'nonce-${nonce}' `);
+      return new Response(html,{headers:{...securityHeaders,'Content-Security-Policy':policy,'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
+    }
     if(url.pathname==='/api/opsplitsing/scenarios')return answer({scenarios:[]});
     if(url.pathname.startsWith('/opsplitsing-assets/')){const asset=opsAssets[url.pathname.slice('/opsplitsing-assets/'.length)];return asset?new Response(asset[0],{headers:{...securityHeaders,'Content-Security-Policy':opsPolicy,'Content-Type':asset[1]+'; charset=utf-8','Cache-Control':'private, max-age=3600'}}):answer({error:'Onbekend bestand.'},404);}
     if(url.pathname==='/api/research/auth'&&request.method==='POST'){

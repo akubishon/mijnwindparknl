@@ -75,6 +75,36 @@ test('returns a recoverable error without exposing credentials when upstream fai
   try {const response=await get(worker,'/api/live');assert.equal(response.status,502);const body=await response.text();assert.doesNotMatch(body,/fixture|sensitive|token|key/);assert.match(body,/opnieuw/i);}finally{global.fetch=prior;}
 });
 
+test('opsplitsing gives each HTML response a fresh nonce for Cloudflare script injection', async () => {
+  const worker=await fresh();
+  const nonces=new Set();
+  for(const route of ['/opsplitsing','/opsplitsing','/elektrolyser/opsplitsen']){
+    const response=await get(worker,route);
+    assert.equal(response.status,200);
+    assert.equal(response.headers.get('Cache-Control'),'no-store');
+    const policy=response.headers.get('Content-Security-Policy');
+    const scriptPolicy=policy.split(';').find(part=>part.trim().startsWith('script-src '));
+    const nonce=scriptPolicy.match(/'nonce-([a-f0-9]{32})'/)?.[1];
+    assert.ok(nonce);
+    assert.ok(!nonces.has(nonce),'nonce must change even on repeat requests');
+    nonces.add(nonce);
+    assert.ok(scriptPolicy.includes("'self'"));
+    assert.ok(scriptPolicy.includes('https://cdn.jsdelivr.net'));
+    assert.ok(scriptPolicy.includes("'wasm-unsafe-eval'"));
+    assert.ok(!scriptPolicy.includes("'unsafe-inline'"));
+    const scripts=[...(await response.text()).matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
+    assert.ok(scripts.length>0);
+    for(const [,attrs,body] of scripts){
+      assert.ok(attrs.includes(`nonce="${nonce}"`));
+      assert.match(attrs,/src="\/opsplitsing-assets\//);
+      assert.equal(body,'');
+    }
+  }
+  const asset=await get(worker,'/opsplitsing-assets/opsplitsing.js');
+  assert.equal(asset.status,200);
+  assert.ok(!asset.headers.get('Content-Security-Policy').includes('nonce-'));
+});
+
 test('security policy permits the bundled script and iframe embedding', async () => {
   const { createHash } = await import('node:crypto');
   const worker = await fresh();
