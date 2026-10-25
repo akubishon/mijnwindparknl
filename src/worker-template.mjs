@@ -11,6 +11,8 @@ const securityHeaders = { 'Content-Security-Policy': /* __CSP__ */, 'X-Content-T
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 const answer = (value, status = 200) => Response.json(value, { status, headers: { ...securityHeaders, 'Cache-Control': 'no-store' } });
 const authAttempts=new Map();
+const atlasCatalogueKey='atlas/v1/catalogue.json',atlasDatasheetPrefix='atlas/v1/datasheets/',atlasDatasheetRoute='/api/atlas/datasheets/';
+const atlasDatasheetPath=/^(?:ProtonExchangeMembrane|AlkalineElectroLysis|PressurisedAlkalineElectroLysis|AnionExchangeMembrane|SolidOxideElectrolysisCell|Anders)\/[A-Za-z0-9][A-Za-z0-9._-]*\.(?:pdf|png)$/;
 const encoder=new TextEncoder();
 async function researchKey(secret){return crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign','verify']);}
 async function researchToken(secret){const expires=String(Date.now()+2*3600000);const key=await researchKey(secret);const signature=await crypto.subtle.sign('HMAC',key,encoder.encode('research:'+expires));return expires+'.'+Array.from(new Uint8Array(signature),b=>b.toString(16).padStart(2,'0')).join('');}
@@ -139,13 +141,22 @@ export default {
         const forecast=await readStoredHarmonie(env,history.historical?{model:selectedModel,run:url.searchParams.get('run'),day:url.searchParams.get('day')}:{model:selectedModel,day:url.searchParams.get('day')||undefined});
         return answer({...forecast,rows:forecast.rows.map(row=>{const parks=row.parks.map(park=>({...park,powerMW:windPowerModel(row.time.slice(0,10),{...(forecastOptions?.park===park.id?forecastOptions:modelOptions(new URLSearchParams({park:park.id}))),hoogte:'alpha'})(park.windSpeedMS)}));return {...row,parks,allocatedMW:parks.find(p=>p.id==='fryslan').powerMW*.1+parks.find(p=>p.id==='beabuorren').powerMW};})});
       }
+      // akubishon/datasheetextract uploads data.json and its datasheets to R2 (atlas/v1/...).
       if(url.pathname==='/api/atlas/catalogue'){
-        if(!env.WINDPARK_CATALOG_TOKEN)return answer({error:'Waterstofatlas is nog niet gekoppeld.'},503);
-        const r=await fetch('https://elektrolyser-atlas.givingsky33.chatgpt.site/api/integrations/mijnwindpark/catalogue',{headers:{Authorization:'Bearer '+env.WINDPARK_CATALOG_TOKEN,Accept:'application/json','User-Agent':'Mijnwindpark/1.0 (+https://mijnwindpark.nl)'},redirect:'manual',signal:AbortSignal.timeout(15000)});
-        if(!r.ok){console.error('ATLAS_CATALOG_UPSTREAM_STATUS',r.status);return answer({error:r.status===401?'De toegangssleutel voor Waterstofatlas wordt niet geaccepteerd.':`Waterstofatlas weigert de aanvraag (HTTP ${r.status}). Probeer opnieuw.`},502);}
-        const data=await r.json();
+        if(!env.BUCKET)return answer({error:'De opslag voor de Waterstofatlas is niet gekoppeld.'},503);
+        const object=await env.BUCKET.get(atlasCatalogueKey);
+        if(!object)return answer({error:'De Waterstofatlas-catalogus is nog niet geüpload.'},503);
+        const data=await object.json();
         if(data.schemaVersion!==1||!Array.isArray(data.models)||data.models.length>500)return answer({error:'Onbekend catalogusformaat.'},502);
         return answer(data);
+      }
+      if(url.pathname.startsWith(atlasDatasheetRoute)){
+        let path;try{path=decodeURIComponent(url.pathname.slice(atlasDatasheetRoute.length));}catch{return answer({error:'Ongeldige datasheet.'},400);}
+        if(!atlasDatasheetPath.test(path))return answer({error:'Ongeldige datasheet.'},400);
+        if(!env.BUCKET)return answer({error:'De opslag voor de Waterstofatlas is niet gekoppeld.'},503);
+        const object=await env.BUCKET.get(atlasDatasheetPrefix+path);
+        if(!object)return answer({error:'Deze datasheet is nog niet geüpload.'},404);
+        return new Response(object.body,{headers:{'X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Content-Type':path.endsWith('.png')?'image/png':'application/pdf','Content-Disposition':'inline','Cache-Control':'private, max-age=3600',ETag:object.httpEtag}});
       }
       if(url.pathname==='/api/electrolyser'||url.pathname==='/api/research/day') {
         if(url.pathname==='/api/research/day'&&!await researchAllowed(request,env))return answer({error:'Voer het onderzoekwachtwoord in.'},401);
@@ -194,7 +205,7 @@ export default {
       return answer({ error: 'Not found' }, 404);
     } catch (error) {
       if(url.pathname==='/api/harmonie'){console.error('HARMONIE_REQUEST_FAILED',error?.message?.startsWith('HARMONIE_')?error.message:'CONNECTION');const messages={HARMONIE_PENDING:'Deze voorspelling bevat nog geen opgeslagen uren voor deze dag. De achtergrondtaak verwerkt nieuwe runs automatisch.',HARMONIE_STORAGE:'De voorspellingenopslag is nog niet beschikbaar.',HARMONIE_P2B_ARCHIVE:'P2b-runs worden door KNMI slechts 72 uur bewaard. Kies een recente run of gebruik P1 voor het archief vanaf 8 januari 2026.',HARMONIE_MEMBER_CONFLICT:'Het P2b-bestand bevat niet eenduidig te scheiden ensembleleden. Er wordt geen gemengde voorspelling getoond.',HARMONIE_RUN_NOT_FOUND:'Deze historische HARMONIE-run ontbreekt in het KNMI-archief. Kies een ander modeluur.',HARMONIE_INVALID_HISTORY:'De historische modelrun of grafiekdag is ongeldig.',HARMONIE_NOT_CONFIGURED:'De KNMI Open Data API-key is nog niet ingesteld.',HARMONIE_AUTH:'De KNMI Open Data API-key geeft geen toegang tot HARMONIE.',HARMONIE_RATE_LIMIT:'Het KNMI-aanvraaglimiet is bereikt. Probeer later opnieuw.',HARMONIE_INCOMPLETE:'De modelrun bevat nog onvoldoende complete voorspellingsuren.',HARMONIE_DOWNLOAD_HOST:'Het downloadadres van KNMI wordt nog niet ondersteund.'};return answer({error:messages[error?.message]||'HARMONIE ophalen of lezen is niet gelukt. Probeer later opnieuw. Er worden geen voorbeeldwaarden als voorspelling getoond.'},502);}
-      if(url.pathname==='/api/atlas/catalogue'){console.error('ATLAS_CATALOG_REQUEST_FAILED',error?.name||'Error');return answer({error:'De verbinding met Waterstofatlas is onderbroken of duurt te lang. Probeer opnieuw.'},502);}
+      if(url.pathname==='/api/atlas/catalogue'){console.error('ATLAS_CATALOG_REQUEST_FAILED',error?.name||'Error');return answer({error:'De Waterstofatlas-catalogus kon niet uit de opslag worden gelezen. Probeer opnieuw.'},502);}
       if(url.pathname==='/api/wind') {
         const code=error?.message;
         console.error('KNMI_REQUEST_FAILED', ['KNMI_AUTH','KNMI_CONNECTION','KNMI_UNAVAILABLE','Invalid KNMI data','Invalid KNMI time axis'].includes(code)?code:error?.name||'Error');

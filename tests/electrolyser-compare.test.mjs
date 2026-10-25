@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import * as kernel from '../src/electrolyser-kernel.mjs';
-import {catalogueModels, interpretModel, missingEndpointFields, modulePower, NM3_PER_KG} from '../src/electrolyser-catalogue.mjs';
+import {catalogueModels, datasheetLinks, interpretModel, missingEndpointFields, modulePower, NM3_PER_KG} from '../src/electrolyser-catalogue.mjs';
 import {resolveSetup, comparisonCSV, generalValues, fillToTarget, capacityWarnings, differences, jobFor, inputHash} from '../src/electrolyser-setup.mjs';
 import {compareNow} from '../src/electrolyser-run.mjs';
 
@@ -228,4 +228,12 @@ test('the cache key covers every calculation input, including nested assumptions
  assert.equal(inputHash({x: {p: 1, q: 2}}), inputHash({x: {q: 2, p: 1}}));
  const [ra, rb] = compareNow([a, b], general, supplies);
  assert.ok(ra.mean.waterstof_kg > rb.mean.waterstof_kg);
+});
+
+test('datasheet links come from the repository paths in the source text, not from online URLs', () => {
+ const source = 'Siemens Energy, p. 3; https://assets.siemens-energy.com/dam/x/Brochure%20file.pdf; oorspronkelijke brochure: ProtonExchangeMembrane/Siemens_17.5MW.pdf; ProtonExchangeMembrane/Siemens_17.5MW.pdf p. 2';
+ assert.deepEqual(datasheetLinks(source), ['/api/atlas/datasheets/ProtonExchangeMembrane/Siemens_17.5MW.pdf']);
+ assert.deepEqual(datasheetLinks('Anders/CPH2_1_5MW.pdf; p. 1 en AlkalineElectroLysis/nel_25MW.pdf'), ['/api/atlas/datasheets/Anders/CPH2_1_5MW.pdf', '/api/atlas/datasheets/AlkalineElectroLysis/nel_25MW.pdf']);
+ assert.deepEqual(datasheetLinks(''), []);
+ assert.deepEqual(interpretModel({id: 'x', name: 'x', manufacturer: 'x', technology: 'PEM', values: {source: 'ProtonExchangeMembrane/nel_10MW.pdf; p. 1'}}).datasheets, ['/api/atlas/datasheets/ProtonExchangeMembrane/nel_10MW.pdf']);
 });

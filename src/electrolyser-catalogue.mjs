@@ -3,6 +3,9 @@
 // DISABLED_MANUFACTURERS follows core.js. Nothing here guesses a value from a range, a bound or an unclear basis.
 
 export const ATLAS_URL = 'https://waterstofatlas.nl/#overzicht';
+// Datasheet paths in the source text, as sourceLinks() in datasheetextract/app.js; served from R2 by the worker.
+const DATASHEET_PATH = /(?:ProtonExchangeMembrane|AlkalineElectroLysis|PressurisedAlkalineElectroLysis|AnionExchangeMembrane|SolidOxideElectrolysisCell|Anders)\/[A-Za-z0-9][A-Za-z0-9._-]*\.(?:pdf|png)/g;
+export const datasheetLinks = source => [...new Set([...text(source).matchAll(DATASHEET_PATH)].map(x => x[0]))].map(path => '/api/atlas/datasheets/' + path.split('/').map(encodeURIComponent).join('/'));
 export const NM3_PER_KG = 11.12;   // Nm³ H₂ per kg at 0 °C and 1,013 bar
 export const DISABLED_MANUFACTURERS = ['SANY', 'LONGi Hydrogen', 'Sungrow'];
 // Catalogue fields this page reads; scope, stacks and partload are optional until the Atlas endpoint provides them.
@@ -164,6 +167,7 @@ export function interpretModel(model) {
   systemEnergy: energy.system, stackEnergy: energy.stack, minimum: minimumValue(v.minimum),
   delivery, stacks, partload, profile: technologyProfile(model.technology),
   production: text(v.production), hotStart: text(v.hotStart), coldStart: text(v.coldStart), source: text(v.source),
+  datasheets: datasheetLinks(v.source),
   provenance: model.provenance || {}, url: typeof model.url === 'string' && /^https:\/\/(?:www\.)?waterstofatlas\.nl\//.test(model.url) ? model.url : ATLAS_URL,
  };
 }

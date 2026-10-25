@@ -6,7 +6,7 @@ import worker from '../worker/index.js';
 const project = fileURLToPath(new URL('..', import.meta.url));
 // Runtime secrets come from the environment or a local .env; variables already set take precedence.
 try { process.loadEnvFile(resolve(project, '.env')); } catch {}
-const names = ['WPF_PUBLIC_CLIENT_KEY', 'WPF_FIREBASE_API_KEY', 'SITE_PASSWORD', 'RESEARCH_PASSWORD', 'KNMI_EDR_API_KEY', 'KNMI_OPEN_DATA_API_KEY', 'WINDPARK_CATALOG_TOKEN'];
+const names = ['WPF_PUBLIC_CLIENT_KEY', 'WPF_FIREBASE_API_KEY', 'SITE_PASSWORD', 'RESEARCH_PASSWORD', 'KNMI_EDR_API_KEY', 'KNMI_OPEN_DATA_API_KEY'];
 const env = Object.fromEntries(names.filter(name => process.env[name]).map(name => [name, process.env[name]]));
 if (!env.WPF_PUBLIC_CLIENT_KEY || !env.WPF_FIREBASE_API_KEY) {
   const apk = resolve(project, '../WP Fryslân.apk');

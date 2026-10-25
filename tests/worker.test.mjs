@@ -385,21 +385,34 @@ test('atlas model calculation uses gross system supply and never deducts generic
  assert.equal(draft.powerMW,'');assert.equal(draft.kWhPerKg,'');assert.equal(draft.minimumPct,'');
 });
 
-test('atlas catalogue stays behind site login and proxy credentials are server-only',async()=>{
+function bucket(objects){return {async get(key){if(!Object.hasOwn(objects,key))return null;const body=objects[key];return {body:new Blob([body]).stream(),httpEtag:'"fixture"',async json(){return JSON.parse(body);}};}};}
+test('atlas catalogue stays behind site login and is read from R2',async()=>{
  const raw=await rawFresh();assert.equal((await get(raw,'/api/atlas/catalogue')).status,401);
- const worker=await fresh();const prior=global.fetch;global.fetch=async(url,options)=>{
-  assert.equal(url,'https://elektrolyser-atlas.givingsky33.chatgpt.site/api/integrations/mijnwindpark/catalogue');assert.equal(options.headers.Accept,'application/json');assert.match(options.headers['User-Agent'],/^Mijnwindpark/);assert.ok(options.signal);assert.equal(options.headers.Authorization,'Bearer fixture-atlas-secret');assert.equal(options.redirect,'manual');
-  return Response.json({schemaVersion:1,revision:'fixture',models:[]});
- };
- try{const r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),{...env,WINDPARK_CATALOG_TOKEN:'fixture-atlas-secret'});assert.equal(r.status,200);assert.doesNotMatch(await r.text(),/fixture-atlas-secret/);}finally{global.fetch=prior;}
+ const worker=await fresh(),prior=global.fetch;global.fetch=async()=>{throw Error('no upstream request expected');};
+ try{
+  let r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),{...env,BUCKET:bucket({'atlas/v1/catalogue.json':JSON.stringify({schemaVersion:1,revision:'fixture',models:[]})})});
+  assert.equal(r.status,200);assert.equal((await r.json()).revision,'fixture');
+  r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),{...env,BUCKET:bucket({})});
+  assert.equal(r.status,503);assert.match((await r.json()).error,/nog niet geüpload/);
+  r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),{...env,BUCKET:bucket({'atlas/v1/catalogue.json':JSON.stringify({schemaVersion:2,models:[]})})});
+  assert.equal(r.status,502);
+  r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),{...env,BUCKET:bucket({'atlas/v1/catalogue.json':'not json'})});
+  assert.equal(r.status,502);assert.match((await r.json()).error,/opslag/);
+ }finally{global.fetch=prior;}
 });
 
-test('atlas proxy uses Worker-compatible manual redirects and never follows a credential-bearing redirect',async()=>{
- const worker=await fresh(),prior=global.fetch;let calls=0;
- global.fetch=async(url,options)=>{calls++;if(options.redirect==='error')throw new TypeError('Unsupported redirect mode');assert.equal(options.redirect,'manual');return new Response(null,{status:302,headers:{Location:'https://other.example/catalogue'}});};
- try{const r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),{...env,WINDPARK_CATALOG_TOKEN:'fixture-atlas-secret'});assert.equal(r.status,502);assert.equal(calls,1);assert.doesNotMatch(await r.text(),/fixture-atlas-secret|other.example/);}finally{global.fetch=prior;}
+test('atlas datasheets are served from R2 behind the site login and only for known datasheet paths',async()=>{
+ const objects={'atlas/v1/datasheets/ProtonExchangeMembrane/Siemens_17.5MW.pdf':'%PDF-fixture','atlas/v1/datasheets/ProtonExchangeMembrane/OortEnergy_0.25_0.5_1.5_20MW.png':'png-fixture','atlas/v1/catalogue.json':'{}'};
+ const raw=await rawFresh();assert.equal((await raw.fetch(new Request('https://fixture.test/api/atlas/datasheets/ProtonExchangeMembrane/Siemens_17.5MW.pdf'),{...env,BUCKET:bucket(objects)})).status,401);
+ const worker=await fresh(),settings={...env,BUCKET:bucket(objects)};
+ let r=await worker.fetch(new Request('https://fixture.test/api/atlas/datasheets/ProtonExchangeMembrane/Siemens_17.5MW.pdf'),settings);
+ assert.equal(r.status,200);assert.equal(r.headers.get('Content-Type'),'application/pdf');assert.equal(r.headers.get('X-Content-Type-Options'),'nosniff');assert.equal(await r.text(),'%PDF-fixture');
+ r=await worker.fetch(new Request('https://fixture.test/api/atlas/datasheets/ProtonExchangeMembrane/OortEnergy_0.25_0.5_1.5_20MW.png'),settings);
+ assert.equal(r.headers.get('Content-Type'),'image/png');
+ assert.equal((await worker.fetch(new Request('https://fixture.test/api/atlas/datasheets/ProtonExchangeMembrane/Missing_1MW.pdf'),settings)).status,404);
+ for(const path of ['..%2Fcatalogue.json','ProtonExchangeMembrane/..%2F..%2Fcatalogue.json','Other/x.pdf','ProtonExchangeMembrane/x.html','ProtonExchangeMembrane/%E0%A4%A.pdf'])
+  assert.equal((await worker.fetch(new Request('https://fixture.test/api/atlas/datasheets/'+path),settings)).status,400,path);
 });
-
 test('KNMI point view retains original timestamps and wind observations without hourly aggregation',async()=>{
  const {modelOptions,modelHours}=await import('../src/knmi.mjs');
  const options=modelOptions(new URLSearchParams());
@@ -471,17 +484,6 @@ test('today average uses fractional elapsed hours since Dutch midnight including
  assert.equal(elapsedHoursToday('2026-10-25',Date.parse('2026-10-25T02:30:00Z')),4.5);
 });
 
-test('atlas connection errors distinguish credentials from network failure without exposing secrets',async()=>{
- const worker=await fresh(),prior=global.fetch;
- try{
-  global.fetch=async()=>new Response(null,{status:401});
-  let r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),{...env,WINDPARK_CATALOG_TOKEN:'fixture-atlas-secret'});
-  assert.equal(r.status,502);assert.match((await r.json()).error,/toegangssleutel/);
-  global.fetch=async()=>{throw new TypeError('private network detail');};
-  r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),{...env,WINDPARK_CATALOG_TOKEN:'fixture-atlas-secret'});
-  assert.equal(r.status,502);const text=await r.text();assert.match(text,/verbinding/);assert.doesNotMatch(text,/private network detail|fixture-atlas-secret/);
- }finally{global.fetch=prior;}
-});
 test('opsplitsing page, Python model and year data stay behind the site login',async()=>{
  const raw=await rawFresh();
  for(const route of ['/opsplitsing','/opsplitsing-assets/bundle.json','/opsplitsing-assets/data/2025.json'])assert.equal((await get(raw,route)).status,401);

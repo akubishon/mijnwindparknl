@@ -2,13 +2,13 @@ import {readFileSync,readdirSync} from 'node:fs';
 const root='src/opsplitsing/';
 const bundle={};
 function add(file,key){bundle[key]=readFileSync(root+file).toString('base64');}
-for(const file of readdirSync(root+'python'))if(file.endsWith('.py'))add('python/'+file,'windprofiel/'+file);
-for(const file of readdirSync(root+'python/data'))add('python/data/'+file,'windprofiel/data/'+file);
+for(const file of readdirSync(root+'python').sort())if(file.endsWith('.py'))add('python/'+file,'windprofiel/'+file);
+for(const file of readdirSync(root+'python/data').sort())add('python/data/'+file,'windprofiel/data/'+file);
 add('Amsterdam','zoneinfo/Europe/Amsterdam');add('browser-runtime.py','browser-runtime.py');
 const assets={};
 for(const file of ['opsplitsing.css','opsplitsing.js','bridge.js','calculator-worker.js','report.css','report-model.js','report-moments.js','report-xlsx.js','report-ui.js'])assets[file]=[readFileSync(root+file,'utf8'),file.endsWith('.css')?'text/css':'text/javascript'];
 assets['bundle.json']=[JSON.stringify(bundle),'application/json'];
-for(const file of readdirSync(root+'data'))assets['data/'+file]=[readFileSync(root+'data/'+file,'utf8'),'application/json'];
+for(const file of readdirSync(root+'data').sort())assets['data/'+file]=[readFileSync(root+'data/'+file,'utf8'),'application/json'];
 assets['scenarios.json']=['{"scenarios":[]}','application/json'];
 let html=readFileSync(root+'opsplitsing.html','utf8').replace('href="./opsplitsing.css"','href="/opsplitsing-assets/opsplitsing.css"').replace('<script src="./opsplitsing.js" defer></script>','<script src="/opsplitsing-assets/bridge.js" defer></script><script src="/opsplitsing-assets/opsplitsing.js" defer></script>');
 html=html.replace('href="/">Windparken</a>','href="/">mijnwindpark.nl</a>');

@@ -12,7 +12,7 @@ node scripts/dev.mjs
 
 Open `http://localhost:8787`. The committed standalone worker includes the browser bundle, so no dependency installation is needed to run it. Local development reads the public client's configuration from the APK into memory. Alternatively supply `WPF_PUBLIC_CLIENT_KEY` and `WPF_FIREBASE_API_KEY` as environment variables. The server binds to loopback.
 
-The whole site is behind the site password, so set `SITE_PASSWORD` (any value you choose locally) before starting, or the site stays locked. The dev server reads environment variables and a local `.env` (copy `.env.example`); variables already set take precedence. Optional: `RESEARCH_PASSWORD`, `KNMI_EDR_API_KEY` (KNMI measurements on the park pages), `KNMI_OPEN_DATA_API_KEY` (live HARMONIE) and `WINDPARK_CATALOG_TOKEN` (Waterstofatlas catalogue). Stored HARMONIE snapshots live in R2 and are not available locally.
+The whole site is behind the site password, so set `SITE_PASSWORD` (any value you choose locally) before starting, or the site stays locked. The dev server reads environment variables and a local `.env` (copy `.env.example`); variables already set take precedence. Optional: `RESEARCH_PASSWORD`, `KNMI_EDR_API_KEY` (KNMI measurements on the park pages) and `KNMI_OPEN_DATA_API_KEY` (live HARMONIE). Stored HARMONIE snapshots and the Waterstofatlas catalogue and datasheets live in R2 and are not available locally.
 
 ## Edit and build
 
@@ -47,7 +47,6 @@ Eenmalig instellen:
    npx wrangler secret put KNMI_EDR_API_KEY
    npx wrangler secret put KNMI_OPEN_DATA_API_KEY
    npx wrangler secret put RESEARCH_PASSWORD        # optioneel
-   npx wrangler secret put WINDPARK_CATALOG_TOKEN   # optioneel
    ```
 4. Zet in GitHub (Settings → Secrets and variables → Actions) `CLOUDFLARE_API_TOKEN` (sjabloon *Edit Cloudflare Workers*) en `CLOUDFLARE_ACCOUNT_ID`.
 
@@ -95,7 +94,7 @@ The research main view is now centred on “Wat verandert als je groter gaat?”
 
 ## Official Waterstofatlas integration
 
-The Waterstofatlas models are compared under `/elektrolyser` (see the next section); `/onderzoek` now refers there and keeps only the manual-capacity research. `/api/atlas/catalogue` is gated by the website session and reads the deliberately added, read-only Atlas endpoint `/api/integrations/mijnwindpark/catalogue`. Both Sites share a scoped secret `WINDPARK_CATALOG_TOKEN`; it stays server-side. The endpoint merges the live R2 source with live online additions and projects only relevant catalogue fields and provenance. It does not scrape HTML or JavaScript, and it cannot modify records.
+The Waterstofatlas models are compared under `/elektrolyser` (see the next section); `/onderzoek` now refers there and keeps only the manual-capacity research. `/api/atlas/catalogue` is gated by the website session and reads `atlas/v1/catalogue.json` from the worker's own R2 bucket (`BUCKET`). That object is `data.json` from [`akubishon/datasheetextract`](https://github.com/akubishon/datasheetextract), uploaded by that repository's workflow on every push to `main`; the same workflow uploads the datasheet PDF/PNG files to `atlas/v1/datasheets/<technologie>/<bestand>`. `/api/atlas/datasheets/<technologie>/<bestand>` serves those files behind the same session, only for paths in the six technology folders. Online additions made on waterstofatlas.nl are not included. No external request or token is needed.
 
 ## Elektrolysers uit de Waterstofatlas vergelijken
 
@@ -158,18 +157,14 @@ Met `samen` zijn 10 × 4,4 MW en 2 × 22 MW alleen gelijk als ook beschikbaarhei
 
 UTF-8 met BOM, puntkomma's en decimale komma's. Eén regel per opstelling per windjaar plus het gemiddelde. `bron.*`: catalogusversie, bijwerkdatum, versie van de aanvullingen, model en letterlijke bronteksten. `aanname.*`: elke rekenwaarde met `.status` (bron, afgeleid, afgeleid (aanname), standaard technologie, eigen invoer) en `.regel`, plus besturing, algemene aannames, windreeks en storingstrekking. `uitkomst.*`: windjaar, “rust op”, alle uitkomsten hierboven, uren met data, invoerhash en rekenkernversie.
 
-### Ontbrekende velden in de Atlas-endpoint
+### Ontbrekende velden in de catalogus
 
-De catalogus-endpoint (`/api/integrations/mijnwindpark/catalogue`, buiten deze repository) levert nu `power`, `systemEnergy`, `stackEnergy`, `minimum`, `production`, `hotStart`, `coldStart` en `source`. Voor deze pagina zijn nodig, en worden niet op een andere manier uit de Atlas-website gelezen:
+`data.json` uit datasheetextract levert alle velden van de Atlas, waaronder `scope`, `stacks`, `partload` en `category`. Per model linkt de catalogus naar de datasheets die in `source` staan (zoals `sourceLinks()` in datasheetextract/app.js). Nog niet als aparte velden:
 
-- `scope` (leveringsomvang → leveringstype Systeem / Losse stack / Procesmodule / Projectafhankelijk / Niet gespecificeerd);
-- `stacks` (aantal stacks per module);
-- `partload` (deellastcurve);
 - een directe link per model (`url`), nu wordt naar de Atlas-startpagina gelinkt;
-- `category` (elektrolyser of voeding), nu wordt op technologie gefilterd;
-- de elektriciteitsbasis (AC/DC) en levensfase (BOL/EOL) als aparte velden, nu gelezen uit de tekst.
+- de elektriciteitsbasis (AC/DC) en levensfase (BOL/EOL), nu gelezen uit de tekst.
 
-De code gebruikt `scope`, `stacks`, `partload` en `url` zodra de endpoint ze levert; de catalogus meldt welke ontbreken.
+De catalogus meldt welke velden ontbreken.
 
 ### Voorstellen voor `akubishon/windprofiel` (niet hier gewijzigd)
 
