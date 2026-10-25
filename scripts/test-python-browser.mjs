@@ -9,9 +9,19 @@ p.runPython(readFileSync('src/opsplitsing/browser-runtime.py','utf8'));
 console.log(p.runPython("len(dispatch('/api/opsplitsing/aannames', {})['modules'])"));
 p.FS.mkdirTree('/app/data');p.FS.writeFile('/app/data/2025.json',readFileSync('src/opsplitsing/data/2025.json'));
 const result=JSON.parse(p.runPython("json.dumps(dispatch('/api/opsplitsing', {'jaren':[2025],'modules':[1,2],'strategie':'verdelen'}))"));
-const expected=JSON.parse(readFileSync('tests/fixtures/opsplitsing-2025-native.json','utf8'));
+const expected=JSON.parse(p.runPython("json.dumps(model.run(model.parse_aannames({'bop_vast':0,'bop_variabel':0}), [2025], [1,2], 'verdelen', workers=1))"));
+const metadata=JSON.parse(p.runPython("json.dumps(dispatch('/api/opsplitsing/aannames', {}))"));
+assertNoExtraBoP();
+function assertNoExtraBoP() {
+ if(metadata.groepen.some(g=>g.velden.some(f=>f.key.startsWith('bop_')))) throw Error('Extra BoP fields remain');
+ if(result.aannames.bop_vast!==0 || result.aannames.bop_variabel!==0) throw Error('Extra BoP remains');
+ const old=JSON.parse(p.runPython("json.dumps(dispatch('/api/opsplitsing', {'jaren':[2025], 'modules':[1,2], 'aannames':{'bop_vast':3,'bop_variabel':7}}))"));
+ if(JSON.stringify(old.rijen)!==JSON.stringify(result.rijen)) throw Error('Old inputs add BoP');
+ const full=p.runPython("model.draw_mw(44, 44, model.parse_aannames({'bop_vast':0, 'bop_variabel':0}))");
+ if(full!==44) throw Error('44 MW system exceeds its rating');
+}
 const {default:assert}=await import('node:assert/strict');
-assert.deepEqual(result.rijen,expected.rijen);console.log('Browser Python results match upstream native Python exactly for 2025, modules 1 and 2.');
+assert.deepEqual(result.rijen,expected.rijen);console.log('Browser Python results match the system-power model exactly for 2025, modules 1 and 2.');
 const trace=JSON.parse(p.runPython("json.dumps(dispatch('/api/opsplitsing/dag', {'datum':'2025-01-15','modules':[1,2]}))"));
 assert.equal(trace.datum,'2025-01-15');assert.equal(Object.keys(trace.configuraties).length,2);assert.ok(trace.wind.length>0);console.log('Day trace includes wind attribution and both module configurations.');
 

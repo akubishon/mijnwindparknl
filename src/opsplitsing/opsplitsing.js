@@ -98,7 +98,7 @@ function validate(input) {
 }
 
 function values() {
-  const out = {};
+  const out = {bop_vast: 0, bop_variabel: 0};
   for (const input of document.querySelectorAll(".field input")) out[input.dataset.key] = parse(input.value);
   return out;
 }
@@ -236,15 +236,15 @@ function switchTechnology(key) {
 function kgPerMWh(x, v, ageing = true) {
   if (x <= 0 || x < v.minimumlast / 100 - 1e-9) return 0;
   const faraday = Math.max(0, 1 - (v.faradayverlies_10 / 100) * 0.1 / x);
-  const full = v.systeemverbruik_vol * (1 - v.faradayverlies_10 / 100 * 0.1) / (1 + v.bop_variabel / 100 + v.bop_vast / 100);
+  const full = v.systeemverbruik_vol * (1 - v.faradayverlies_10 / 100 * 0.1) / (1 + (v.bop_variabel ?? 0) / 100 + (v.bop_vast ?? 0) / 100);
   const wear = ageing ? v.degradatie_1000h / 100 * v.stack_levensduur_uur / 1000 / 2 : 0;
   const sec = full * (1 - v.deellastvoordeel / 100 * (1 - x)) * (1 + wear);
-  const draw = x * (1 + v.bop_variabel / 100) + v.bop_vast / 100;
+  const draw = x * (1 + (v.bop_variabel ?? 0) / 100) + (v.bop_vast ?? 0) / 100;
   return x * 1000 / sec * faraday / draw;
 }
 
 function threshold(size, v) {
-  return size * (v.minimumlast / 100 * (1 + v.bop_variabel / 100) + v.bop_vast / 100);
+  return size * (v.minimumlast / 100 * (1 + (v.bop_variabel ?? 0) / 100) + (v.bop_vast ?? 0) / 100);
 }
 
 function drawExplainers() {
@@ -1205,7 +1205,7 @@ function renderWalk() {
   const parks = Object.keys(data.parken);
   const stations = Object.keys(data.stations);
   const sumKg = s => s.kg.reduce((x, y) => x + y, 0);
-  const kWh = (x, size) => x > 0 ? (x * (1 + v.bop_variabel / 100) + v.bop_vast / 100 * size) * 1000 / 6 : 0;
+  const kWh = (x, size) => x > 0 ? (x * (1 + (v.bop_variabel ?? 0) / 100) + (v.bop_vast ?? 0) / 100 * size) * 1000 / 6 : 0;
 
   const previousSteps = [...$("walk").querySelectorAll("details")];
   const expanded = previousSteps.length ? new Set(previousSteps.filter(step => step.open).map(step => step.dataset.step)) : new Set(["E"]);
@@ -1238,7 +1238,7 @@ function renderWalk() {
     const box = document.createElement("div");
     box.className = "deploy";
     box.innerHTML = `<p class="calc"><b>${label(count)} van ${nf(size)} MW</b><br>Startdrempel ${nf(config.drempel_mw)} MW per module
-      (${nf(v.minimumlast, 0)} % last + BoP). Er passen er ${step.passen}; de besturing kiest ${step.gewenst}${step.gewenst < step.passen && day.strategie === "verdelen" ? ", omdat dat de meeste waterstof geeft" : ""}. ${verdict}.${reason}</p>`;
+      (${nf(v.minimumlast, 0)} % last, inclusief BoP). Er passen er ${step.passen}; de besturing kiest ${step.gewenst}${step.gewenst < step.passen && day.strategie === "verdelen" ? ", omdat dat de meeste waterstof geeft" : ""}. ${verdict}.${reason}</p>`;
     box.append(moduleBars(step, size, color));
     return box;
   };
@@ -1250,7 +1250,7 @@ function renderWalk() {
     const spec = m.kg ? kWh(m.x, size) / m.kg : null;
     const startNote = lines.some(l => l.start) ? ` Opstarten kost ${nf(Math.max(...lines.map(l => l.start)), 0)} min productie.` : "";
     const many = lines.length > 1;
-    return `<p class="calc"><b>${label(count)}</b>${many ? `, per module` : ""}<br>${nf(m.x)} MW stack + BoP, 10 min = ${nf(kWh(m.x, size), 0)} kWh
+    return `<p class="calc"><b>${label(count)}</b>${many ? `, per module` : ""}<br>${nf(m.x)} MW systeemvermogen inclusief BoP, 10 min = ${nf(kWh(m.x, size), 0)} kWh
       ${spec ? `<br>÷ ${nf(spec, 1)} kWh/kg bij ${nf(m.x / size * 100, 0)} % last = <b>${nf(m.kg)} kg</b>` : "<br>Nog aan het opstarten: 0 kg"}${many ? `<br>× ${lines.length} modules = <b>${nf(sumKg(step))} kg</b>` : ""}.${startNote}</p>`;
   };
   const year = lastResult && (() => {
@@ -1335,7 +1335,7 @@ function renderSpeed(result) {
 const PARTS = [
   ["meer_waterstof", "Meer waterstof", "De vaste kosten worden over meer kilo's verdeeld."],
   ["duurdere_installatie", "Duurdere installatie", "Extra vaste kosten per module (gelijkrichter, transformator, besturing)."],
-  ["stroom_per_kilo", "Stroom per kilo", "Rendement bij de gekozen last, vaste BoP per module, warmhouden en opstartverlies."],
+  ["stroom_per_kilo", "Stroom per kilo", "Rendement bij de gekozen last, warmhouden en opstartverlies."],
   ["stackvervanging", "Stackvervanging", "Slijtage door bedrijfsuren en starts."],
 ];
 let whyToken = 0;

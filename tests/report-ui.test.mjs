@@ -15,7 +15,7 @@ function harness(){
  const meta={groepen:[{naam:'Test',velden:Object.keys(fixture.aannames).map(key=>({key,label:key,schaal:scales.has(key)?100:1,eenheid:scales.has(key)?'%':'',bron:'plaatshouder'}))}],technologieen:{pem:{naam:'PEM',waarden:Object.fromEntries(Object.entries(fixture.aannames).map(([k,v])=>[k,v*(scales.has(k)?100:1)]))}}};
  const ctx=vm.createContext({document,Intl,Date,JSON,Blob,URL:{createObjectURL:()=>'',revokeObjectURL(){}},Option:function(text,value,def,selected){return {text,value,selected};},setTimeout(){},addEventListener:(n,fn)=>{if(!events.has(n))events.set(n,[]);events.get(n).push(fn);},fetch:(url,options)=>new Promise(resolve=>requests.push({url,body:JSON.parse(options.body),resolve})),OpsReportMoments:{build:(data,a,b,c)=>({date:data.datum,notes:[],moments:[],a,b,c})}});
  vm.runInContext(modelSource,ctx);vm.runInContext(uiSource,ctx);docEvents.get('DOMContentLoaded')();
- const result={...structuredClone(fixture),technologie:'pem'};
+ const result={...structuredClone(fixture),technologie:'pem',model_versie:13};
  return {ctx,ui:ctx.OpsReportUI,node,requests,meta,result};
 }
 
@@ -57,7 +57,7 @@ test('a failed example request leaves annual arithmetic and export available',as
 });
 
 test('old, unknown and different wind-model snapshots do not silently request current-model moments',()=>{
- for(const change of [{model_versie:11},{model_versie:undefined},{windmethode:'productie_hoogste'}]){
+ for(const change of [{model_versie:12},{model_versie:11},{model_versie:undefined},{windmethode:'productie_hoogste'}]){
   const h=harness();Object.assign(h.result,change);h.ui.setResult(h.result,h.meta);h.ui.open();
   assert.equal(h.requests.length,0,'Incompatible snapshot must not call current Python runtime');
   assert.match(h.node('report-day-status').textContent,/oudere of andere modelbasis/);

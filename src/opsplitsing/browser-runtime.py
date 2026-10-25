@@ -7,6 +7,9 @@ class SerialPool:
     def __enter__(self): return self
     def __exit__(self, *args): pass
     def map(self, fn, jobs): return map(fn, jobs)
+# This page uses total system power: BoP is already included in the 44 MW.
+model.MODEL_VERSION = 13
+model.SENSITIVE_OPERATION = [key for key in model.SENSITIVE_OPERATION if not key.startswith('bop_')]
 model.ProcessPoolExecutor = SerialPool
 os.cpu_count = lambda: 1
 model.available_years = lambda: [2022, 2023, 2024, 2025]
@@ -20,8 +23,18 @@ def supply_year(year, client=None, method='onafhankelijk'):
     return _supplies[year]
 model.supply_year = supply_year
 def dispatch(path, body):
-    if path.endswith('/aannames'): return model.meta_json()
-    a = model.parse_aannames(body.get('aannames', {}))
+    if path.endswith('/aannames'):
+        meta = model.meta_json()
+        for group in meta['groepen']:
+            group['velden'] = [field for field in group['velden'] if not field['key'].startswith('bop_')]
+            for field in group['velden']:
+                if field['key'] == 'capaciteit_mw':
+                    field['uitleg'] = 'Totaal systeemvermogen inclusief BoP, opgesplitst over N gelijke modules. BoP wordt niet nogmaals toegevoegd.'
+        for technology in meta['technologieen'].values():
+            technology['waarden'].update(bop_vast=0, bop_variabel=0)
+        return meta
+    # Also override old stored scenarios and explicit request values.
+    a = model.parse_aannames({**body.get('aannames', {}), 'bop_vast': 0, 'bop_variabel': 0})
     strategy = body.get('strategie', 'verdelen')
     counts = body.get('modules', model.MODULE_COUNTS)
     years = sorted(set(body.get('jaren', model.available_years())))

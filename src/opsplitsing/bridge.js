@@ -15,7 +15,7 @@ window.fetch=async function(input,options){
    // Vóór modelversie 11 rekende de opsplitsing met de oude, op productie geijkte windmethode.
    const version=item.resultaat.model_versie??0;
    return {...item,resultaat:undefined,strategie:item.resultaat.strategie,jaren:item.resultaat.jaren,modules:rows.map(r=>r.modules),beste:best,een_module:one,
-    windmethode:item.resultaat.windmethode||'productie_hoogste',model_versie:version,verouderd:version<11};
+    windmethode:item.resultaat.windmethode||'productie_hoogste',model_versie:version,verouderd:version<13};
   })});
   const item=saved.find(x=>x.id===decodeURIComponent(path.split('/').pop()));
   return Response.json(item||{error:'Scenario niet gevonden.'},{status:item?200:404});

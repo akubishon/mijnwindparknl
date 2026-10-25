@@ -1,7 +1,7 @@
 /* Reproducible report UI: always reads the last calculated snapshot, never live form inputs. */
 (function(root){
   'use strict';
-  const SUPPORTED_MODEL_VERSION=12; // MODEL_VERSION of the bundled Python runtime.
+  const SUPPORTED_MODEL_VERSION=13; // MODEL_VERSION of the bundled Python runtime.
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=(n,d=6)=>typeof n==='number'&&Number.isFinite(n)?new Intl.NumberFormat('nl-NL',{maximumFractionDigits:d}).format(n):'Niet beschikbaar';
