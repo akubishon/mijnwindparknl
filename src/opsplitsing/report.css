@@ -1,4 +1,5 @@
 /* Rekenrapport: één vaste berekening om samen door te nemen. */
+.result-conclusion{padding:24px;background:#f4f8fb;border:1px solid var(--line);margin-bottom:22px}.result-conclusion h3{font-size:24px;font-weight:500;margin:0}.report-verdict{font-size:19px;line-height:1.6}.report-summary .report-base{border-color:var(--series-1)}.report-summary .report-comparison{border-color:var(--series-2)}.report-base>span{color:var(--series-1);font-weight:700}.report-comparison>span{color:#006f94;font-weight:700}
 .report-launch{background:var(--ink);color:#fff;padding:22px 24px;margin:22px 0;display:flex;align-items:center;justify-content:space-between;gap:22px;border-radius:0 20px 0 0}
 .report-launch h3{font-size:20px;font-weight:500;margin:0 0 4px}.report-launch p{margin:0;font-size:14px;color:#dceaf4;max-width:740px}.report-launch button{flex-shrink:0;background:white;color:var(--ink)}
 .calculation-report{margin:24px 0 32px;background:white;border:2px solid var(--ink);border-radius:0 26px 0 0;scroll-margin-top:16px}

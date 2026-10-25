@@ -11,11 +11,25 @@
   const table=(heads,rows,label)=>`<div class="report-scroll" tabindex="0" role="region" aria-label="${esc(label)}"><table><thead><tr>${heads.map(h=>`<th scope="col">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
   const section=(n,title,body)=>`<section class="report-section"><h3><span>${n}</span>${esc(title)}</h3>${body}</section>`;
   const download=(content,name,type)=>{const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+  function defaultComparison(rows){
+    const best=rows.reduce((a,b)=>(b.lcoh_eur_kg??Infinity)<(a.lcoh_eur_kg??Infinity)?b:a);
+    return best.modules!==rows[0].modules?best.modules:rows[1]?.modules??rows[0].modules;
+  }
+  function conclusion(r){
+    const b=r.economics.base,c=r.economics.comparison;
+    const change=(delta,unit)=>typeof delta!=='number'||!Number.isFinite(delta)?'niet te bepalen':`${fmt(Math.abs(delta),2)} ${unit} ${delta>0?'meer':delta<0?'minder':'verschil'}`;
+    const text=r.base.modules===r.comparison.modules
+      ? 'Er is één opstelling gekozen. Kies meerdere aantallen modules om het effect van opsplitsen te vergelijken.'
+      : `Met deze opsplitsing produceren we ${change((c.kg-b.kg)/1000,'ton waterstof per jaar')}. De jaarkosten veranderen met ${change(c.annual-b.annual,'euro per jaar')}. ${r.delta==null?'Een kostprijsvergelijking is niet mogelijk, omdat een opstelling geen waterstof produceert.':`Daardoor ${r.delta<0?'daalt':r.delta>0?'stijgt':'verandert'} de bruto kostprijs van ${fmt(b.lcoh,2)} naar ${fmt(c.lcoh,2)} €/kg${r.delta===0?' niet':''}.`}`;
+    return `<h3>Wat levert opsplitsen op?</h3><p class="report-verdict">${esc(text)}</p><div class="report-summary">${[[r.base,b,'Basis','base'],[r.comparison,c,'Opsplitsing','comparison']].map(([row,e,title,key])=>`<div class="report-${key}"><span>${title} · ${esc(cfg(row))}</span><strong>${fmt(e.lcoh,2)} <small>€/kg bruto</small></strong><p>${fmt(e.kg/1000,1)} ton waterstof per jaar<br>${fmt(e.annual/1e6,2)} miljoen euro per jaar</p></div>`).join('')}</div><p class="note">Beide opstellingen gebruiken hetzelfde windaanbod en ${fmt(r.result.aannames.capaciteit_mw,2)} MW totaal systeemvermogen. De basis is de eerste gekozen opstelling. Deze conclusie geldt voor de gekozen windjaren en aannames.</p>`;
+  }
   function enableExports(){ $('report-print').disabled=loading; $('report-excel').disabled=loading; $('report-json').disabled=loading; }
   function setResult(result,meta){
     snapshot=JSON.parse(JSON.stringify(result));metadata=JSON.parse(JSON.stringify(meta));revision++;report=null;loading=false;
     const panel=$('calculation-report');if(panel)panel.hidden=true;
     $('explain-calculation')?.setAttribute('aria-expanded','false');
+    const overview=$('result-conclusion');
+    if(overview)overview.innerHTML=conclusion(root.OpsReportModel.makeReport(snapshot,metadata,defaultComparison(snapshot.rijen)));
   }
   function make(count){
     report=root.OpsReportModel.makeReport(snapshot,metadata,count);
@@ -29,7 +43,7 @@
     $('report-stamp').textContent=`Vastgelegd op ${dateText(r.generatedAt)} (Nederlandse tijd). Berekening: ${ctx.key}.`;
     const choose=$('report-count');choose.replaceChildren(...snapshot.rijen.map(row=>new Option(cfg(row),row.modules,false,row.modules===r.comparison.modules)));
     const signs=v=>(v>0?'+':'')+fmt(v);
-    const summary=`<p>Beide opstellingen gebruiken <strong>${fmt(snapshot.aannames.capaciteit_mw,3)} MW totaal stackvermogen</strong> en hetzelfde gemodelleerde windaanbod. De eerste gekozen configuratie is de basis.</p><div class="report-summary">${[[r.base,b,'Basis'],[r.comparison,c,'Vergelijking']].map(([row,e,title])=>`<div><span>${title} · ${esc(cfg(row))}</span><strong>${fmt(e.lcoh,4)} <small>€/kg bruto</small></strong><p>${fmt(e.kg,1)} kg/jaar<br>${fmt(e.annual,2)} €/jaar</p></div>`).join('')}</div><p class="report-verdict">Verschil: <strong>${signs(r.delta)} €/kg</strong> (${r.delta==null?'geen kostprijs bij ontbrekende productie':r.delta<0?'lagere':r.delta>0?'hogere':'gelijke'} bruto kostprijs voor de vergelijking).</p>`;
+    const summary=conclusion(r);
     const assumptions=table(['Gebruikte invoer','Waarde','Eenheid','Herkomst','Toelichting'],r.assumptions.map(a=>`<tr><th scope="row">${esc(a.label)}</th><td class="report-number">${fmt(a.value)}</td><td>${esc(a.unit)}</td><td><span class="report-source">${esc(a.source)}</span></td><td>${esc(a.explanation)}</td></tr>`),'Invoer en bronnen');
     const annual=`<p>${esc(ctx.annualisation)}</p>${table(['Windjaar','Geldige uren','Factor naar 8.760 uur','Aanbod na omrekening (MWh/jaar)'],ctx.coverage.map(v=>`<tr><th scope="row">${v.year}</th><td>${fmt(v.hours)}</td><td>8.760 / ${fmt(v.hours)} = ${fmt(v.scale,10)}</td><td>${fmt(v.supplyMwh)}</td></tr>`),'Datadekking per windjaar')}<p class="note">Windmethode: ${esc(ctx.windExplanation||ctx.windMethod)}. Jaarproductie en slijtage-uren komen uit de volledige simulatie; drie voorbeeldmomenten illustreren de werking.</p>`;
     const arithmetic=table(['Rekenstap en formule',`${cfg(r.base)} · basis`,`${cfg(r.comparison)} · vergelijking`],r.calculations.map(row=>`<tr><th scope="row">${esc(row.label)}<small>${esc(row.formula)}</small></th>${['base','comparison'].map(k=>`<td><span class="report-expression">${esc(row[k+'Expression'])}</span><strong>${fmt(row[k],row.key==='annuity'?10:6)} ${esc(row.unit)}</strong></td>`).join('')}</tr>`),'Rekenstappen jaarkosten en kostprijs');
@@ -60,8 +74,7 @@
   function open(){
     if(!snapshot)return;
     previousButton=document.activeElement;
-    const rows=snapshot.rijen, best=rows.reduce((a,b)=>(b.lcoh_eur_kg??Infinity)<(a.lcoh_eur_kg??Infinity)?b:a);
-    make(best.modules!==rows[0].modules?best.modules:rows[1]?.modules??rows[0].modules);
+    make(defaultComparison(snapshot.rijen));
     render();$('calculation-report').hidden=false;$('explain-calculation').setAttribute('aria-expanded','true');$('report-title').focus();$('calculation-report').scrollIntoView({block:'start',behavior:'instant'});loadMoments();
   }
   document.addEventListener('DOMContentLoaded',()=>{
