@@ -142,3 +142,44 @@ test('an unavailable startup is stated explicitly and cannot show invented produ
  assert.equal(h.ui.getReport().moments.moments.length,3);
  assert.equal(h.node('report-json').disabled,false);
 });
+
+test('missing wear data leaves known production visible and never becomes zero annual cost',()=>{
+ const h=harness();
+ h.result.rijen.forEach(row=>{delete row.eq_uren_per_module;});
+ h.ui.setResult(h.result,h.meta);
+ const shown=h.node('result-conclusion').innerHTML;
+ assert.match(shown,/kostengegevens/);
+ assert.doesNotMatch(shown,/geen waterstof produceert/);
+ assert.match(shown,/2\.960,4 ton waterstof per jaar/,'Known physical production remains readable');
+ assert.doesNotMatch(shown,/(?:>|\s)0(?:,00)? miljoen euro/,'Missing stack and annual costs must not become zero');
+ assert.match(shown,/Niet beschikbaar/);
+ h.ui.open();
+ assert.equal(h.ui.getReport().economics.base.annual,null);
+ assert.equal(h.ui.getReport().economics.comparison.annual,null);
+ assert.ok(h.ui.getReport().economics.base.kg>0);
+});
+
+test('self-comparison distinguishes choosing the basis twice from a single-configuration result',()=>{
+ const h=harness();h.ui.setResult(h.result,h.meta);h.ui.open();
+ h.node('report-count').value=String(h.result.rijen[0].modules);
+ h.node('report-count').onchange();
+ const self=h.node('report-body').innerHTML;
+ assert.match(self,/basis met zichzelf|andere opstelling/i);
+ assert.doesNotMatch(self,/Er is één opstelling gekozen/);
+ const single=harness();single.result.rijen=single.result.rijen.slice(0,1);
+ single.ui.setResult(single.result,single.meta);
+ assert.match(single.node('result-conclusion').innerHTML,/één opstelling/i);
+ assert.doesNotMatch(single.node('result-conclusion').innerHTML,/basis met zichzelf/i);
+});
+
+test('visible euro-per-kilo prices retain exactly two decimals even for a round tenth',()=>{
+ const h=harness(),base=h.result.rijen[0];
+ const annual=h.ctx.OpsReportModel.costs(base,h.result.aannames).annual;
+ base.waterstof_t=annual/8.5/1000;
+ h.ui.setResult(h.result,h.meta);h.ui.open();
+ for(const shown of [h.node('result-conclusion').innerHTML,h.node('report-body').innerHTML]){
+  assert.match(shown,/<strong>8,50 <small>€\/kg bruto<\/small>/);
+  assert.match(shown,/van 8,50 naar/);
+  assert.match(shown,/<strong>8,50 €\/kg<\/strong>/);
+ }
+});

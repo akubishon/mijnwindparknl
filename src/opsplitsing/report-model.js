@@ -5,7 +5,7 @@
   const clone = value => JSON.parse(JSON.stringify(value));
   const number = value => finite(value) ? value : null;
   const calc = (fn, ...values) => values.every(finite) ? number(fn(...values)) : null;
-  const fmt = value => finite(value) ? new Intl.NumberFormat('nl-NL', {maximumFractionDigits: 10}).format(value) : 'niet beschikbaar';
+  const fmt = value => finite(value) ? String(value).replace('.', ',') : 'niet beschikbaar';
   const expr = (values, join) => values.map(fmt).join(join);
   const near = (a, b) => finite(a) && finite(b) && Math.abs(a - b) <= 1e-8 * Math.max(1, Math.abs(b));
   const sum = values => Array.isArray(values) && values.length && values.every(finite) ? number(values.reduce((a, b) => a + b, 0)) : null;
