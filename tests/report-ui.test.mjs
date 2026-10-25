@@ -7,16 +7,16 @@ const uiSource=await readFile(new URL('../src/opsplitsing/report-ui.js',import.m
 const fixture=JSON.parse(await readFile(new URL('./fixtures/opsplitsing-2025-native.json',import.meta.url),'utf8'));
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function harness(){
- const nodes=new Map(),requests=[],events=new Map();
+ const nodes=new Map(),requests=[],events=new Map(),downloads=[];
  const node=id=>{if(!nodes.has(id))nodes.set(id,{id,hidden:true,disabled:false,value:id==='report-day'?'2025-05-14':'',attrs:{},classList:{add(){},remove(){}},setAttribute(key,v){this.attrs[key]=v;},replaceChildren(...children){this.children=children;},focus(){},scrollIntoView(){},querySelectorAll(){return [];},append(){},click(){},remove(){}});return nodes.get(id);};
  const docEvents=new Map();
  const document={getElementById:node,activeElement:node('explain-calculation'),addEventListener:(n,fn)=>docEvents.set(n,fn),body:{...node('body'),append(){}},createElement:()=>({...node('download')})};
  const scales=new Set(['minimumlast','deellastvoordeel','faradayverlies_10','bop_vast','bop_variabel','degradatie_1000h','standby','stack_aandeel','opex_aandeel','rente']);
  const meta={groepen:[{naam:'Test',velden:Object.keys(fixture.aannames).map(key=>({key,label:key,schaal:scales.has(key)?100:1,eenheid:scales.has(key)?'%':'',bron:'plaatshouder'}))}],technologieen:{pem:{naam:'PEM',waarden:Object.fromEntries(Object.entries(fixture.aannames).map(([k,v])=>[k,v*(scales.has(k)?100:1)]))}}};
- const ctx=vm.createContext({document,Intl,Date,JSON,Blob,URL:{createObjectURL:()=>'',revokeObjectURL(){}},Option:function(text,value,def,selected){return {text,value,selected};},setTimeout(){},addEventListener:(n,fn)=>{if(!events.has(n))events.set(n,[]);events.get(n).push(fn);},fetch:(url,options)=>new Promise(resolve=>requests.push({url,body:JSON.parse(options.body),resolve})),OpsReportMoments:{build:(data,a,b,c)=>({date:data.datum,notes:[],moments:[],a,b,c})}});
+ const ctx=vm.createContext({document,Intl,Date,JSON,Blob,URL:{createObjectURL:blob=>{downloads.push(blob);return '';},revokeObjectURL(){}},Option:function(text,value,def,selected){return {text,value,selected};},setTimeout(){},addEventListener:(n,fn)=>{if(!events.has(n))events.set(n,[]);events.get(n).push(fn);},fetch:(url,options)=>new Promise(resolve=>requests.push({url,body:JSON.parse(options.body),resolve})),OpsReportMoments:{build:(data,a,b,c)=>({date:data.datum,notes:[],moments:[],a,b,c})}});
  vm.runInContext(modelSource,ctx);vm.runInContext(uiSource,ctx);docEvents.get('DOMContentLoaded')();
  const result={...structuredClone(fixture),technologie:'pem',model_versie:13};
- return {ctx,ui:ctx.OpsReportUI,node,requests,meta,result};
+ return {ctx,ui:ctx.OpsReportUI,node,requests,meta,result,downloads};
 }
 
 test('report UI and day request use the result snapshot and shown-unit scaling',async()=>{
@@ -80,5 +80,65 @@ test('retry clears the old example error and JSON waits for the complete example
  h.requests[1].resolve({ok:true,json:async()=>({datum:'2025-05-14'})});await tick();
  assert.equal(h.ui.getReport().moments.date,'2025-05-14');
  assert.equal(h.ui.getReport().momentError,undefined);
+ assert.equal(h.node('report-json').disabled,false);
+});
+
+function exampleMoments(startAvailable=true){
+ const configuration=(modules,active,traceKg)=>({modules,size:44/modules,active,traceKg,
+  rows:[],moduleRows:[],reasons:[],check:{detail:'Afgeronde dagwaarden gecontroleerd.'}});
+ const moment=(kind,title,available,windSpeed,power,kg)=>({kind,title,available,
+  criterion:available?`Selectiecriterium ${kind}`:'Deze dag bevat geen zichtbaar start- of stopmoment.',
+  timestamp:1750000000,
+  wind:[{key:'fryslan-v10',label:'Wind op 10 m',value:windSpeed,unit:'m/s'},
+   {key:'supply',label:'Beschikbaar vermogen',value:power,unit:'MW'}],
+  configurations:[configuration(1,kg?1:0,kg),configuration(2,1,kg+1)]});
+ return {date:'2025-05-14',notes:['De jaaruitkomst gebruikt alle beschikbare tienminutenstappen.'],
+  moments:[moment('low','Weinig wind',true,4,7,0),
+   moment('high','Veel wind',true,12,44,120),
+   moment('start','Starten of stoppen',startAvailable,6,20,10)]};
+}
+
+test('example picker shows one moment and switches locally without discarding export data',async()=>{
+ const h=harness(),data=exampleMoments();
+ h.ctx.OpsReportMoments.build=()=>data;
+ h.ui.setResult(h.result,h.meta);h.ui.open();
+ h.requests[0].resolve({ok:true,json:async()=>({datum:data.date})});await tick();
+ const displayed=()=>h.node('report-moments').innerHTML;
+ const articleCount=()=>[...displayed().matchAll(/<article class="report-moment">/g)].length;
+ assert.equal(articleCount(),1);
+ assert.match(displayed(),/<h4>Weinig wind/);
+ assert.doesNotMatch(displayed(),/<h4>Veel wind|<h4>Opstarten/);
+ assert.match(displayed(),/Van wind naar waterstof/);
+ assert.ok(displayed().indexOf('report-chain')<displayed().indexOf('Bekijk de berekening van dit moment'));
+
+ h.node('report-moment-choice').value='high';h.node('report-moment-choice').onchange();
+ assert.equal(articleCount(),1);
+ assert.match(displayed(),/<h4>Veel wind/);
+ assert.doesNotMatch(displayed(),/<h4>Weinig wind|<h4>Opstarten/);
+ assert.match(displayed(),/120 kg/);
+ assert.equal(h.requests.length,1,'Switching example type must reuse the fetched day');
+
+ h.node('report-json').onclick();
+ const exported=JSON.parse(await h.downloads.at(-1).text());
+ assert.deepEqual(exported.moments,data,'JSON retains all three example moments, regardless of selection');
+ let excelReport;
+ h.ctx.OpsReportExcel={build:report=>{excelReport=report;return new Uint8Array();}};
+ h.node('report-excel').onclick();
+ assert.deepEqual(excelReport.moments,data,'Excel receives the full example data');
+});
+
+test('an unavailable startup is stated explicitly and cannot show invented production',async()=>{
+ const h=harness(),data=exampleMoments(false);
+ h.ctx.OpsReportMoments.build=()=>data;
+ h.ui.setResult(h.result,h.meta);h.ui.open();
+ h.requests[0].resolve({ok:true,json:async()=>({datum:data.date})});await tick();
+ h.node('report-moment-choice').value='start';h.node('report-moment-choice').onchange();
+ const shown=h.node('report-moments').innerHTML;
+ assert.match(shown,/<h4>Opstarten<\/h4>/);
+ assert.match(shown,/geen zichtbaar start- of stopmoment/);
+ assert.match(shown,/andere voorbeelddag/);
+ assert.doesNotMatch(shown,/report-chain|Kilo’s waterstof|Bekijk de berekening van dit moment/);
+ assert.equal(h.requests.length,1);
+ assert.equal(h.ui.getReport().moments.moments.length,3);
  assert.equal(h.node('report-json').disabled,false);
 });
