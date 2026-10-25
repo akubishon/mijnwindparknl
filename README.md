@@ -53,7 +53,7 @@ Eenmalig instellen:
 
 Daarna publiceert `.github/workflows/deploy.yml` bij iedere push naar `main`: de workflow controleert dat `worker/index.js` overeenkomt met de bronnen, draait `npm test` en voert `npx wrangler deploy` uit. Handmatig kan ook met `npx wrangler deploy`.
 
-De site staat eerst op `https://mijnwindpark.<account>.workers.dev`. Voor `mijnwindpark.nl` voeg je het domein toe aan Cloudflare, zet je bij de registrar de nameservers op die van Cloudflare en koppel je het domein aan de worker (Workers → mijnwindpark → Settings → Domains & Routes → Custom domain). Pas daarna stopt de oude hosting met verkeer ontvangen.
+De site staat eerst op `https://mijnwindparknl.<account>.workers.dev`. Voor `mijnwindpark.nl` voeg je het domein toe aan Cloudflare, zet je bij de registrar de nameservers op die van Cloudflare en koppel je het domein aan de worker (Workers → mijnwindparknl → Settings → Domains & Routes → Custom domain). Pas daarna stopt de oude hosting met verkeer ontvangen.
 
 Lokaal in de echte Workers-runtime testen: zet de geheimen in `.dev.vars` (staat in `.gitignore`) en start `npx wrangler dev --test-scheduled`; `curl "http://localhost:8787/__scheduled?cron=5+*+*+*+*"` start de uurtaak. Bestaande HARMONIE-snapshots uit de oude opslag worden niet meegenomen; recente runs worden bij aanvraag opnieuw uit het KNMI-archief opgehaald.
 

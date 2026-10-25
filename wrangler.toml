@@ -1,5 +1,5 @@
 # Cloudflare Workers deployment. See "Cloudflare Workers" in README.md.
-name = "mijnwindpark"
+name = "mijnwindparknl"
 main = "worker/index.js"
 compatibility_date = "2026-10-01"
 workers_dev = true
