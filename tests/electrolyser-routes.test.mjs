@@ -10,7 +10,7 @@ async function signedIn() {
  const cookie = login.headers.get('Set-Cookie').split(';')[0];
  return route => worker.fetch(new Request('https://fixture.test' + route, {headers: {Cookie: cookie}}), env);
 }
-const routes = ['/elektrolyser', '/elektrolyser/catalogus', '/elektrolyser/samenstellen', '/elektrolyser/vergelijken', '/slim-schakelen'];
+const routes = ['/elektrolyser', '/elektrolyser/catalogus', '/elektrolyser/samenstellen', '/elektrolyser/vergelijken'];
 
 test('Elektrolyser sub-tabs and the calculation worker stay behind the site login', async () => {
  const worker = await raw();
@@ -24,6 +24,9 @@ test('Elektrolyser sub-tabs and the calculation worker stay behind the site logi
   const html = await r.text();
   assert.doesNotMatch(html, /fixture-atlas-secret|WINDPARK_CATALOG_TOKEN/);
  }
+ const retired = await get('/slim-schakelen?day=2026-10-25');
+ assert.equal(retired.status, 302);
+ assert.equal(retired.headers.get('Location'), '/elektrolyser?day=2026-10-25');
  const script = await get('/assets/elektrolyser-rekenkern.js');
  assert.equal(script.status, 200); assert.match(script.headers.get('Content-Type'), /javascript/);
  assert.match(script.headers.get('Content-Security-Policy'), /connect-src 'self'/);

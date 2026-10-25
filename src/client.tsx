@@ -4,5 +4,4 @@ import Explorer from './explorer';
 import Landing from './landing';
 import ElectrolyserApp from './electrolyser-hub';
 import Research from './research';
-import SmartSwitching from './smart-switching';
-createRoot(document.getElementById('root')!).render(<><div className="site-session"><form method="post" action="/auth/logout"><button type="submit">Uitloggen</button></form></div>{location.pathname==='/'?<Landing />:location.pathname==='/slim-schakelen'?<SmartSwitching />:location.pathname==='/onderzoek'?<Research />:location.pathname==='/elektrolyser'||location.pathname.startsWith('/elektrolyser/')?<ElectrolyserApp />:<Explorer park={location.pathname==='/beabuorren'?'beabuorren':'fryslan'} />}</>);
+createRoot(document.getElementById('root')!).render(<><div className="site-session"><form method="post" action="/auth/logout"><button type="submit">Uitloggen</button></form></div>{location.pathname==='/'?<Landing />:location.pathname==='/onderzoek'?<Research />:location.pathname==='/elektrolyser'||location.pathname.startsWith('/elektrolyser/')?<ElectrolyserApp />:<Explorer park={location.pathname==='/beabuorren'?'beabuorren':'fryslan'} />}</>);

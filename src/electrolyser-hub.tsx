@@ -44,7 +44,7 @@ function NumberInput({value,scale=1,onCommit,label,disabled}:{value:number|null|
  return <input type="text" inputMode="decimal" aria-label={label} value={text} disabled={disabled} onChange={e=>setText(e.target.value)} onBlur={commit} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();commit();}}}/>;
 }
 function SubTabs({current,go}:{current:Tab;go:(t:Tab)=>void}){
- return <nav className="electrolyser-tabs" aria-label="Elektrolyser">{TABS.map(([key,label,href])=><a key={key} href={href} aria-current={current===key?'page':undefined} onClick={e=>{if(e.metaKey||e.ctrlKey||e.shiftKey||e.button)return;e.preventDefault();go(key);}}>{label}</a>)}</nav>;
+ return <nav className="electrolyser-tabs" aria-label="Elektrolyser">{TABS.map(([key,label,href])=><a key={key} href={href} aria-current={current===key?'page':undefined} onClick={e=>{if(e.metaKey||e.ctrlKey||e.shiftKey||e.button)return;e.preventDefault();go(key);}}>{label}</a>)}<a href="/opsplitsing">Opsplitsen</a></nav>;
 }
 function Shell({tab,go,children}:{tab:Tab;go:(t:Tab)=>void;children:ReactNode}){
  return <div className="shell electrolyser-shell"><SiteHeader/><main id="inhoud"><SiteNavigation current="/elektrolyser"/><SubTabs current={tab} go={go}/>{children}<footer>Waterstofatlas · rekenkern /opsplitsing · Europe/Amsterdam</footer></main></div>;

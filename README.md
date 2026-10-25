@@ -215,11 +215,17 @@ Verification: `npm test` covers the existing Worker behavior plus wind-before-po
 De daganalyse gebruikt een samenhangende werkruimte: daggrafiek, tijdschuif en productie per configuratie links; zes compacte rekenstappen rechts. De kernwaarden blijven zichtbaar, formules zijn per stap uit te klappen en ‘Alle rekenstappen tonen’ opent alles. De keuze blijft behouden bij wisselen van tijdstip. Vorige/volgende bedient één tienminutenstap. Brede schermen tonen maximaal twee grote resultaatgrafieken per rij; gewone tekst en tabellen zijn groter gezet. Op kleine schermen stapelen de onderdelen en scrolt alleen de daggrafiek horizontaal.
 
 
-## HARMONIE op Slim schakelen
+## Navigatie en HARMONIE
 
-`/slim-schakelen` haalt via de bestaande sitelogin `/api/harmonie` op. De server gebruikt de geheime runtimevariabele `KNMI_OPEN_DATA_API_KEY` voor KNMI Open Data, niet de EDR-key. P1 1.0 wordt op bestandsnaam aflopend opgevraagd. Een ondertekende download-URL krijgt geen Authorization-header mee. De TAR wordt begrensd gestreamd; alleen reguliere lat/lon GRIB1 met eenvoudige pakking en zonder bitmap wordt geaccepteerd. Onbekende formaten geven een fout, geen nulwaarden.
+De hoofdnavigatie bevat Start, Fryslân, Beabuorren, Elektrolyser en Onderzoek.
+De startpagina toont vier directe keuzes zonder extra categoriefilters.
+Elektrolyser opsplitsen staat onder Elektrolyser naast Beschikbaar vermogen,
+Catalogus, Samenstellen en Vergelijken. Beide bestaande routes `/opsplitsing`
+en `/elektrolyser/opsplitsen` blijven beschikbaar.
 
-De eerste maximaal zeven complete toekomstige uurpunten worden getoond, met run- en ophaaltijd. Een run ouder dan zes uur krijgt een waarschuwing. Geslaagde aanvragen worden vijftien minuten in de Worker hergebruikt; fouten één minuut. Er is nog geen duurzaam voorspellingsarchief. De wind op 10 m wordt bij benaderde parkcentra uit het dichtstbijzijnde modelroosterpunt gehaald en met de bestaande hoogtecorrectie en turbinecurves naar potentieel vermogen vertaald. Toewijzing is 10% Fryslân + 100% Beabuorren vóór BoP. Productiecorrectie, aansluitbeperkingen, afregeling en automatische modulebesturing zijn niet gekoppeld. De marge blijft een handmatige aanname.
+De losse proefpagina Slim schakelen is verwijderd. `/slim-schakelen` verwijst
+door naar `/elektrolyser`. HARMONIE en de bijbehorende API blijven beschikbaar
+voor de windgrafieken op de parkpagina’s; de gegevensverwerking is ongewijzigd.
 
 ### Onbegrensd windpotentieel op de parkpagina’s
 
@@ -264,7 +270,7 @@ API: `/api/harmonie?model=p2b`; onbekende modelnamen krijgen HTTP 400.
 
 ### Vooraf verwerkte HARMONIE-voorspellingen
 
-De parkpagina’s en Slim schakelen lezen uitsluitend kleine, blijvend opgeslagen
+De parkpagina’s lezen uitsluitend kleine, blijvend opgeslagen
 R2-snapshots via `/api/harmonie`. Een snapshot bevat de beschikbare horizon van
 één modelrun met de twee roosterlocaties. De gekozen turbine-instellingen worden
 pas op die opgeslagen windsnelheden toegepast, zodat alle instellingen dezelfde

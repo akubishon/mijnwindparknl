@@ -10,7 +10,7 @@ for(const file of ['opsplitsing.css','opsplitsing.js','bridge.js','calculator-wo
 assets['bundle.json']=[JSON.stringify(bundle),'application/json'];
 for(const file of readdirSync(root+'data'))assets['data/'+file]=[readFileSync(root+'data/'+file,'utf8'),'application/json'];
 assets['scenarios.json']=['{"scenarios":[]}','application/json'];
-let html=readFileSync(root+'opsplitsing.html','utf8').replace('href="./opsplitsing.css"','href="/opsplitsing-assets/opsplitsing.css"').replace('<script src="./opsplitsing.js" defer></script>','<script src="/opsplitsing-assets/bridge.js" defer></script><script src="/opsplitsing-assets/opsplitsing.js" defer></script>').replace('href="/">Windprofiel</a>','href="/">Start</a><a href="/fryslan">Fryslân</a><a href="/beabuorren">Beabuorren</a><a href="/elektrolyser">Elektrolyser</a><a href="/onderzoek">Onderzoek</a>');
+let html=readFileSync(root+'opsplitsing.html','utf8').replace('href="./opsplitsing.css"','href="/opsplitsing-assets/opsplitsing.css"').replace('<script src="./opsplitsing.js" defer></script>','<script src="/opsplitsing-assets/bridge.js" defer></script><script src="/opsplitsing-assets/opsplitsing.js" defer></script>');
 html=html.replace('href="/">Windparken</a>','href="/">mijnwindpark.nl</a>');
 html=html.replaceAll(/(?:href|src)="\.\/(report[^"]+)"/g, (match,file)=>match.replace('./'+file,'/opsplitsing-assets/'+file));
 html=html.replace('Lokale analyse · Europe/Amsterdam','Tijden in Nederland').replace('<section class="intro">','<section class="intro"><p class="note">De berekeningen draaien op dit apparaat. Houd deze pagina open tijdens het rekenen. Het eerste gebruik downloadt het rekenmodel; grote analyses kunnen enkele minuten duren.</p>');
