@@ -286,12 +286,17 @@ function drawEfficiency(v) {
   const W = 440, H = 220, L = 44, R = 16, T = 30, B = 184;
   const xs = Array.from({length: 101}, (_, i) => i / 100);
   const ys = xs.map(x => kgPerMWh(x, v));
-  const top = niceTop(Math.max(...ys, 1) * 1.1);
-  const px = x => L + x * (W - L - R), py = y => B - y / top * (B - T);
+  const bottom = 15, top = 25;
+  const px = x => L + x * (W - L - R), py = y => B - (y - bottom) / (top - bottom) * (B - T);
   const svg = el("svg", {viewBox: `0 0 ${W} ${H}`, "aria-hidden": "true"});
-  for (let y = 0; y <= top; y += top / 4) {
-    svg.append(el("line", {x1: L, x2: W - R, y1: py(y), y2: py(y), class: y ? "grid" : "axis"}),
-      text(L - 6, py(y) + 4, nf(y, 0), {"text-anchor": "end"}));
+  const clip = el("clipPath", {id: "efficiency-plot-clip"});
+  clip.append(el("rect", {x: L, y: T, width: W - L - R, height: B - T}));
+  const defs = el("defs");
+  defs.append(clip);
+  svg.append(defs);
+  for (let y = bottom; y <= top; y += (top - bottom) / 4) {
+    svg.append(el("line", {x1: L, x2: W - R, y1: py(y), y2: py(y), class: y === bottom ? "axis" : "grid"}),
+      text(L - 6, py(y) + 4, nf(y, 1), {"text-anchor": "end"}));
   }
   for (const x of [0, .25, .5, .75, 1]) svg.append(text(px(x), B + 16, nf(x * 100, 0) + " %", {"text-anchor": "middle"}));
   svg.append(text(L - 40, T - 16, "kg per MWh", {}), text(W - R, B + 32, "last van de module", {"text-anchor": "end"}));
@@ -301,10 +306,12 @@ function drawEfficiency(v) {
     text(L + 6, T + 14, "onder minimumlast", {fill: COLORS.ink}));
   if (live.length) {
     svg.append(el("polyline", {points: live.map(([x, y]) => `${px(x).toFixed(1)},${py(y).toFixed(1)}`).join(" "),
-      fill: "none", stroke: COLORS.one, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round"}));
+      fill: "none", stroke: COLORS.one, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", "clip-path": "url(#efficiency-plot-clip)"}));
     const best = live.reduce((a, b) => b[1] > a[1] ? b : a);
-    svg.append(el("circle", {cx: px(best[0]), cy: py(best[1]), r: 4.5, fill: COLORS.one, stroke: "#fff", "stroke-width": 2}),
-      text(px(best[0]), py(best[1]) - 10, `${nf(best[1])} kg/MWh bij ${nf(best[0] * 100, 0)} %`, {"text-anchor": best[0] > .7 ? "end" : "middle", class: "label"}));
+    if (best[1] >= bottom && best[1] <= top) {
+      svg.append(el("circle", {cx: px(best[0]), cy: py(best[1]), r: 4.5, fill: COLORS.one, stroke: "#fff", "stroke-width": 2, "clip-path": "url(#efficiency-plot-clip)"}),
+        text(px(best[0]), Math.max(T + 12, py(best[1]) - 10), `${nf(best[1])} kg/MWh bij ${nf(best[0] * 100, 0)} %`, {"text-anchor": best[0] > .7 ? "end" : "middle", class: "label"}));
+    }
     const hit = el("rect", {x: L, y: T, width: W - L - R, height: B - T, class: "hit"});
     hit.addEventListener("mousemove", event => {
       const box = hit.getBoundingClientRect();
