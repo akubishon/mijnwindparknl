@@ -15,3 +15,9 @@ crons = ["5 * * * *"]
 
 [observability]
 enabled = true
+
+# Worker Previews (PR branches) need their own bindings. They share the production
+# bucket: previews only read data and store the same KNMI snapshots as production.
+[[previews.r2_buckets]]
+binding = "BUCKET"
+bucket_name = "mijnwindpark"
