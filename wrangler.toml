@@ -1,0 +1,17 @@
+# Cloudflare Workers deployment. See "Cloudflare Workers" in README.md.
+name = "mijnwindpark"
+main = "worker/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# Durable HARMONIE snapshots (harmonie/v1/{model}/{run}.json).
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "mijnwindpark"
+
+# Every hour at five past: store the newest HARMONIE P1 and P2b runs.
+[triggers]
+crons = ["5 * * * *"]
+
+[observability]
+enabled = true

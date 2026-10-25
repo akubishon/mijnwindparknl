@@ -7,3 +7,4 @@ dist/
 outputs/
 work/
 *.tsbuildinfo
+.dev.vars*

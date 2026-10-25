@@ -2095,4 +2095,11 @@ export default {
       return answer({ error: 'De gegevensbron is tijdelijk niet beschikbaar. Probeer het opnieuw.' }, 502);
     }
   },
+  // Cloudflare Cron Trigger: store the newest HARMONIE run of each model; a stored run is skipped.
+  async scheduled(event, env, ctx) {
+    for(const model of ['p1','p2b']){
+      try{const result=await updateHarmonieSnapshot(env,model,{});console.info('HARMONIE_SCHEDULED',JSON.stringify({model,run:result?.run}));}
+      catch(error){console.error('HARMONIE_SCHEDULED_FAILED',model,error.message);}
+    }
+  },
 };

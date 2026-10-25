@@ -492,3 +492,9 @@ test('opsplitsing page, Python model and year data stay behind the site login',a
  assert.equal((await get(worker,'/opsplitsing-assets/data/2030.json')).status,404);
  assert.equal((await get(worker,'/fonts/tasa-orbiter.ttf')).status,200);
 });
+test('Cloudflare cron handler tries both HARMONIE models and never throws',async()=>{
+ const worker=await rawFresh(),prior=console.error,logged=[];
+ console.error=(...args)=>logged.push(args.join(' '));
+ try{await worker.scheduled({cron:'5 * * * *'},{},{});}finally{console.error=prior;}
+ assert.deepEqual(logged,['HARMONIE_SCHEDULED_FAILED p1 HARMONIE_STORAGE','HARMONIE_SCHEDULED_FAILED p2b HARMONIE_STORAGE']);
+});

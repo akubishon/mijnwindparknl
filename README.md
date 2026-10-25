@@ -12,6 +12,8 @@ node scripts/dev.mjs
 
 Open `http://localhost:8787`. The committed standalone worker includes the browser bundle, so no dependency installation is needed to run it. Local development reads the public client's configuration from the APK into memory. Alternatively supply `WPF_PUBLIC_CLIENT_KEY` and `WPF_FIREBASE_API_KEY` as environment variables. The server binds to loopback.
 
+The whole site is behind the site password, so set `SITE_PASSWORD` (any value you choose locally) before starting, or the site stays locked. The dev server reads environment variables and a local `.env` (copy `.env.example`); variables already set take precedence. Optional: `RESEARCH_PASSWORD`, `KNMI_EDR_API_KEY` (KNMI measurements on the park pages), `KNMI_OPEN_DATA_API_KEY` (live HARMONIE) and `WINDPARK_CATALOG_TOKEN` (Waterstofatlas catalogue). Stored HARMONIE snapshots live in R2 and are not available locally.
+
 ## Edit and build
 
 Install dependencies on a filesystem that supports symlinks (Android shared storage does not):
@@ -28,6 +30,32 @@ Edit `src/explorer.tsx` and `src/styles.css` for the UI, `src/wpf.mjs` for upstr
 ## Runtime configuration
 
 Hosted configuration uses Sites secrets named `WPF_PUBLIC_CLIENT_KEY` and `WPF_FIREBASE_API_KEY`. Firebase session tokens stay server-side and are cached in memory for up to 50 minutes. No credential is sent to the browser, embedded in the bundle, or stored in the hosting manifest. The hosted Site is owner-private.
+
+## Cloudflare Workers
+
+De worker (`worker/index.js`) draait ongewijzigd op Cloudflare Workers; `wrangler.toml` beschrijft de deployment. Het R2-binding `BUCKET` bewaart de HARMONIE-snapshots en een Cron Trigger (`5 * * * *`, ieder uur om vijf over) roept `scheduled()` aan, dat de nieuwste P1- en P2b-run opslaat. Daarmee is de externe uurtaak met `FORECAST_WRITER_SHA256` op Cloudflare niet nodig; de route `/api/internal/harmonie/update` blijft bestaan voor handmatige of historische runs.
+
+Eenmalig instellen:
+
+1. Maak een Cloudflare-account en kies het **Workers Paid**-abonnement. Het gratis abonnement staat 10 ms CPU per aanvraag toe; dat is te weinig voor het verwerken van HARMONIE-bestanden. De gecomprimeerde worker (ongeveer 2,8 MB) zit bovendien vlak onder de gratis limiet van 3 MB.
+2. Maak de R2-bucket: `npx wrangler r2 bucket create mijnwindpark`.
+3. Zet de geheimen (nooit in de broncode):
+   ```sh
+   npx wrangler secret put SITE_PASSWORD
+   npx wrangler secret put WPF_PUBLIC_CLIENT_KEY
+   npx wrangler secret put WPF_FIREBASE_API_KEY
+   npx wrangler secret put KNMI_EDR_API_KEY
+   npx wrangler secret put KNMI_OPEN_DATA_API_KEY
+   npx wrangler secret put RESEARCH_PASSWORD        # optioneel
+   npx wrangler secret put WINDPARK_CATALOG_TOKEN   # optioneel
+   ```
+4. Zet in GitHub (Settings → Secrets and variables → Actions) `CLOUDFLARE_API_TOKEN` (sjabloon *Edit Cloudflare Workers*) en `CLOUDFLARE_ACCOUNT_ID`.
+
+Daarna publiceert `.github/workflows/deploy.yml` bij iedere push naar `main`: de workflow controleert dat `worker/index.js` overeenkomt met de bronnen, draait `npm test` en voert `npx wrangler deploy` uit. Handmatig kan ook met `npx wrangler deploy`.
+
+De site staat eerst op `https://mijnwindpark.<account>.workers.dev`. Voor `mijnwindpark.nl` voeg je het domein toe aan Cloudflare, zet je bij de registrar de nameservers op die van Cloudflare en koppel je het domein aan de worker (Workers → mijnwindpark → Settings → Domains & Routes → Custom domain). Pas daarna stopt de oude hosting met verkeer ontvangen.
+
+Lokaal in de echte Workers-runtime testen: zet de geheimen in `.dev.vars` (staat in `.gitignore`) en start `npx wrangler dev --test-scheduled`; `curl "http://localhost:8787/__scheduled?cron=5+*+*+*+*"` start de uurtaak. Bestaande HARMONIE-snapshots uit de oude opslag worden niet meegenomen; recente runs worden bij aanvraag opnieuw uit het KNMI-archief opgehaald.
 
 ## Data behavior
 
