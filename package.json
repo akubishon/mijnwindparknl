@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "compose": "node scripts/compose-worker.mjs",
-    "build": "bash scripts/build.sh && node scripts/validate-artifact.mjs",
+    "build": "npm run compose && npm test && bash scripts/build.sh && node scripts/validate-artifact.mjs",
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
