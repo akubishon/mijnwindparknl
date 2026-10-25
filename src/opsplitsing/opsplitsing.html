@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Elektrolyser opsplitsen</title>
-  <link rel="stylesheet" href="./opsplitsing.css"><script src="./opsplitsing.js" defer></script>
+  <link rel="stylesheet" href="./opsplitsing.css"><link rel="stylesheet" href="./report.css"><script src="./report-model.js" defer></script><script src="./report-moments.js" defer></script><script src="./report-xlsx.js" defer></script><script src="./report-ui.js" defer></script><script src="./opsplitsing.js" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -136,6 +136,21 @@
             <button id="export-json" class="secondary-button" type="button">Download volledige berekening (JSON)</button></div>
           <p class="note">CSV bevat ongeronde uitkomsten, stapverschillen en aannames in rekeneenheden. JSON bewaart ook de uitkomsten per windjaar. Extra decimalen maken verschillen controleerbaar; ze geven geen voorspellingszekerheid aan.</p>
         </aside>
+        <aside class="report-launch">
+          <div><h3>Samen de berekening nalopen</h3><p>Van gebruikte invoer tot kosten per kilo, met ingevulde formules en rekencontroles. Neem het rapport mee naar je overleg.</p></div>
+          <button id="explain-calculation" class="secondary-button" type="button" aria-expanded="false" aria-controls="calculation-report">Leg deze berekening uit</button>
+        </aside>
+        <article class="calculation-report" id="calculation-report" aria-labelledby="report-title" hidden>
+          <header class="report-heading"><span class="eyebrow">Mijnwindpark.nl · Controleerbare berekening</span><h2 id="report-title" tabindex="-1">Rekenrapport</h2><p id="report-meta"></p><p id="report-stamp" class="note"></p></header>
+          <div class="report-toolbar" aria-label="Rapportinstellingen en downloads">
+            <label>Vergelijk met <select id="report-count"></select></label>
+            <button id="report-print" type="button" class="primary-button">Afdrukken / PDF</button>
+            <button id="report-excel" type="button" class="secondary-button">Excel met formules</button>
+            <button id="report-json" type="button" class="secondary-button">Rapportdata (JSON)</button>
+            <button id="report-close" type="button" class="text-button">Rapport sluiten</button>
+          </div>
+          <div id="report-body"></div>
+        </article>
         <div id="headline" class="headline"></div>
         <section class="winner" aria-labelledby="winner-title">
           <span class="eyebrow">Laagste berekende kostprijs binnen deze instellingen</span>

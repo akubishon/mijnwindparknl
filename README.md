@@ -182,6 +182,11 @@ De opsplitsingspresentatie houdt marginale kosten en gemiddelde kostprijs naast 
 
 De uitkomst toont haar eigen aannames, windjaren en het gebruik van één vaste storingstrekking per module en jaar. Jaarspreiding is geen betrouwbaarheidsinterval. CSV exporteert alle oorspronkelijke rijvelden plus ongeronde stapverschillen en aannames (kommadecimalen, puntkomma's); contextkolommen hebben de prefix `berekening.`, stapvelden `stap.` en aannames `aanname.`. Aannames staan in oorspronkelijke rekeneenheden. JSON bewaart de volledige uitkomst en veldmetadata. Vervolgdiagrammen, de dagweergave en opgeslagen scenario's gebruiken dezelfde resultaataannames, ook nadat het formulier is aangepast. Een melding maakt zichtbaar wanneer invoer en getoonde uitkomst verschillen. De Pythonberekeningen, historische reeksen en aannames zijn niet gewijzigd. `tests/opsplitsing-presentation.test.mjs` controleert de omkering in 2022 (4/5/6 modules), ontbrekende en negatieve verschillen, verzoek-snapshots en exportbehoud.
 
+Via **Leg deze berekening uit** opent een rekenrapport van de laatste berekende uitkomst. Het rapport bewaart een eigen snapshot, vergelijkt de eerste gekozen configuratie met een instelbare tweede en toont bronnen, ingevulde kostenformules, datadekking/jaaromrekening, vier exacte componenten van het kostprijsverschil en aansluiting op de opgeslagen totalen. Drie objectief gekozen momenten binnen een dag illustreren wind, module-inzet en waterstof per module; de dagtrace gebruikt twee dagen aanloop en afgeronde tussenwaarden en is geen uitsnede van de doorlopende jaarsimulatie. Oude of afwijkende modelversies vragen eerst een nieuwe berekening voor passende dagvoorbeelden.
+
+**Afdrukken / PDF** opent de browserafdruk met alleen het rapport en alle rekenstappen. **Excel met formules** maakt lokaal een `.xlsx` met bewerkbare kosteninvoer, vaste jaaruitkomsten, echte Excel-formules en controleverschillen; het simuleert geen aangepaste technische bedrijfsvoering. Rapportdata zijn ook als JSON te bewaren. Er worden geen rapportgegevens naar een externe exportdienst gestuurd. `tests/report-*.test.mjs` controleren modelaansluiting, nulproductie, herkomst, snapshots, asynchrone antwoorden, dagrekenwerk en de Excel-formules.
+
+
 
 ## Windbron (productie-onafhankelijk)
 

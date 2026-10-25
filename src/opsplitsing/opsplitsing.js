@@ -906,6 +906,7 @@ function headline(rows, result) {
 
 function render(result) {
   lastResult = result;
+  globalThis.OpsReportUI?.setResult(result, meta);
   const rows = result.rijen;
   $("results").hidden = false;
   headline(rows, result);
