@@ -4,6 +4,12 @@ main = "worker/index.js"
 compatibility_date = "2026-10-01"
 workers_dev = true
 
+# Serve the site on its own domain. The zone mijnwindpark.nl must be in this
+# Cloudflare account; deploying creates the DNS record and certificate.
+routes = [
+  { pattern = "mijnwindpark.nl", custom_domain = true },
+]
+
 # Durable HARMONIE snapshots (harmonie/v1/{model}/{run}.json).
 [[r2_buckets]]
 binding = "BUCKET"
