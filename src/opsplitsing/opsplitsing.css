@@ -338,6 +338,21 @@ th,td{padding:12px 14px}
 .moment-toolbar output{font-size:28px}
 .moment-navigation{display:flex;gap:8px}
 .moment-navigation button{font-size:15px;padding:10px 12px}
+.moment-navigation .play-button{min-width:9.5em}
+/* Modules groot in beeld; de breedte van een tegel volgt het vermogen, dus beide rijen zijn even breed. */
+.module-stage{display:grid;gap:18px;margin-top:22px}
+.module-row{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;align-items:center}
+.module-row h4{font-size:17px;margin:0;line-height:1.35}
+.module-row h4 small{display:block;font-size:14px;font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums}
+.module-tiles{display:flex;gap:6px;height:120px}
+.module-tile{position:relative;flex:1 1 0;min-width:0;border:1px solid var(--line);border-radius:0 10px 0 0;background:#fff;overflow:hidden;transition:background-color .3s}
+.module-fill{position:absolute;left:0;right:0;bottom:0;height:0;transition:height .3s ease,opacity .3s}
+.module-tile.starting .module-fill{opacity:.45}
+.module-tile.down{background:repeating-linear-gradient(135deg,var(--paper) 0 8px,#e2ded6 8px 16px)}
+.module-tile span{position:absolute;left:0;right:0;top:8px;text-align:center;font-size:14px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--ink)}
+.module-tile.tight span{font-size:11px}
+.module-tile.tiny span{display:none}
+@media(prefers-reduced-motion:reduce){.module-tile,.module-fill{transition:none}}
 .moment-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:22px}
 .moment-summary section{background:var(--paper);border-left:4px solid var(--series-1);border-radius:0 16px 0 0;padding:18px 20px}
 .moment-summary section+section{background:#eef8fc;border-left-color:var(--series-2)}
@@ -377,4 +392,6 @@ th,td{padding:12px 14px}
  .moment-summary strong{font-size:30px}
  .moment-toolbar .step-picker{flex-basis:100%}
  .moment-navigation{width:100%;justify-content:space-between}
+ .module-row{grid-template-columns:1fr;gap:8px}
+ .module-tiles{height:96px}
 }

@@ -986,7 +986,7 @@ function dayChart(data, n, v) {
     return found < 0 ? steps.length - 1 : found;
   };
   let dragging = false;
-  hit.addEventListener("pointerdown", event => { dragging = true; hit.setPointerCapture(event.pointerId); selectStep(indexAt(event)); });
+  hit.addEventListener("pointerdown", event => { setPlaying(false); dragging = true; hit.setPointerCapture(event.pointerId); selectStep(indexAt(event)); });
   hit.addEventListener("pointerup", () => { dragging = false; });
   hit.addEventListener("mousemove", event => {
     const i = indexAt(event);
@@ -1035,6 +1035,7 @@ async function runDay() {
   const n = Number($("day-count").value);
   const requestedDate = $("day").value;
   const request = snapshotRequest(result), v = request.aannames;
+  setPlaying(false);
   $("day-status").innerHTML = '<span class="spinner"></span>Dag berekenen…';
   $("day-status").classList.remove("error");
   try {
@@ -1042,6 +1043,7 @@ async function runDay() {
     if (result !== lastResult || n !== Number($("day-count").value) || requestedDate !== $("day").value) return;
     dayChart(data, n, v);
     Object.assign(day, {data, n, v, strategie: request.strategie});
+    buildStage(data, n);
     const slider = $("step");
     slider.max = String(data.wind.length - 1);
     selectStep(interestingStep(data, n));
@@ -1119,10 +1121,11 @@ async function start() {
   $("export-csv").addEventListener("click", () => downloadResult("csv"));
   $("export-json").addEventListener("click", () => downloadResult("json"));
   loadSaved();
-  $("step").addEventListener("input", event => selectStep(Number(event.target.value)));
+  $("step").addEventListener("input", event => { setPlaying(false); selectStep(Number(event.target.value)); });
   $("day-count").addEventListener("change", runDay);
-  $("step-prev").addEventListener("click", () => selectStep(day.index - 1));
-  $("step-next").addEventListener("click", () => selectStep(day.index + 1));
+  $("step-play").addEventListener("click", () => setPlaying(!play.timer));
+  $("step-prev").addEventListener("click", () => { setPlaying(false); selectStep(day.index - 1); });
+  $("step-next").addEventListener("click", () => { setPlaying(false); selectStep(day.index + 1); });
   $("walk-toggle").addEventListener("click", () => {
     const steps = [...$("walk").querySelectorAll("details")];
     const open = !steps.every(step => step.open);
@@ -1153,9 +1156,60 @@ function selectStep(i) {
   $("step").value = String(day.index);
   $("step-prev").disabled = day.index === 0;
   $("step-next").disabled = day.index === day.data.wind.length - 1;
+  $("step-play").disabled = false;
   $("step-time").textContent = `${clockOf(cfg(day.data, 1).stappen[day.index].t)}–${clockOf(cfg(day.data, 1).stappen[day.index].t + 600)}`;
   day.marker?.(day.index);
+  updateStage();
   renderWalk();
+}
+
+// Afspelen loopt de dag af in stappen van tien minuten; elke handmatige keuze zet het stil.
+const play = {timer: 0};
+
+function setPlaying(on) {
+  clearInterval(play.timer);
+  play.timer = 0;
+  if (on && day.data) {
+    const last = day.data.wind.length - 1;
+    if (day.index >= last) selectStep(0);
+    play.timer = setInterval(() => day.index >= last ? setPlaying(false) : selectStep(day.index + 1), 350);
+  }
+  $("step-play").textContent = play.timer ? "❚❚ Pauzeren" : "▶ Afspelen";
+  $("step-play").setAttribute("aria-pressed", String(!!play.timer));
+}
+
+// De tegels blijven staan zodat vulling en status vloeiend meebewegen tijdens het afspelen.
+function buildStage(data, n) {
+  $("module-stage").replaceChildren(...[[1, COLORS.one], [n, COLORS.many]].map(([count, color]) => {
+    const row = document.createElement("div");
+    row.className = "module-row";
+    row.dataset.count = count;
+    row.innerHTML = `<h4>${label(count)}<small></small></h4><div class="module-tiles"></div>`;
+    const tiles = row.querySelector(".module-tiles");
+    for (let i = 0; i < count; i++) {
+      const tile = document.createElement("div");
+      tile.className = "module-tile" + (count > 16 ? " tiny" : count > 8 ? " tight" : "");
+      tile.innerHTML = `<div class="module-fill" style="background:${color}"></div><span></span>`;
+      tiles.append(tile);
+    }
+    return row;
+  }));
+}
+
+function updateStage() {
+  for (const row of $("module-stage").children) {
+    const count = Number(row.dataset.count), config = cfg(day.data, count), step = config.stappen[day.index];
+    const active = step.stack.filter(x => x > 0).length;
+    row.querySelector("small").textContent = `${active} van ${count} aan · ${nf(step.kg.reduce((a, b) => a + b, 0), 1)} kg`;
+    [...row.querySelectorAll(".module-tile")].forEach((tile, i) => {
+      const load = step.stack[i] / config.module_mw, down = !!step.uit[i], starting = load > 0 && step.opstart_min[i] > 0;
+      tile.classList.toggle("down", down);
+      tile.classList.toggle("starting", starting);
+      tile.querySelector(".module-fill").style.height = `${Math.min(100, load * 100)}%`;
+      tile.querySelector("span").textContent = down ? "onderhoud" : load > 0 ? (starting ? "opstart" : `${nf(load * 100, 0)} %`) : "uit";
+      tile.title = down ? "In onderhoud of storing" : load > 0 ? `${nf(load * 100, 0)} % last${starting ? ", aan het opstarten" : ""}` : "Uit";
+    });
+  }
 }
 
 function moduleBars(step, size, color) {

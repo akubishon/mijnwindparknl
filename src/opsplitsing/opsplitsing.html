@@ -228,9 +228,11 @@
               <div><h3>Gekozen moment</h3><p>Klik in de grafiek of verplaats de schuif.</p></div>
               <label class="step-picker">Tien minuten <output id="step-time"></output>
                 <input type="range" id="step" min="0" max="143" value="72" aria-describedby="step-time"></label>
-              <div class="moment-navigation"><button id="step-prev" class="secondary-button" type="button" disabled aria-label="Vorige tien minuten">← Vorige</button>
+              <div class="moment-navigation"><button id="step-play" class="primary-button play-button" type="button" disabled aria-pressed="false">▶ Afspelen</button>
+                <button id="step-prev" class="secondary-button" type="button" disabled aria-label="Vorige tien minuten">← Vorige</button>
                 <button id="step-next" class="secondary-button" type="button" disabled aria-label="Volgende tien minuten">Volgende →</button></div>
             </div>
+            <div id="module-stage" class="module-stage" aria-hidden="true"></div>
             <div id="moment-summary" class="moment-summary" aria-live="polite"></div>
           </div>
           <aside class="day-detail" aria-labelledby="walk-title">
