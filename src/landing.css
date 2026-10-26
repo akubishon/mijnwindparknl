@@ -14,3 +14,8 @@
 @keyframes flow-move{to{stroke-dashoffset:-14}}@keyframes flow-spin{to{transform:rotate(360deg)}}
 @media(max-width:760px){.flow-scroll{overflow-x:auto}.flow-scroll svg{min-width:680px}}
 @media(prefers-reduced-motion:reduce){.flow-dash,.flow-turbine .landing-rotor{animation:none}}
+
+/* Mini flow in the header on every page; links to the full diagram. */
+.mini-flow{display:flex;align-items:center;gap:10px;color:#0C2340;text-decoration:none;font-size:13px;font-weight:600;padding:6px 12px;border:1px solid #a7b4bf;border-radius:0 14px 0 0;background:#fff}.mini-flow:hover{border-color:#00A6DE}.mini-flow svg{width:150px;height:auto;display:block}.mini-flow .flow-track,.mini-flow .flow-dash{stroke-width:3}.mini-flow text{font-size:10px;font-weight:700;fill:#465970}.mini-flow .mini-node{fill:#fff}.mini-flow rect{fill:#0C2340}.mini-turbine path{stroke:#0C2340;stroke-width:2;stroke-linecap:round;fill:none}.mini-rotor{transform-origin:12px 12px;animation:flow-spin 3s linear infinite}
+@media(max-width:760px){.mini-flow span{display:none}.mini-flow svg{width:110px}}
+@media(prefers-reduced-motion:reduce){.mini-rotor{animation:none}}
