@@ -5,7 +5,10 @@
   const clone = value => JSON.parse(JSON.stringify(value));
   const number = value => finite(value) ? value : null;
   const calc = (fn, ...values) => values.every(finite) ? number(fn(...values)) : null;
-  const fmt = value => finite(value) ? String(value).replace('.', ',') : 'niet beschikbaar';
+  // Leesbaar afgerond voor de uitleg; de ongeronde waarden blijven in base/comparison staan.
+  const fmt = value => finite(value) ? new Intl.NumberFormat('nl-NL', Math.abs(value) >= 1000 ? {maximumFractionDigits: 0} : Math.abs(value) >= 1 ? {maximumFractionDigits: 2} : {maximumSignificantDigits: 3}).format(value) : 'niet beschikbaar';
+  const eur = value => !finite(value) ? 'niet beschikbaar' : Math.abs(value) >= 1e6 ? `${fmt(value / 1e6)} mln €` : `${fmt(value)} €`;
+  const ton = value => finite(value) ? `${fmt(value / 1000)} ton` : 'niet beschikbaar';
   const expr = (values, join) => values.map(fmt).join(join);
   const near = (a, b) => finite(a) && finite(b) && Math.abs(a - b) <= 1e-8 * Math.max(1, Math.abs(b));
   const sum = values => Array.isArray(values) && values.length && values.every(finite) ? number(values.reduce((a, b) => a + b, 0)) : null;
@@ -59,20 +62,20 @@
     const both = fn => [fn(base, b), fn(comparison, c)];
     add('module_mw', 'Stackvermogen per module', 'Totaal stackvermogen / aantal modules', 'MW', both(r => calc((total,n) => total/n,a.capaciteit_mw,r.modules)), both(r => expr([a.capaciteit_mw,r.modules], ' / ')));
     add('minimum_stack_mw', 'Minimaal stackvermogen per draaiende module', 'Totaal stackvermogen / aantal modules × minimumlast (exclusief BoP)', 'MW', both(r => calc((total,n,min) => total/n*min,a.capaciteit_mw,r.modules,a.minimumlast)), both(r => `${expr([a.capaciteit_mw,r.modules], ' / ')} × ${fmt(a.minimumlast)}`));
-    add('kg', 'Waterstof per jaar', 'Gesimuleerde ton per jaar × 1.000', 'kg/jaar', both((r,e) => e.kg), both(r => `${fmt(r.waterstof_t)} × 1.000`));
+    add('kg', 'Waterstof per jaar', 'Gesimuleerde productie per jaar', 'kg/jaar', both((r,e) => e.kg), both(r => `${fmt(r.waterstof_t)} ton`));
     add('energy', 'Stroom inclusief warmhouden', 'Productieverbruik + warmhoudverbruik', 'MWh/jaar', both((r,e) => e.energy), both(r => expr([r.verbruik_mwh,r.standby_mwh], ' + ')));
     add('perKw', 'Variabele investering uit referentieofferte', '(Offerte − offerte-units × vaste kosten per module) × 1.000.000 / (offerte-MW × 1.000)', '€/kW', [b.perKw,c.perKw], both(() => `(${fmt(a.offerte_meur)} − ${fmt(a.offerte_modules)} × ${fmt(a.vaste_kosten_module_meur)}) × 1.000.000 / (${fmt(a.offerte_mw)} × 1.000)`));
     add('capex', 'Bruto investering (CAPEX)', 'Prijs per kW × totaal MW × 1.000 + aantal modules × vaste modulekosten × 1.000.000', '€', [b.capex,c.capex], both((r,e) => `${fmt(e.perKw)} × ${fmt(a.capaciteit_mw)} × 1.000 + ${fmt(r.modules)} × ${fmt(a.vaste_kosten_module_meur)} × 1.000.000`));
     add('subsidy', 'Eenmalige CAPEX-subsidie', 'Subsidie per kW × totaal MW × 1.000', '€', [b.subsidy,c.subsidy], both(() => `${fmt(a.capex_subsidie_eur_kw)} × ${fmt(a.capaciteit_mw)} × 1.000`));
     add('annuity', 'Annuïteitsfactor', 'r / (1 − (1 + r)^−looptijd); bij 0 % rente: 1 / looptijd', 'per jaar', [b.annuity,c.annuity], both(() => a.rente === 0 ? `1 / ${fmt(a.looptijd_jaar)}` : `${fmt(a.rente)} / (1 − (1 + ${fmt(a.rente)})^−${fmt(a.looptijd_jaar)})`));
-    add('financing', 'Investering omgerekend naar jaarkosten', '(Bruto investering − eenmalige subsidie) × annuïteitsfactor', '€/jaar', [b.financing,c.financing], both((r,e) => `(${fmt(e.capex)} − ${fmt(e.subsidy)}) × ${fmt(e.annuity)}`));
-    add('opex', 'Vaste exploitatiekosten', 'OPEX-aandeel × bruto investering', '€/jaar', [b.opex,c.opex], both((r,e) => expr([a.opex_aandeel,e.capex], ' × ')));
+    add('financing', 'Investering omgerekend naar jaarkosten', '(Bruto investering − eenmalige subsidie) × annuïteitsfactor', '€/jaar', [b.financing,c.financing], both((r,e) => `(${eur(e.capex)} − ${eur(e.subsidy)}) × ${fmt(e.annuity)}`));
+    add('opex', 'Vaste exploitatiekosten', 'OPEX-aandeel × bruto investering', '€/jaar', [b.opex,c.opex], both((r,e) => `${fmt(a.opex_aandeel)} × ${eur(e.capex)}`));
     add('wearHours', 'Som equivalente slijtage-uren', 'Som van de equivalente uren van alle modules, inclusief starts en lastwisselingen', 'equivalente uren/jaar', [b.wearHours,c.wearHours], both(r => Array.isArray(r.eq_uren_per_module) ? r.eq_uren_per_module.map(fmt).join(' + ') : 'niet beschikbaar'));
-    add('stack', 'Jaarlijkse stackvervanging', 'Stackaandeel × (bruto investering / aantal modules) × som slijtage-uren / stacklevensduur', '€/jaar', [b.stack,c.stack], both((r,e) => `${fmt(a.stack_aandeel)} × (${fmt(e.capex)} / ${fmt(r.modules)}) × ${fmt(e.wearHours)} / ${fmt(a.stack_levensduur_uur)}`));
+    add('stack', 'Jaarlijkse stackvervanging', 'Stackaandeel × (bruto investering / aantal modules) × som slijtage-uren / stacklevensduur', '€/jaar', [b.stack,c.stack], both((r,e) => `${fmt(a.stack_aandeel)} × (${eur(e.capex)} / ${fmt(r.modules)}) × ${fmt(e.wearHours)} / ${fmt(a.stack_levensduur_uur)}`));
     add('powerPrice', 'Totale stroomprijs', 'Stroomprijs + MAX(0; netkosten + belasting − korting)', '€/MWh', [b.powerPrice,c.powerPrice], both(() => `${fmt(a.stroomprijs_eur_mwh)} + MAX(0; ${fmt(a.netkosten_eur_mwh)} + ${fmt(a.belasting_eur_mwh)} − ${fmt(a.korting_net_belasting_eur_mwh)})`));
     add('power', 'Jaarlijkse elektriciteitskosten', '(Productieverbruik + warmhoudverbruik) × totale stroomprijs', '€/jaar', [b.power,c.power], both((r,e) => expr([e.energy,e.powerPrice], ' × ')));
-    add('annual', 'Totale jaarkosten', 'Investering per jaar + vaste exploitatiekosten + stackvervanging + elektriciteit', '€/jaar', [b.annual,c.annual], both((r,e) => expr([e.financing,e.opex,e.stack,e.power], ' + ')));
-    add('lcoh', 'Bruto kostprijs (LCOH)', 'Totale jaarkosten / waterstof per jaar', '€/kg', [b.lcoh,c.lcoh], both((r,e) => e.kg > 0 ? expr([e.annual,e.kg], ' / ') : 'Geen productie: kostprijs niet gedefinieerd'));
+    add('annual', 'Totale jaarkosten', 'Investering per jaar + vaste exploitatiekosten + stackvervanging + elektriciteit', '€/jaar', [b.annual,c.annual], both((r,e) => [e.financing,e.opex,e.stack,e.power].map(eur).join(' + ')));
+    add('lcoh', 'Bruto kostprijs (LCOH)', 'Totale jaarkosten / waterstof per jaar', '€/kg', [b.lcoh,c.lcoh], both((r,e) => e.kg > 0 ? `${eur(e.annual)} / ${ton(e.kg)}` : 'Geen productie: kostprijs niet gedefinieerd'));
     add('revenue', 'Premie en zuurstofopbrengst', 'Waterstofpremie + zuurstofprijs per ton × 8 kg zuurstof per kg waterstof / 1.000', '€/kg', [b.revenue,c.revenue], both(() => `${fmt(a.waterstofpremie_eur_kg)} + ${fmt(a.zuurstofprijs_eur_t)} × 8 / 1.000`));
     add('net', 'Netto kostprijs na opbrengsten', 'Bruto kostprijs − premie en zuurstofopbrengst', '€/kg', [b.net,c.net], both((r,e) => expr([e.lcoh,e.revenue], ' − ')));
     const checks = [];
@@ -95,10 +98,10 @@
     const delta = calc((after,before)=>after-before,c.lcoh,b.lcoh);
     if (b.kg > 0 && c.kg > 0) {
       const part = (key,label,formula,value,expression) => parts.push({key,label,formula,value,expression,unit:'€/kg'});
-      part('meer_waterstof','Meer waterstof', '(Kapitaal en OPEX basis + stackvervanging basis) × (1 / kg vergelijking − 1 / kg basis)',calc((k,s,hn,h1)=>(k+s)*(1/hn-1/h1),b.capitalAnnual,b.stack,c.kg,b.kg),`(${fmt(b.capitalAnnual)} + ${fmt(b.stack)}) × (1 / ${fmt(c.kg)} − 1 / ${fmt(b.kg)})`);
-      part('duurdere_installatie','Andere installatiekosten','(Kapitaal en OPEX vergelijking − kapitaal en OPEX basis) / kg vergelijking',calc((kn,k1,hn)=>(kn-k1)/hn,c.capitalAnnual,b.capitalAnnual,c.kg),`(${fmt(c.capitalAnnual)} − ${fmt(b.capitalAnnual)}) / ${fmt(c.kg)}`);
-      part('stroom_per_kilo','Ander stroomverbruik per kilo','Stroomkosten vergelijking / kg vergelijking − stroomkosten basis / kg basis',calc((en,hn,e1,h1)=>en/hn-e1/h1,c.power,c.kg,b.power,b.kg),`${fmt(c.power)} / ${fmt(c.kg)} − ${fmt(b.power)} / ${fmt(b.kg)}`);
-      part('stackvervanging','Andere stackvervanging','(Stackkosten vergelijking − stackkosten basis) / kg vergelijking',calc((sn,s1,hn)=>(sn-s1)/hn,c.stack,b.stack,c.kg),`(${fmt(c.stack)} − ${fmt(b.stack)}) / ${fmt(c.kg)}`);
+      part('meer_waterstof','Meer waterstof', '(Kapitaal en OPEX basis + stackvervanging basis) × (1 / kg vergelijking − 1 / kg basis)',calc((k,s,hn,h1)=>(k+s)*(1/hn-1/h1),b.capitalAnnual,b.stack,c.kg,b.kg),`(${eur(b.capitalAnnual)} + ${eur(b.stack)}) × (1 / ${ton(c.kg)} − 1 / ${ton(b.kg)})`);
+      part('duurdere_installatie','Andere installatiekosten','(Kapitaal en OPEX vergelijking − kapitaal en OPEX basis) / kg vergelijking',calc((kn,k1,hn)=>(kn-k1)/hn,c.capitalAnnual,b.capitalAnnual,c.kg),`(${eur(c.capitalAnnual)} − ${eur(b.capitalAnnual)}) / ${ton(c.kg)}`);
+      part('stroom_per_kilo','Ander stroomverbruik per kilo','Stroomkosten vergelijking / kg vergelijking − stroomkosten basis / kg basis',calc((en,hn,e1,h1)=>en/hn-e1/h1,c.power,c.kg,b.power,b.kg),`${eur(c.power)} / ${ton(c.kg)} − ${eur(b.power)} / ${ton(b.kg)}`);
+      part('stackvervanging','Andere stackvervanging','(Stackkosten vergelijking − stackkosten basis) / kg vergelijking',calc((sn,s1,hn)=>(sn-s1)/hn,c.stack,b.stack,c.kg),`(${eur(c.stack)} − ${eur(b.stack)}) / ${ton(c.kg)}`);
       check('Uitsplitsing telt op tot het kostprijsverschil',sum(parts.map(p=>p.value)),delta,'€/kg');
     }
     const coverage = (result.jaren || []).map(year => {
