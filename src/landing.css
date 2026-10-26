@@ -8,3 +8,9 @@
 .site-skip{position:fixed;left:20px;top:-100px;z-index:100;background:#fff;color:#0C2340;border:2px solid #0C2340;padding:12px 20px;font-weight:600}.site-skip:focus{top:12px}
 /* Keep the choices close to the top on small phone screens. */
 @media(max-width:520px){.landing-landscape{display:none}.landing-hero-copy{padding-bottom:28px}.brand-style .landing-hero{margin-bottom:28px}}
+
+/* Process flow: CSS-only dashes, no script. */
+.landing-flow{margin:46px 0 0}.flow-scroll{background:#fff;border:1px solid #a7b4bf;border-radius:0 30px 0 0;padding:18px 12px}.flow-scroll svg{width:100%;display:block;color:#0C2340}.flow-track,.flow-dash{fill:none;stroke-width:4;stroke-linecap:round}.flow-track{opacity:.18}.flow-dash{stroke-dasharray:1 13;stroke-width:5;animation:flow-move 1s linear infinite}.flow-power{stroke:#00A6DE}.flow-water{stroke:#0C2340}.flow-h2{stroke:#7fb800}.flow-o2{stroke:#7ad0ed}.flow-fryslan{stroke-width:6}.flow-dash.flow-fryslan{stroke-width:7}.flow-main{stroke-width:6}.flow-dash.flow-main{stroke-width:7}.flow-bop{stroke:#a7b4bf}.flow-junction{fill:#00A6DE;stroke:#fff;stroke-width:3}.flow-total{fill:#0C2340}.flow-heat{stroke:#e0302b;animation-duration:1.6s}.flow-label{paint-order:stroke;stroke:#fff;stroke-width:5px;stroke-linejoin:round;font-size:13px;font-weight:600;fill:#465970;letter-spacing:.3px}.flow-node path{fill:#C3E4F2}.flow-node text{font-size:16px;font-weight:600;fill:#0C2340}.flow-node .flow-sub{font-size:12px;font-weight:400;fill:#465970}.flow-node-dark path{fill:#0C2340}.flow-node-dark text{fill:#fff}.flow-node-dark .flow-sub{fill:#a8c5d8}.flow-turbine .landing-rotor{animation:flow-spin 6s linear infinite;transition:none}
+@keyframes flow-move{to{stroke-dashoffset:-14}}@keyframes flow-spin{to{transform:rotate(360deg)}}
+@media(max-width:760px){.flow-scroll{overflow-x:auto}.flow-scroll svg{min-width:680px}}
+@media(prefers-reduced-motion:reduce){.flow-dash,.flow-turbine .landing-rotor{animation:none}}
