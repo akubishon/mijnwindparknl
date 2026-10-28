@@ -1,7 +1,7 @@
 /* Reproducible report UI: always reads the last calculated snapshot, never live form inputs. */
 (function(root){
   'use strict';
-  const SUPPORTED_MODEL_VERSION=13; // MODEL_VERSION of the bundled Python runtime.
+  const SUPPORTED_MODEL_VERSION=15; // MODEL_VERSION of the bundled Python runtime.
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const finite=n=>typeof n==='number'&&Number.isFinite(n);

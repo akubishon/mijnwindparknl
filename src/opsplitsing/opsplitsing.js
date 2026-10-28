@@ -180,7 +180,7 @@ function buildForm(state) {
 // Korte samenvatting per dichte categorie: de belangrijkste waarden en hoeveel er is aangepast.
 const SUMMARIES = {
   "Installatie": v => [`${nf(v.capaciteit_mw, 0)} MW`],
-  "Rendement per module": v => [`minimumlast ${nf(v.minimumlast, 0)} %`, `${nf(v.systeemverbruik_vol)} kWh/kg`, `${nf(v.degradatie_1000h, 2)} %/1000 h`],
+  "Rendement per module": v => [`minimumlast ${nf(v.minimumlast, 0)} %`, `${nf(v.systeemverbruik_vol)} kWh/kg`, `degradatie ${nf(v.degradatie_jaar, 1)} %/jaar`],
   "Bedrijfsvoering": v => [`aan ≥ ${nf(v.min_aan_min, 0)} min`, `startvertraging ${nf(v.startvertraging_min, 0)} min`, `koude start ${nf(v.opstart_koud_min, 0)} min`],
   "Beschikbaarheid": v => [`${nf(v.onderhoud_dagen, 0)} dagen onderhoud`, `${nf(v.storingen_per_jaar, 0)} storingen per jaar`],
   "Slijtage": v => [`stack ${nf(v.stack_levensduur_uur, 0)} h`, `wissel ${nf(v.stackwissel_weken, 0)} weken`],
@@ -238,7 +238,7 @@ function kgPerMWh(x, v, ageing = true) {
   if (x <= 0 || x < v.minimumlast / 100 - 1e-9) return 0;
   const faraday = Math.max(0, 1 - (v.faradayverlies_10 / 100) * 0.1 / x);
   const full = v.systeemverbruik_vol * (1 - v.faradayverlies_10 / 100 * 0.1) / (1 + (v.bop_variabel ?? 0) / 100 + (v.bop_vast ?? 0) / 100);
-  const wear = ageing ? v.degradatie_1000h / 100 * v.stack_levensduur_uur / 1000 / 2 : 0;
+  const wear = ageing ? v.degradatie_jaar / 100 * v.degradatie_jaren / 2 : 0;
   const sec = full * (1 - v.deellastvoordeel / 100 * (1 - x)) * (1 + wear);
   const draw = x * (1 + (v.bop_variabel ?? 0) / 100) + (v.bop_vast ?? 0) / 100;
   return x * 1000 / sec * faraday / draw;
@@ -1391,7 +1391,7 @@ const PARTS = [
   ["meer_waterstof", "Meer waterstof", "De vaste kosten worden over meer kilo's verdeeld."],
   ["duurdere_installatie", "Duurdere installatie", "Extra vaste kosten per module (gelijkrichter, transformator, besturing)."],
   ["stroom_per_kilo", "Stroom per kilo", "Rendement bij de gekozen last, warmhouden en opstartverlies."],
-  ["stackvervanging", "Stackvervanging", "Slijtage door bedrijfsuren en starts."],
+  ["stackvervanging", "Stackvervanging", "Slijtage door bedrijfsuren."],
 ];
 let whyToken = 0;
 

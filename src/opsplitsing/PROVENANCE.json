@@ -1,14 +1,14 @@
 {
   "repository": "https://github.com/akubishon/windprofiel",
-  "commit": "zie git-geschiedenis van src/opsplitsing (modelversie 13, minimumlast PEM 25 % en alkaline 30 %; vaste kosten per module als onzekere aanname)",
+  "commit": "zie git-geschiedenis van src/opsplitsing (modelversie 12, gedigitaliseerde SWT-DD-130-curve)",
   "retrieved_on": "2026-10-23",
   "python_sha256": {
     "windprofiel/__init__.py": "17e3726bf973a77277508ede49a8f3772029b72101f5251c1c53ed89ff5126b0",
     "windprofiel/application.py": "fb6a38d798e3762315cf5fa8948ed50dbaf56b3228037e7349e6ed4770126928",
     "windprofiel/knmi.py": "6e8fff72c352a7d1670e2020f034186daad8b9ab2d62ba94dec314b8736814d7",
-    "windprofiel/opsplitsing.py": "16e93f88920e8d62cc4b75690267cd2c8cb3b13ccb092a043c6fe2c697003330",
+    "windprofiel/opsplitsing.py": "b44fb787916d58be64255b64921027abb6d69df97c159703c5272a5fb4e7aa27",
     "windprofiel/profile.py": "e08d80c2732eb0406a70a3f231c924933e936daf192849c4d022ad4e72cd50ba",
-    "windprofiel/scenarios.py": "01e4e464feebba947bb60a705ee8343191032cc4660be883036c598298d0ec20",
+    "windprofiel/scenarios.py": "06b384ade3ae4f3b7d1d9901823ff8fd231a68cedc1983ac92f2b03c8be12559",
     "windprofiel/windbron.py": "5a059b542b1d04b28ed389354a857f8b5d5858ddbb697b1a5769f07109fc54da",
     "windprofiel/productie.py": "ab090cdf0bf5bbe3b444548062d7271195990d83f92de2be5073f8d4be9fd367"
   },

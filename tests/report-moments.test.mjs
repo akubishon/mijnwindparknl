@@ -9,17 +9,17 @@ vm.runInContext(source, sandbox);
 const {build, moduleArithmetic} = sandbox.OpsReportMoments;
 const a = {capaciteit_mw:44, minimumlast:0.1, systeemverbruik_vol:53.3,
   faradayverlies_10:0.03, bop_variabel:0.07, bop_vast:0.03,
-  degradatie_1000h:0.0019, stack_levensduur_uur:60000, deellastvoordeel:0.1};
+  degradatie_jaar:0.01, degradatie_jaren:10, stack_levensduur_uur:60000, deellastvoordeel:0.1};
 const close = (actual, expected, tolerance = 1e-10) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`);
 
 test('per-module arithmetic matches native Python reference, including startup and BoP', () => {
   // Generated with Aannames(), stack_kg_h(), draw_mw() in opsplitsing.py.
   const first = moduleArithmetic(5.7, 11, 1, a);
-  close(first.kg, 17.489838759276743);
+  close(first.kg, 17.60643768433859);
   close(first.powerMw, 6.429);
   close(first.rows.find(row => row.key === 'secFull').value, 48.30918181818181);
   const second = moduleArithmetic(8.2, 11, 0, a);
-  close(second.kg, 27.352972920111153);
+  close(second.kg, 27.535326072911896);
   close(second.powerMw, 9.104);
   assert.equal(moduleArithmetic(2.2, 11, 10, a).kg, 0);
   assert.equal(moduleArithmetic(1.0996, 11, 0, a).kg, 0);

@@ -17,7 +17,7 @@
     const x = stackMw / size;
     const active = stackMw > 0;
     const faraday = active ? Math.max(0, 1 - a.faradayverlies_10 * 0.1 / x) : 0;
-    const ageing = a.degradatie_1000h * a.stack_levensduur_uur / 1000 / 2;
+    const ageing = a.degradatie_jaar * a.degradatie_jaren / 2;
     const secFull = a.systeemverbruik_vol * (1 - a.faradayverlies_10 * 0.1) / (1 + a.bop_variabel + a.bop_vast);
     const sec = active ? secFull * (1 - a.deellastvoordeel * (1 - x)) * (1 + ageing) : null;
     const productive = Math.max(0, 10 - startMinutes) / 10;
@@ -35,7 +35,7 @@
         row('load', 'Lastfractie', 'stackvermogen / modulevermogen', `${n(stackMw)} / ${n(size)}`, x, 'fractie'),
         row('power', 'Elektrisch vermogen inclusief BoP', active ? 'stackvermogen × (1 + variabele BoP) + vaste BoP × modulevermogen' : 'Uitgeschakelde module: geen draaiend verbruik', active ? `${n(stackMw)} × (1 + ${n(a.bop_variabel)}) + ${n(a.bop_vast)} × ${n(size)}` : '0', power, 'MW'),
         row('secFull', 'Stackverbruik bij vollast, nieuw', 'systeemverbruik × (1 − Faradayverlies × 0,1) / (1 + variabele BoP + vaste BoP)', `${n(a.systeemverbruik_vol)} × (1 − ${n(a.faradayverlies_10)} × 0,1) / (1 + ${n(a.bop_variabel)} + ${n(a.bop_vast)})`, secFull, 'kWh/kg'),
-        row('ageing', 'Gemiddelde degradatie over stackleven', 'degradatie per 1.000 uur × stacklevensduur / 1.000 / 2', `${n(a.degradatie_1000h)} × ${n(a.stack_levensduur_uur)} / 1000 / 2`, ageing, 'fractie'),
+        row('ageing', 'Gemiddelde degradatie (meer verbruik per kg)', 'degradatie per jaar × degradatieperiode / 2', `${n(a.degradatie_jaar)} × ${n(a.degradatie_jaren)} / 2`, ageing, 'fractie'),
         row('sec', 'Stackverbruik bij deze last en degradatie', active ? 'stackverbruik vollast × (1 − deellastvoordeel × (1 − lastfractie)) × (1 + degradatie)' : 'Geen productie bij een uitgeschakelde module', active ? `${n(secFull)} × (1 − ${n(a.deellastvoordeel)} × (1 − ${n(x)})) × (1 + ${n(ageing)})` : 'Niet van toepassing', sec, 'kWh/kg'),
         row('faraday', 'Faradayfactor', active ? 'max(0; 1 − Faradayverlies × 0,1 / lastfractie)' : 'Geen productie bij een uitgeschakelde module', active ? `max(0; 1 − ${n(a.faradayverlies_10)} × 0,1 / ${n(x)})` : '0', faraday, 'fractie'),
         row('productive', 'Productief deel van tien minuten', 'max(0; 10 − opstartminuten) / 10', `max(0; 10 − ${n(startMinutes)}) / 10`, productive, 'fractie'),

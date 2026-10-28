@@ -170,7 +170,7 @@ test('CSV preserves row fields, precise Dutch numbers, context and all original 
   rows[1].alleen_in_deze_rij = 123.45678901234567;
   const result = frozen({
     strategie: 'verdelen', jaren: [2022, 2025], technologie: 'alkaline_hoog',
-    aannames: {minimumlast: 0.4, capaciteit_mw: 44, degradatie_1000h: 0.0012,
+    aannames: {minimumlast: 0.4, capaciteit_mw: 44, degradatie_jaar: 0.01,
       waterstofpremie_eur_kg: 0, toelichting: note},
     rijen: rows,
   });
