@@ -57,3 +57,14 @@ Een conclusie over opsplitsen is alleen robuust als die over deze bandbreedte ge
 
 ### Tests
 `npm test`: 114 tests, alle 114 geslaagd.
+
+## Correctie: minimumlast in omslagkaart en scenario's
+
+De standaardwaarden (PEM 25 %, alkaline 30 % per module) stonden al goed in `opsplitsing.py` en `electrolyser-kernel.mjs`. Maar de omslagkaart rekende nog met 10–50 % en het gevoeligheidsscenario met "minimumlast 10 %". Die lagen buiten de bandbreedte van 25–30 % voor één module.
+
+- Omslagkaart: minimumlast 20, 25, 30, 40 en 50 %.
+- Scenario "minimumlast 10 %" vervangen door "minimumlast 30 %" (bovenkant van de bandbreedte voor PEM). "40 %" blijft staan.
+- In de veldtoelichting en op de pagina staat nu expliciet: de waarde geldt per module. Bij N parallelle modules daalt de ondergrens van het systeem naar ongeveer 1/N (1 × 44 MW: ca. 11 MW; 4 × 11 MW: ca. 2,75 MW).
+- `MODEL_VERSION` 14 → 15, browser-modelversie 15 → 16, bronhash in `PROVENANCE.json` bijgewerkt, `worker/index.js` opnieuw samengesteld.
+
+`npm test`: 114 tests, alle 114 geslaagd.

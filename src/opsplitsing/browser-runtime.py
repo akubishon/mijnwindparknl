@@ -8,7 +8,7 @@ class SerialPool:
     def __exit__(self, *args): pass
     def map(self, fn, jobs): return map(fn, jobs)
 # This page uses total system power: BoP is already included in the 44 MW.
-model.MODEL_VERSION = 15
+model.MODEL_VERSION = 16
 model.SENSITIVE_OPERATION = [key for key in model.SENSITIVE_OPERATION if not key.startswith('bop_')]
 model.ProcessPoolExecutor = SerialPool
 os.cpu_count = lambda: 1
