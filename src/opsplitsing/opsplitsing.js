@@ -899,7 +899,7 @@ function headline(rows, result) {
       <p>${knee.opsplitsen == null ? `${label(knee.modules)} is de vergelijkingsbasis.`
         : pays(knee) ? `${label(knee.modules)} is per kilo goedkoper dan ${label(base.modules)} zolang een module hooguit dit aan vaste kosten heeft.`
         : `${label(knee.modules)} is per kilo duurder dan ${label(base.modules)}, ook als extra modules niets kosten. Zie de uitsplitsing hieronder.`}
-        Nu aangenomen: ${nf(result.aannames.vaste_kosten_module_meur, 2)} M€.</p></div>`;
+        Nu aangenomen: ${nf(result.aannames.vaste_kosten_module_meur, 2)} M€. Dat is een onzekere aanname, geen gevalideerde prijs: toets haar aan dit omslagpunt en de omslagkaart.</p></div>`;
   const years = result.jaren.join(", ");
   // Gemodelleerd aanbod en het deel per park; een oud resultaat zonder parkverdeling toont alleen het totaal.
   const supply = Object.values(result.aanbod);

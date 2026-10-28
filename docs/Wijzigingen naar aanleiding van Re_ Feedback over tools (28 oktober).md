@@ -35,3 +35,25 @@ Bij weinig wind draaien minder modules en zijn er minder productie-uren, vooral 
 
 ### Tests
 `npm test`: 114 tests, alle 114 geslaagd.
+
+## Taak 2: vaste kosten per extra module als onzekere aanname
+
+**Bron van de keuze:** e-mail "Re_ Feedback over tools" (28 oktober).
+
+### Wat is veranderd
+- `src/opsplitsing/python/opsplitsing.py`: `vaste_kosten_module_meur` (standaard 1 M€) heeft nu als herkomst **"onzekere aanname"** (nieuwe set `UNCERTAIN`) in plaats van "plaatshouder". De uitleg in het formulier vermeldt dat het geen gevalideerde prijs is. De omslagkaart loopt nu van 0 tot **2 M€** (was tot 1,5 M€). Zo valt de hele bandbreedte van de scenario's (0,3–2 M€) binnen de gevoeligheidsanalyse.
+- `src/opsplitsing/opsplitsing.js`: bij "Nu aangenomen: … M€" in de kopregel staat nu dat dit een onzekere aanname is, die je toetst aan het omslagpunt en de omslagkaart.
+- `src/opsplitsing/report-ui.js`: de bronnentekst van het rekenrapport zegt hetzelfde. Er staat niet meer "voorlopig".
+- `src/opsplitsing/report-model.js`: als deze aanname wordt gebruikt, komt er een aparte regel bij "Grenzen van deze uitkomst".
+- `src/opsplitsing/PROVENANCE.json` (bronhash) en `worker/index.js` (`npm run compose`) zijn bijgewerkt.
+
+### Waarom
+De vaste kosten per module (gelijkrichter, transformator, besturing, leidingwerk) hangen af van de modulegrootte. Er zijn geen losse PCU-prijzen beschikbaar. De 1 M€ is daarom geen bronwaarde. Het model presenteert deze waarde niet als prijs, maar toont hoe de uitkomst ervan afhangt:
+- **Omslagpunt** per aantal modules: de hoogste vaste kosten waarbij opsplitsen nog niet duurder per kilo is.
+- **Omslagkaart**: het goedkoopste aantal modules per combinatie van minimumlast (10–50 %) en vaste kosten (0–2 M€).
+- **Gevoeligheid ±25 %** en de scenario's "vaste kosten 0,5 M€" en "vaste kosten 2 M€".
+
+Een conclusie over opsplitsen is alleen robuust als die over deze bandbreedte gelijk blijft.
+
+### Tests
+`npm test`: 114 tests, alle 114 geslaagd.

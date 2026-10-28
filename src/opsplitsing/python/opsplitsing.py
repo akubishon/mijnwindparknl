@@ -115,11 +115,13 @@ EU_TOOL = {"systeemverbruik_vol", "degradatie_1000h", "stack_levensduur_uur", "s
 OXYGEN_KG_PER_KG = 8.0   # 2 H2O → 2 H2 + O2: 32 / 4
 WEBSITE = {"capaciteit_mw", "bop_vast", "bop_variabel"}
 OWN = {"offerte_meur", "offerte_mw", "offerte_modules"}
+# Geen losse PCU-prijzen beschikbaar; de kosten hangen af van de modulegrootte. Alleen te gebruiken via de gevoeligheid.
+UNCERTAIN = {"vaste_kosten_module_meur"}
 
 
 def source(key: str) -> str:
     return ("EU LCOH-tool" if key in EU_TOOL else "mijnwindpark.nl" if key in WEBSITE
-            else "eigen aanname" if key in OWN else "plaatshouder")
+            else "eigen aanname" if key in OWN else "onzekere aanname" if key in UNCERTAIN else "plaatshouder")
 
 
 # Uitleg, eenheid en grenzen per aanname; de webpagina bouwt haar formulier hieruit.
@@ -176,8 +178,9 @@ AANNAMES_META = [
         ("offerte_mw", "Referentieofferte: vermogen", "MW", 1, 500, 1, ""),
         ("offerte_modules", "Referentieofferte: aantal units", "", 1, 100, 1, ""),
         ("vaste_kosten_module_meur", "Vaste kosten per module", "M€", 0, 50, 1,
-         "Gelijkrichter, transformator, besturing en leidingwerk per unit, los van de grootte. De rest van de offerte wordt een prijs "
-         "per kW. Onzeker; de uitkomst toont bij welke waarde meer modules nog lonen."),
+         "Gelijkrichter, transformator, besturing en leidingwerk per extra unit. De rest van de offerte wordt een prijs per kW. "
+         "Onzekere aanname, geen gevalideerde prijs: er zijn geen losse PCU-prijzen en de kosten hangen af van de modulegrootte. "
+         "Beoordeel de uitkomst met de gevoeligheid: het omslagpunt en de omslagkaart van 0 tot 2 M€."),
         ("stack_aandeel", "Stackvervanging", "% van module-CAPEX", 0, 100, 100, ""),
         ("opex_aandeel", "Vaste OPEX", "% van CAPEX per jaar", 0, 10, 100, ""),
         ("stroomprijs_eur_mwh", "Stroomprijs", "€/MWh", 0, 300, 1, "Voor alle verbruikte stroom, ook warmhouden."),
@@ -774,7 +777,7 @@ def sensitivity(a: Aannames, years: list[int], n: int, strategy: str, workers: i
 
 
 OMSLAG_MINIMUMLAST = [0.10, 0.20, 0.30, 0.40, 0.50]
-OMSLAG_VASTE_KOSTEN = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5]
+OMSLAG_VASTE_KOSTEN = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 
 
 def omslagkaart(a: Aannames, years: list[int], counts: list[int], strategy: str, workers: int | None = None,
