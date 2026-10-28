@@ -32,7 +32,7 @@ from . import windbron
 from .application import HYDROGEN_SHARE, PARKS, ROOT, load_curve, park_power_mw, parse_wind
 from .knmi import KNMIClient, KNMIError, load_env_file
 
-MODEL_VERSION = 12  # 12: gedigitaliseerde SWT-DD-130-curve als standaard; oude caches vervallen.
+MODEL_VERSION = 13  # 13: minimumlast PEM 25 %, alkaline 30 %. 12: gedigitaliseerde SWT-DD-130-curve als standaard; oude caches vervallen.
 STEP_H = 1 / 6
 FRYSLAN_SHARE = HYDROGEN_SHARE["fryslan"]
 CACHE = ROOT / ".cache" / "opsplitsing"
@@ -52,7 +52,7 @@ STRATEGIES = {
 class Aannames:
     """Standaard: PEM volgens de EU LCOH-tool, aangevuld met plaatshouders (zie BRONNEN)."""
     capaciteit_mw: float = 44.0
-    minimumlast: float = 0.10
+    minimumlast: float = 0.25
     systeemverbruik_vol: float = 53.3
     deellastvoordeel: float = 0.10
     faradayverlies_10: float = 0.03
@@ -95,7 +95,7 @@ class Aannames:
 # standaardinstellingen. Minimumlast en opstarttijden staan daar niet in en zijn plaatshouders.
 TECHNOLOGIES = {
     "pem": ("PEM", Aannames()),
-    "alkaline": ("Alkaline", replace(Aannames(), minimumlast=0.20, systeemverbruik_vol=52.4, degradatie_1000h=0.0012,
+    "alkaline": ("Alkaline", replace(Aannames(), minimumlast=0.30, systeemverbruik_vol=52.4, degradatie_1000h=0.0012,
                                      koud_na_uur=4.0, opstart_warm_min=5.0, opstart_koud_min=45.0,
                                      stack_levensduur_uur=80000.0)),
 }

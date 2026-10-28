@@ -1,12 +1,12 @@
 {
   "repository": "https://github.com/akubishon/windprofiel",
-  "commit": "zie git-geschiedenis van src/opsplitsing (modelversie 12, gedigitaliseerde SWT-DD-130-curve)",
+  "commit": "zie git-geschiedenis van src/opsplitsing (modelversie 13, minimumlast PEM 25 % en alkaline 30 %)",
   "retrieved_on": "2026-10-23",
   "python_sha256": {
     "windprofiel/__init__.py": "17e3726bf973a77277508ede49a8f3772029b72101f5251c1c53ed89ff5126b0",
     "windprofiel/application.py": "fb6a38d798e3762315cf5fa8948ed50dbaf56b3228037e7349e6ed4770126928",
     "windprofiel/knmi.py": "6e8fff72c352a7d1670e2020f034186daad8b9ab2d62ba94dec314b8736814d7",
-    "windprofiel/opsplitsing.py": "71ea1c249d6546344ea0cbb905e7d69fa4475c79c8621fc0ddceb4c4ffd1cb49",
+    "windprofiel/opsplitsing.py": "23a2a162c0e57b570572af85db46de0bf554b73cc35b2103883678dcd703ff47",
     "windprofiel/profile.py": "e08d80c2732eb0406a70a3f231c924933e936daf192849c4d022ad4e72cd50ba",
     "windprofiel/scenarios.py": "01e4e464feebba947bb60a705ee8343191032cc4660be883036c598298d0ec20",
     "windprofiel/windbron.py": "5a059b542b1d04b28ed389354a857f8b5d5858ddbb697b1a5769f07109fc54da",
