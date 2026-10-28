@@ -24,7 +24,7 @@ CASES = [
     ("4 modules bijschakelen", 2025, 4, {}, "bijschakelen"),
     ("alkaline schrikkeljaar", 2024, 3, {"capaciteit_mw": 30.0, **{k: v for k, v in asdict(model.TECHNOLOGIES["alkaline"][1]).items() if k != "capaciteit_mw"}}, "verdelen"),
     ("veel uitval", 2022, 5, {"capaciteit_mw": 12.0, "storingen_per_jaar": 6.0, "hersteltijd_uur": 100.0, "onderhoud_dagen": 20.0,
-                              "eq_uur_per_lastcyclus": 2.0, "startvertraging_min": 0.0}, "bijschakelen"),
+                              "startvertraging_min": 0.0}, "bijschakelen"),
     ("geen minimumlast", 2023, 7, {"capaciteit_mw": 40.0, "minimumlast": 0.0, "bop_vast": 0.0, "stackwissel_weken": 0.0}, "verdelen"),
 ]
 KEYS = ["modules", "module_mw", "waterstof_t", "verbruik_mwh", "standby_mwh", "aanbod_mwh", "benutting", "bedrijfsuren_gem",

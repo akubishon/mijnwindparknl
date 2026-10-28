@@ -19,9 +19,9 @@ test('cost explanation reproduces native Python totals and exact four-part diffe
  assert.ok(report.checks.every(c=>c.ok),JSON.stringify(report.checks.filter(c=>!c.ok)));
  close(report.economics.base.capex,45_000_000);
  close(report.economics.comparison.capex,46_000_000);
- close(report.economics.base.lcoh,8.13414339120532);
- close(report.economics.comparison.lcoh,8.085924775191705);
- close(report.delta,-0.04821861601361555);
+ close(report.economics.base.lcoh,8.02881956239917);
+ close(report.economics.comparison.lcoh,7.965166072763748);
+ close(report.delta,-0.0636534896354215);
  for(const part of report.parts)close(part.value,fixture.rijen[1].uitsplitsing[part.key]);
  close(report.parts.reduce((s,p)=>s+p.value,0),report.delta);
  assert.equal(report.context.coverage[0].hours,8650.333333333332);

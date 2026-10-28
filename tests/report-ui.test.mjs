@@ -11,7 +11,7 @@ function harness(){
  const node=id=>{if(!nodes.has(id))nodes.set(id,{id,hidden:true,disabled:false,value:id==='report-day'?'2025-05-14':'',attrs:{},classList:{add(){},remove(){}},setAttribute(key,v){this.attrs[key]=v;},replaceChildren(...children){this.children=children;},focus(){},scrollIntoView(){},querySelectorAll(){return [];},append(){},click(){},remove(){}});return nodes.get(id);};
  const docEvents=new Map();
  const document={getElementById:node,activeElement:node('explain-calculation'),addEventListener:(n,fn)=>docEvents.set(n,fn),body:{...node('body'),append(){}},createElement:()=>({...node('download')})};
- const scales=new Set(['minimumlast','deellastvoordeel','faradayverlies_10','bop_vast','bop_variabel','degradatie_1000h','standby','stack_aandeel','opex_aandeel','rente']);
+ const scales=new Set(['minimumlast','deellastvoordeel','faradayverlies_10','bop_vast','bop_variabel','degradatie_jaar','standby','stack_aandeel','opex_aandeel','rente']);
  const meta={groepen:[{naam:'Test',velden:Object.keys(fixture.aannames).map(key=>({key,label:key,schaal:scales.has(key)?100:1,eenheid:scales.has(key)?'%':'',bron:'plaatshouder'}))}],technologieen:{pem:{naam:'PEM',waarden:Object.fromEntries(Object.entries(fixture.aannames).map(([k,v])=>[k,v*(scales.has(k)?100:1)]))}}};
  const ctx=vm.createContext({document,Intl,Date,JSON,Blob,URL:{createObjectURL:blob=>{downloads.push(blob);return '';},revokeObjectURL(){}},Option:function(text,value,def,selected){return {text,value,selected};},setTimeout(){},addEventListener:(n,fn)=>{if(!events.has(n))events.set(n,[]);events.get(n).push(fn);},fetch:(url,options)=>new Promise(resolve=>requests.push({url,body:JSON.parse(options.body),resolve})),OpsReportMoments:{build:(data,a,b,c)=>({date:data.datum,notes:[],moments:[],a,b,c})}});
  vm.runInContext(modelSource,ctx);vm.runInContext(uiSource,ctx);docEvents.get('DOMContentLoaded')();
@@ -27,7 +27,7 @@ test('report UI and day request use the result snapshot and shown-unit scaling',
  const request=h.requests[0];assert.equal(request.url,'/api/opsplitsing/dag');
  assert.equal(request.body.aannames.minimumlast,10);
  assert.equal(request.body.aannames.bop_vast,3);
- assert.equal(request.body.aannames.degradatie_1000h,0.19);
+ assert.equal(request.body.aannames.degradatie_jaar,1);
  assert.deepEqual(request.body.modules,[1,2]);
  assert.equal(h.ui.getReport().result.aannames.minimumlast,0.1);
  assert.equal(h.ui.getReport().base.kosten_meur_jaar,fixture.rijen[0].kosten_meur_jaar);
@@ -150,7 +150,7 @@ test('missing wear data leaves known production visible and never becomes zero a
  const shown=h.node('result-conclusion').innerHTML;
  assert.match(shown,/kostengegevens/);
  assert.doesNotMatch(shown,/geen waterstof produceert/);
- assert.match(shown,/2\.960,4 ton waterstof per jaar/,'Known physical production remains readable');
+ assert.match(shown,/2\.980,8 ton waterstof per jaar/,'Known physical production remains readable');
  assert.doesNotMatch(shown,/(?:>|\s)0(?:,00)? miljoen euro/,'Missing stack and annual costs must not become zero');
  assert.match(shown,/Niet beschikbaar/);
  h.ui.open();

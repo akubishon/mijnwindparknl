@@ -13,9 +13,8 @@ const META = {
  minimumlast: ['Minimumlast', '% van de stacklast', 100, 0, 80], systeemverbruik_vol: ['Systeemverbruik bij vollast', 'kWh/kg, incl. BoP', 1, 20, 90],
  deellastvoordeel: ['Deellastvoordeel stack', '%', 100, 0, 30], faradayverlies_10: ['Faradayverlies bij 10 % last', '%', 100, 0, 20],
  bop_vast: ['BoP-vast', '% van module', 100, 0, 20], bop_variabel: ['BoP-variabel', '% van stack', 100, 0, 30],
- degradatie_1000h: ['Stackdegradatie', '% per 1000 h', 100, 0, 2], stack_levensduur_uur: ['Stacklevensduur', 'equivalente uren', 1, 10000, 200000],
- eq_uur_warme_start: ['Slijtage per warme start', 'equivalente uren', 1, 0, 50], eq_uur_koude_start: ['Slijtage per koude start', 'equivalente uren', 1, 0, 200],
- eq_uur_per_lastcyclus: ['Slijtage per volledige lastzwaai', 'equivalente uren', 1, 0, 20],
+ degradatie_jaar: ['Stackdegradatie', '% meer verbruik per jaar', 100, 0, 3], degradatie_jaren: ['Degradatieperiode', 'jaar', 1, 1, 30],
+ stack_levensduur_uur: ['Stacklevensduur', 'bedrijfsuren', 1, 10000, 200000],
  min_aan_min: ['Minimale aan-tijd', 'min', 1, 0, 240], min_uit_min: ['Minimale uit-tijd', 'min', 1, 0, 240], startvertraging_min: ['Startvertraging', 'min', 1, 0, 240],
  standby: ['Warmhouden', '% van module', 100, 0, 10], koud_na_uur: ['Koud na', 'uur', 1, 0, 48], opstart_warm_min: ['Opstarttijd warm', 'min', 1, 0, 120],
  opstart_koud_min: ['Opstarttijd koud', 'min', 1, 0, 240], onderhoud_dagen: ['Gepland onderhoud', 'dagen per module per jaar', 1, 0, 60],
@@ -24,10 +23,10 @@ const META = {
 };
 export const fieldMeta = key => ({key, label: META[key][0], unit: META[key][1], scale: META[key][2], low: META[key][3], high: META[key][4]});
 // Model-bound values from the technology standard; general values are equal for every setup in a comparison.
-export const MODEL_KEYS = ['faradayverlies_10', 'degradatie_1000h', 'stack_levensduur_uur', 'eq_uur_warme_start', 'eq_uur_koude_start', 'eq_uur_per_lastcyclus'];
+export const MODEL_KEYS = ['faradayverlies_10', 'degradatie_jaar', 'degradatie_jaren', 'stack_levensduur_uur'];
 export const GENERAL_KEYS = ['min_aan_min', 'min_uit_min', 'startvertraging_min', 'opstart_warm_min', 'opstart_koud_min', 'koud_na_uur', 'standby', 'onderhoud_dagen', 'storingen_per_jaar', 'hersteltijd_uur', 'stackwissel_weken'];
 // source() in opsplitsing.py
-const EU_TOOL = new Set(['systeemverbruik_vol', 'degradatie_1000h', 'stack_levensduur_uur']), WEBSITE = new Set(['bop_vast', 'bop_variabel']);
+const EU_TOOL = new Set(['systeemverbruik_vol', 'stack_levensduur_uur']), WEBSITE = new Set(['bop_vast', 'bop_variabel']);
 export const sourceOf = key => EU_TOOL.has(key) ? 'EU LCOH-tool' : WEBSITE.has(key) ? 'mijnwindpark.nl (10 % BoP op vollast)' : 'plaatshouder';
 export const isAssumption = field => field.status === STATUS.standaard || field.status === STATUS.eigen || !!field.aanname;
 const fmt = (n, d = 3) => new Intl.NumberFormat('nl-NL', {maximumFractionDigits: d}).format(n);

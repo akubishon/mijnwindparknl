@@ -32,7 +32,7 @@ from . import windbron
 from .application import HYDROGEN_SHARE, PARKS, ROOT, load_curve, park_power_mw, parse_wind
 from .knmi import KNMIClient, KNMIError, load_env_file
 
-MODEL_VERSION = 12  # 12: gedigitaliseerde SWT-DD-130-curve als standaard; oude caches vervallen.
+MODEL_VERSION = 13  # 13: degradatie als lineair meerverbruik per jaar; starts tellen niet meer als bedrijfsuren.
 STEP_H = 1 / 6
 FRYSLAN_SHARE = HYDROGEN_SHARE["fryslan"]
 CACHE = ROOT / ".cache" / "opsplitsing"
@@ -58,7 +58,8 @@ class Aannames:
     faradayverlies_10: float = 0.03
     bop_vast: float = 0.03
     bop_variabel: float = 0.07
-    degradatie_1000h: float = 0.0019
+    degradatie_jaar: float = 0.01
+    degradatie_jaren: float = 10.0
     min_aan_min: float = 30.0
     min_uit_min: float = 20.0
     startvertraging_min: float = 20.0
@@ -69,9 +70,6 @@ class Aannames:
     onderhoud_dagen: float = 7.0
     storingen_per_jaar: float = 2.0
     hersteltijd_uur: float = 48.0
-    eq_uur_warme_start: float = 1.0
-    eq_uur_koude_start: float = 5.0
-    eq_uur_per_lastcyclus: float = 0.0
     stack_levensduur_uur: float = 60000.0
     stackwissel_weken: float = 4.0
     offerte_meur: float = 60.0
@@ -95,7 +93,7 @@ class Aannames:
 # standaardinstellingen. Minimumlast en opstarttijden staan daar niet in en zijn plaatshouders.
 TECHNOLOGIES = {
     "pem": ("PEM", Aannames()),
-    "alkaline": ("Alkaline", replace(Aannames(), minimumlast=0.20, systeemverbruik_vol=52.4, degradatie_1000h=0.0012,
+    "alkaline": ("Alkaline", replace(Aannames(), minimumlast=0.20, systeemverbruik_vol=52.4,
                                      koud_na_uur=4.0, opstart_warm_min=5.0, opstart_koud_min=45.0,
                                      stack_levensduur_uur=80000.0)),
 }
@@ -109,7 +107,7 @@ TOELICHTING = {
                      "draait al vanaf ~4,5 MW. Met goedkope losse units (0,3 M€ vaste kosten, bijvoorbeeld containers met "
                      "gedeelde BoP) wegen die extra draaiuren zwaarder dan de extra modules kosten.",
 }
-EU_TOOL = {"systeemverbruik_vol", "degradatie_1000h", "stack_levensduur_uur", "stack_aandeel",
+EU_TOOL = {"systeemverbruik_vol", "stack_levensduur_uur", "stack_aandeel",
            "opex_aandeel", "stroomprijs_eur_mwh", "netkosten_eur_mwh", "belasting_eur_mwh", "rente", "looptijd_jaar",
            "capex_subsidie_eur_kw", "waterstofpremie_eur_kg", "korting_net_belasting_eur_mwh", "zuurstofprijs_eur_t"}
 OXYGEN_KG_PER_KG = 8.0   # 2 H2O → 2 H2 + O2: 32 / 4
@@ -142,8 +140,11 @@ AANNAMES_META = [
          "Pompen, koeling en besturing die draaien zodra de module aan staat, los van de last."),
         ("bop_variabel", "BoP-variabel", "% van stack", 0, 30, 100,
          "Gelijkrichter- en compressieverlies, evenredig met het stackvermogen. Vast + variabel is 10 % op vollast, net als op mijnwindpark.nl."),
-        ("degradatie_1000h", "Stackdegradatie", "% per 1000 h", 0, 2, 100,
-         "Extra verbruik per 1000 bedrijfsuren. Over een stackleven telt gemiddeld de helft van het eindverlies mee."),
+        ("degradatie_jaar", "Stackdegradatie", "% meer verbruik per jaar", 0, 3, 100,
+         "Minder waterstof bij hetzelfde vermogen: het energieverbruik per kg stijgt lineair met dit percentage per jaar. "
+         "Fabrikanten geven vaak 0,8–1,0 % per jaar op. Starts en lastwisselingen tellen niet als extra bedrijfsuren."),
+        ("degradatie_jaren", "Degradatieperiode", "jaar", 1, 30, 1,
+         "Over deze periode loopt het extra verbruik lineair op; het model rekent met het gemiddelde, de helft van het eindverlies."),
     ]),
     ("Bedrijfsvoering", [
         ("min_aan_min", "Minimale aan-tijd", "min", 0, 240, 1, "Een gestarte module blijft minstens zo lang draaien als er genoeg wind is."),
@@ -162,11 +163,7 @@ AANNAMES_META = [
         ("hersteltijd_uur", "Hersteltijd per storing", "uur", 0, 720, 1, "Zolang ligt een module stil na een storing."),
     ]),
     ("Slijtage", [
-        ("eq_uur_warme_start", "Slijtage per warme start", "equivalente uren", 0, 50, 1, "Extra veroudering per start, uitgedrukt in bedrijfsuren."),
-        ("eq_uur_koude_start", "Slijtage per koude start", "equivalente uren", 0, 200, 1, ""),
-        ("eq_uur_per_lastcyclus", "Slijtage per volledige lastzwaai", "equivalente uren", 0, 20, 1,
-         "Per 0 → 100 → 0 %-zwaai; kleinere wisselingen tellen naar verhouding."),
-        ("stack_levensduur_uur", "Stacklevensduur", "equivalente uren", 10000, 200000, 1, "Daarna wordt de stack vervangen."),
+        ("stack_levensduur_uur", "Stacklevensduur", "bedrijfsuren", 10000, 200000, 1, "Daarna wordt de stack vervangen."),
         ("stackwissel_weken", "Stilstand per stackwissel", "weken", 0, 26, 1,
          "Zolang staat een module stil bij vervanging. Verdeeld over het stackleven en gepland in het windarme voorjaar."),
     ]),
@@ -324,13 +321,18 @@ def stack_sec_full(a: Aannames) -> float:
     return a.systeemverbruik_vol * (1 - a.faradayverlies_10 * 0.1) / (1 + a.bop_variabel + a.bop_vast)
 
 
+def degradation(a: Aannames) -> float:
+    """Gemiddeld extra energieverbruik per kg: lineair oplopend met degradatie_jaar over degradatie_jaren."""
+    return a.degradatie_jaar * a.degradatie_jaren / 2
+
+
 def stack_kg_h(stack_mw: float, size_mw: float, a: Aannames) -> float:
     """Waterstof per uur uit het stackvermogen van één module."""
     x = stack_mw / size_mw
     if x <= 0 or x < a.minimumlast - 1e-9:
         return 0.0
     faraday = max(0.0, 1 - a.faradayverlies_10 * 0.1 / x)
-    ageing = a.degradatie_1000h * a.stack_levensduur_uur / 1000 / 2   # gemiddeld over een stackleven
+    ageing = degradation(a)
     sec = stack_sec_full(a) * (1 - a.deellastvoordeel * (1 - x)) * (1 + ageing)
     return stack_mw * 1000 / sec * faraday
 
@@ -461,9 +463,9 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
             if x >= a.minimumlast * size - 1e-9 and x > 0:
                 if not on[i]:
                     if off_h[i] >= a.koud_na_uur:
-                        cold[i] += 1; eq[i] += a.eq_uur_koude_start; startup[i] = a.opstart_koud_min
+                        cold[i] += 1; startup[i] = a.opstart_koud_min
                     else:
-                        warm[i] += 1; eq[i] += a.eq_uur_warme_start; startup[i] = a.opstart_warm_min
+                        warm[i] += 1; startup[i] = a.opstart_warm_min
                     on[i], on_h[i] = True, 0.0
                 productive = max(0.0, 10 - startup[i]) / 10
                 starting[i] = min(10.0, startup[i])
@@ -471,7 +473,7 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
                 module_kg[i] = stack_kg_h(x, size, a) * STEP_H * productive
                 step_kg += module_kg[i]
                 used += draw_mw(x, size, a) * STEP_H
-                eq[i] += STEP_H + abs(x - stack[i]) / size / 2 * a.eq_uur_per_lastcyclus
+                eq[i] += STEP_H
                 hours[i] += STEP_H
                 on_h[i] += STEP_H
                 stack[i] = x

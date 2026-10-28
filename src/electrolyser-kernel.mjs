@@ -1,10 +1,10 @@
-// JavaScript port of the per-module simulation in src/opsplitsing/python/opsplitsing.py (MODEL_VERSION 12; simulate() is unchanged since 10, the wind supply changed).
+// JavaScript port of the per-module simulation in src/opsplitsing/python/opsplitsing.py (MODEL_VERSION 13).
 // Function names and operation order follow the Python source so results stay within floating-point noise;
 // scripts/test-python-browser.mjs and tests/electrolyser-kernel.test.mjs compare both kernels.
 // Additions that the Python kernel does not report (remaining energy split, supply classes, start counts)
 // are computed alongside the unchanged decisions and never feed back into them.
 
-export const KERNEL_VERSION = 'opsplitsing.py MODEL_VERSION 12 · JS 1';
+export const KERNEL_VERSION = 'opsplitsing.py MODEL_VERSION 13 · JS 1';
 export const STEP_H = 1 / 6;
 export const STRATEGIES = {
  verdelen: 'Per tijdstap het aantal modules dat de meeste waterstof geeft, last gelijk verdeeld.',
@@ -14,12 +14,12 @@ export const STRATEGIES = {
 // Aannames() defaults and TECHNOLOGIES from opsplitsing.py; the Python check compares them with meta_json().
 export const DEFAULTS = Object.freeze({
  capaciteit_mw: 44.0, minimumlast: 0.10, systeemverbruik_vol: 53.3, deellastvoordeel: 0.10, faradayverlies_10: 0.03,
- bop_vast: 0.03, bop_variabel: 0.07, degradatie_1000h: 0.0019, min_aan_min: 30.0, min_uit_min: 20.0,
+ bop_vast: 0.03, bop_variabel: 0.07, degradatie_jaar: 0.01, degradatie_jaren: 10.0, min_aan_min: 30.0, min_uit_min: 20.0,
  startvertraging_min: 20.0, standby: 0.01, koud_na_uur: 2.0, opstart_warm_min: 1.0, opstart_koud_min: 10.0,
- onderhoud_dagen: 7.0, storingen_per_jaar: 2.0, hersteltijd_uur: 48.0, eq_uur_warme_start: 1.0, eq_uur_koude_start: 5.0,
- eq_uur_per_lastcyclus: 0.0, stack_levensduur_uur: 60000.0, stackwissel_weken: 4.0,
+ onderhoud_dagen: 7.0, storingen_per_jaar: 2.0, hersteltijd_uur: 48.0,
+ stack_levensduur_uur: 60000.0, stackwissel_weken: 4.0,
 });
-const alkaline = {...DEFAULTS, minimumlast: 0.20, systeemverbruik_vol: 52.4, degradatie_1000h: 0.0012, koud_na_uur: 4.0,
+const alkaline = {...DEFAULTS, minimumlast: 0.20, systeemverbruik_vol: 52.4, koud_na_uur: 4.0,
  opstart_warm_min: 5.0, opstart_koud_min: 45.0, stack_levensduur_uur: 80000.0};
 export const TECHNOLOGIES = Object.freeze({
  pem: {naam: 'PEM', waarden: Object.freeze({...DEFAULTS})},
@@ -120,7 +120,7 @@ export function stack_kg_h(stack_mw, size_mw, a) {
  const x = stack_mw / size_mw;
  if (x <= 0 || x < a.minimumlast - 1e-9) return 0.0;
  const faraday = Math.max(0.0, 1 - a.faradayverlies_10 * 0.1 / x);
- const ageing = a.degradatie_1000h * a.stack_levensduur_uur / 1000 / 2;
+ const ageing = a.degradatie_jaar * a.degradatie_jaren / 2;
  const sec = stack_sec_full(a) * (1 - a.deellastvoordeel * (1 - x)) * (1 + ageing);
  return stack_mw * 1000 / sec * faraday;
 }
@@ -231,8 +231,8 @@ export function simulate(supply, n, a, strategy) {
    const x = loads[i];
    if (x >= a.minimumlast * size - 1e-9 && x > 0) {
     if (!on[i]) {
-     if (off_h[i] >= a.koud_na_uur) { cold[i] += 1; eq[i] += a.eq_uur_koude_start; startup[i] = a.opstart_koud_min; }
-     else { warm[i] += 1; eq[i] += a.eq_uur_warme_start; startup[i] = a.opstart_warm_min; }
+     if (off_h[i] >= a.koud_na_uur) { cold[i] += 1; startup[i] = a.opstart_koud_min; }
+     else { warm[i] += 1; startup[i] = a.opstart_warm_min; }
      on[i] = true; on_h[i] = 0.0;
     }
     const productive = Math.max(0.0, 10 - startup[i]) / 10;
@@ -241,7 +241,7 @@ export function simulate(supply, n, a, strategy) {
     const drawn = draw_mw(x, size, a);
     used += drawn * STEP_H;
     step_draw += drawn;
-    eq[i] += STEP_H + Math.abs(x - stack[i]) / size / 2 * a.eq_uur_per_lastcyclus;
+    eq[i] += STEP_H;
     hours[i] += STEP_H;
     on_h[i] += STEP_H;
     stack[i] = x;
