@@ -39,8 +39,8 @@ CACHE = ROOT / ".cache" / "opsplitsing"
 LOCAL = ZoneInfo("Europe/Amsterdam")
 FIRST_YEAR = 2022   # eerste volledige jaar met Windpark Fryslân in bedrijf
 STATIONS = windbron.STATIONS
-MODULE_COUNTS = [1, 2, 3, 4, 5, 6, 8, 10, 11, 16]   # keuzelijst op de pagina
-MAX_MODULES = 64                                     # bovengrens voor opgeslagen scenario's en aanvragen
+MODULE_COUNTS = [1, 2, 3, 4, 5, 6, 8, 10, 11, 12]   # keuzelijst op de pagina
+MAX_MODULES = 12                                     # bovengrens: bij modules van ~5 MW kosten meer dan 12 te veel ruimte en maken de installatie lastig; herzien als de modulegrootte verandert
 STRATEGIES = {
     "verdelen": "Per tijdstap het aantal modules dat de meeste waterstof geeft, last gelijk verdeeld.",
     "bijschakelen": "Modules één voor één bijschakelen; hooguit één module in deellast.",

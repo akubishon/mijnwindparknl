@@ -4,7 +4,7 @@ Elk scenario (technologie × besturing × windjaren × moduleaantallen, plus eve
 aannames) komt als JSON in scenarios/. De opsplitsingspagina toont ze onder "Opgeslagen
 scenario's" zonder opnieuw te rekenen; scenarios/overzicht.csv zet alle rijen onder elkaar.
 
-    python3 -m windprofiel.scenarios                          # alles: 3 technologieën × 3 besturingen, 1–16 modules
+    python3 -m windprofiel.scenarios                          # alles: 3 technologieën × 3 besturingen, 1–12 modules
     python3 -m windprofiel.scenarios --modules 1-44 --technologie alkaline_hoog --strategie verdelen --jaren 2025
     python3 -m windprofiel.scenarios --aannames mijn-offerte.json --naam "Offerte X"
     python3 -m windprofiel.scenarios --lijst
@@ -30,12 +30,12 @@ ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
 
 
 def parse_counts(text: str) -> list[int]:
-    """'1-16', '1,2,4,8' of '1-6,8,10-12' naar een gesorteerde lijst moduleaantallen."""
+    """'1-12', '1,2,4,8' of '1-6,8,10-12' naar een gesorteerde lijst moduleaantallen."""
     counts = set()
     for part in text.replace(" ", "").split(","):
         low, _, high = part.partition("-")
         if not low.isdigit() or (high and not high.isdigit()):
-            raise ValueError(f"Onbekend moduleaantal: {part!r}. Gebruik bijvoorbeeld 1-16 of 1,2,4,8.")
+            raise ValueError(f"Onbekend moduleaantal: {part!r}. Gebruik bijvoorbeeld 1-12 of 1,2,4,8.")
         counts.update(range(int(low), int(high or low) + 1))
     if not counts or min(counts) < 1 or max(counts) > MAX_MODULES:
         raise ValueError(f"Moduleaantallen van 1 tot en met {MAX_MODULES}.")
@@ -123,7 +123,7 @@ def main() -> int:
     parser.add_argument("--technologie", nargs="+", choices=TECHNOLOGIES, default=list(TECHNOLOGIES))
     parser.add_argument("--strategie", nargs="+", choices=STRATEGIES, default=list(STRATEGIES))
     parser.add_argument("--jaren", type=int, nargs="+", default=available_years())
-    parser.add_argument("--modules", default="1-16", help=f"Bijvoorbeeld 1-16, 1-{MAX_MODULES} of 1,2,4,8 (standaard 1-16).")
+    parser.add_argument("--modules", default="1-12", help=f"Bijvoorbeeld 1-12, 1-{MAX_MODULES} of 1,2,4,8 (standaard 1-12).")
     parser.add_argument("--aannames", type=Path, help="JSON met afwijkende aannames in getoonde eenheden (minimumlast 40 = 40 %%).")
     parser.add_argument("--naam", help="Naam op de webpagina; standaard uit technologie, besturing, jaren en modules.")
     parser.add_argument("--windmethode", choices=windbron.METHODS, default=windbron.DEFAULT,
