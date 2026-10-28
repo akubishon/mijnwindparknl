@@ -725,7 +725,7 @@ async function loadMap(result) {
     $("map-status").textContent = "";
     drawMap(data);
   } catch (error) {
-    if (token !== mapToken) return;
+    if (isCancelled(error) || token !== mapToken) return;
     $("map-status").textContent = error.message;
   } finally {
     if (token === mapToken) $("map-run").disabled = false;
@@ -934,7 +934,6 @@ function render(result) {
   stepChart(rows);
   table(rows, net);
   renderSpeed(result);
-  setupWhy(result);
   const others = rows.slice(1).map(r => r.modules);
   $("day-panel").hidden = !others.length;
   if (others.length) {
@@ -946,6 +945,8 @@ function render(result) {
     if (!day.value || day.value < day.min || day.value > day.max) day.value = result.voorbeelddag || day.min;
     runDay();
   }
+  // De waterfall staat er direct; de gevoeligheid rekent pas als de gebruiker erom vraagt. Wat er ook gevraagd wordt: de dag staat in de wachtrij vóór.
+  setupWhy(result);
 }
 
 // ---------------------------------------------------------------- dag van dichtbij
@@ -1029,6 +1030,10 @@ async function post(url, body) {
   return data;
 }
 
+// De rekenbrug (bridge.js) laat een verzoek dat nog niet gestart was vallen zodra een nieuwer verzoek van dezelfde soort komt.
+// Dat is geen fout: de nieuwere aanvraag toont het antwoord.
+const isCancelled = error => error?.name === "AbortError";
+
 async function runDay() {
   if (!lastResult) return;
   const result = lastResult;
@@ -1049,6 +1054,7 @@ async function runDay() {
     selectStep(interestingStep(data, n));
     $("day-status").textContent = "";
   } catch (error) {
+    if (isCancelled(error)) return;
     $("day-status").textContent = error.message;
     $("day-status").classList.add("error");
   }
@@ -1087,6 +1093,7 @@ async function submit(event) {
     status.textContent = `Klaar in ${nf((performance.now() - began) / 1000)} s.`;
     $("results").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start"});
   } catch (error) {
+    if (isCancelled(error)) return;
     status.textContent = error.message;
     status.classList.add("error");
   } finally {
@@ -1394,9 +1401,16 @@ const PARTS = [
   ["stackvervanging", "Stackvervanging", "Slijtage door bedrijfsuren."],
 ];
 let whyToken = 0;
+// Is de gevoeligheid voor de getoonde uitkomst aangevraagd? Zo niet, dan rekent een andere N in #why-n haar niet uit zichzelf door:
+// de analyse duurt enkele minuten en houdt de rekenworker bezet.
+let sensitivityRequested = false;
+// Berekende gevoeligheden per uitkomst en N: terug naar een eerdere N toont ze direct, ook zonder nieuwe aanvraag.
+const sensitivityCache = new Map();
+const sensitivityKey = (result, n) => JSON.stringify([snapshotRequest(result), n]);
 
 function setupWhy(result) {
   whyToken++;
+  sensitivityRequested = false;
   const rows = result.rijen;
   const select = $("why-n");
   const others = rows.slice(1);
@@ -1406,6 +1420,10 @@ function setupWhy(result) {
   const chosen = cheapest === rows[0] ? others[0].modules : cheapest.modules;
   select.replaceChildren(...others.map(r => new Option(label(r.modules), r.modules, false, r.modules === chosen)));
   select.onchange = () => drawWhy(result, Number(select.value));
+  $("sens-run").onclick = () => {
+    sensitivityRequested = true;
+    showSensitivity(result, Number(select.value));
+  };
   $("why-base").textContent = label(rows[0].modules);
   drawWhy(result, chosen);
 }
@@ -1456,25 +1474,40 @@ function drawWhy(result, n) {
     return {label: name, to: value, value: sign(value),
       tip: `<b>${name}</b><br>${why}${extra}<br>${value >= 0 ? "Voordeel" : "Nadeel"} voor ${label(n)}: ${nf(Math.abs(value), 3)} €/kg`};
   })));
-  loadSensitivity(result, n);
+  showSensitivity(result, n);
 }
 
-async function loadSensitivity(result, n) {
+// Tornado voor N modules: uit de cache als hij er is, anders berekenen als de gebruiker erom vroeg, anders de knop.
+function showSensitivity(result, n) {
   const token = ++whyToken;
   const status = $("tornado-status");
   status.classList.remove("error");
-  status.innerHTML = '<span class="spinner"></span>Gevoeligheid berekenen… elke aanname wordt twee keer doorgerekend; de eerste keer duurt dit even.';
+  status.innerHTML = "";
   $("tornado").replaceChildren();
   $("tornado-legend").innerHTML = "";
+  const cached = sensitivityCache.get(sensitivityKey(result, n));
+  $("sens-actions").hidden = Boolean(cached) || sensitivityRequested;
+  if (cached) drawTornado(cached, n);
+  else if (sensitivityRequested) loadSensitivity(result, n, token);
+}
+
+async function loadSensitivity(result, n, token) {
+  const status = $("tornado-status");
+  status.innerHTML = '<span class="spinner"></span>Gevoeligheid berekenen… elke aanname wordt twee keer doorgerekend en dit duurt enkele minuten. Andere berekeningen, zoals een nieuwe dag, wachten tot dit klaar is.';
   try {
     const data = await post("/api/opsplitsing/gevoeligheid", {...snapshotRequest(result), n});
+    // Een antwoord voor een eerdere N of uitkomst is niet nutteloos: bewaar het voor als de gebruiker terugkeert.
+    if (sensitivityCache.size >= 40) sensitivityCache.delete(sensitivityCache.keys().next().value);
+    sensitivityCache.set(sensitivityKey(result, n), data);
     if (token !== whyToken) return;
     status.innerHTML = "";
     drawTornado(data, n);
   } catch (error) {
-    if (token !== whyToken) return;
+    if (isCancelled(error) || token !== whyToken) return;
     status.textContent = error.message;
     status.classList.add("error");
+    sensitivityRequested = false;
+    $("sens-actions").hidden = false;
   }
 }
 

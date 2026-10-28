@@ -1,9 +1,43 @@
 // Preserve the upstream UI's request interface while computing locally.
+// bridge.js and opsplitsing.js are classic scripts in one global scope: keep this file's names out of it.
+(()=>{
 const originalFetch=window.fetch.bind(window);
 const calculator=new Worker('/opsplitsing-assets/calculator-worker.js');
-let serial=0;const pending=new Map();
-calculator.onmessage=({data})=>{const callback=pending.get(data.id);if(callback){pending.delete(data.id);callback(data);}};
-calculator.onerror=()=>{for(const callback of pending.values())callback({error:'Het rekenmodel kon niet starten. Controleer de verbinding en herlaad de pagina.'});pending.clear();};
+let serial=0;
+// The worker computes one request at a time and cannot be interrupted: runPython is synchronous, so a calculation that has
+// started always runs to the end. Requests therefore wait here, not in the worker's message queue, which makes it possible to
+// (1) drop a request that has not started when a newer one of the same kind arrives and (2) let /dag overtake the long
+// /gevoeligheid and /omslagkaart. A dropped request rejects with an AbortError; the UI ignores that silently.
+const queue=[];let running=null;
+const PRIORITY={aannames:0,run:0,dag:1,gevoeligheid:2,omslagkaart:2};
+const kindOf=path=>{const kind=path.slice('/api/opsplitsing/'.length);return Object.hasOwn(PRIORITY,kind)?kind:'run';};
+function next(){
+ if(running||!queue.length)return;
+ queue.sort((a,b)=>PRIORITY[a.kind]-PRIORITY[b.kind]||a.id-b.id);
+ running=queue.shift();
+ calculator.postMessage({id:running.id,path:running.path,body:running.body});
+}
+function enqueue(path,body){
+ const kind=kindOf(path);
+ return new Promise((resolve,reject)=>{
+  // Nothing newer than a queued request of the same kind is wanted any more. The meta request is never replaced.
+  if(kind!=='aannames')for(let i=queue.length-1;i>=0;i--)if(queue[i].kind===kind){
+   queue.splice(i,1)[0].reject(new DOMException('Vervangen door een nieuwer verzoek.','AbortError'));
+  }
+  queue.push({id:++serial,kind,path,body,resolve,reject});
+  next();
+ });
+}
+calculator.onmessage=({data})=>{
+ if(!running||running.id!==data.id)return;
+ const done=running;running=null;done.resolve(data);next();
+};
+calculator.onerror=()=>{
+ const failure={error:'Het rekenmodel kon niet starten. Controleer de verbinding en herlaad de pagina.'};
+ const waiting=running?[running,...queue]:[...queue];
+ running=null;queue.length=0;
+ for(const request of waiting)request.resolve(failure);
+};
 window.fetch=async function(input,options){
  const path=typeof input==='string'?input:input.url;
  if(!path.startsWith('/api/opsplitsing'))return originalFetch(input,options);
@@ -20,8 +54,7 @@ window.fetch=async function(input,options){
   const item=saved.find(x=>x.id===decodeURIComponent(path.split('/').pop()));
   return Response.json(item||{error:'Scenario niet gevonden.'},{status:item?200:404});
  }
- const id=++serial;
- const data=await new Promise(resolve=>{pending.set(id,resolve);calculator.postMessage({id,path,body:options?.body?JSON.parse(options.body):{}});});
+ const data=await enqueue(path,options?.body?JSON.parse(options.body):{});
  return Response.json(data.error?{error:data.error}:data.result,{status:data.error?400:200});
 };
 
@@ -40,3 +73,4 @@ document.addEventListener('DOMContentLoaded',()=>{
   }catch{status.textContent='Bewaren is niet gelukt. Mogelijk is de browseropslag vol of geblokkeerd.';}
  };
 });
+})();

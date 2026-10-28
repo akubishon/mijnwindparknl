@@ -205,3 +205,137 @@ test('CSV preserves row fields, precise Dutch numbers, context and all original 
   close(Number(data[2]['stap.deltaLcoh'].replace(',', '.')), rows[2].lcoh_eur_kg - rows[1].lcoh_eur_kg);
   close(Number(data[2]['stap.marginal'].replace(',', '.')), 7.9836226549552824);
 });
+
+// ---------------------------------------------------------------- gevoeligheid en omslagkaart op verzoek
+
+// The presentation code with a minimal fake page. Requests go to `requests`; a test settles them with `answer`.
+function livePage() {
+  const nodes = new Map();
+  const node = id => {
+    if (!nodes.has(id)) {
+      const classes = new Set();
+      nodes.set(id, {id, hidden: false, innerHTML: '', textContent: '', value: '', disabled: false, replaceChildren() {},
+        classList: {add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name)}});
+    }
+    return nodes.get(id);
+  };
+  // A <select> takes the value of its selected option.
+  node('why-n').replaceChildren = (...options) => { node('why-n').value = String((options.find(option => option.selected) || options[0]).value); };
+  const requests = [];
+  const context = vm.createContext({
+    document: {getElementById: node, querySelector: () => ({}), querySelectorAll: () => []},
+    Intl, Option: class { constructor(text, value, _default, selected) { Object.assign(this, {text, value, selected}); } },
+    fetch: (url, options) => new Promise((resolve, reject) => {
+      requests.push({url, body: JSON.parse(options.body), resolve: data => resolve({ok: true, json: async () => data}), reject});
+    }),
+  });
+  vm.runInContext(source.replace(/^\s*start\(\);\s*$/m, ''), context);
+  const drawn = [];
+  context.drawn = drawn;
+  vm.runInContext(`meta = {groepen: [{velden: [{key: 'capaciteit_mw', schaal: 1}]}]};
+    drawTornado = (data, n) => drawn.push([data.id, n]);
+    divergingBars = () => ({});`, context);
+  const parts = {meer_waterstof: 0.1, duurdere_installatie: 0.1, stroom_per_kilo: 0.1, stackvervanging: 0.1, kwh_per_kg: [50, 51]};
+  const result = {aannames: {capaciteit_mw: 44}, strategie: 'verdelen', jaren: [2024], rijen: [
+    {modules: 1, lcoh_eur_kg: 5, uitsplitsing: null},
+    {modules: 4, lcoh_eur_kg: 4.5, uitsplitsing: parts},
+    {modules: 6, lcoh_eur_kg: 4.7, uitsplitsing: parts}]};
+  const run = code => vm.runInContext(code, context);
+  context.result = result;
+  const choose = n => { node('why-n').value = String(n); node('why-n').onchange(); };
+  return {node, requests, drawn, run, choose, result};
+}
+
+const flush = () => new Promise(resolve => setImmediate(resolve));
+const cancelled = () => Object.assign(new Error('Vervangen door een nieuwer verzoek.'), {name: 'AbortError'});
+
+test('the sensitivity analysis does not start by itself, not even after choosing another N', async () => {
+  const page = livePage();
+  page.run('setupWhy(result)');
+  assert.equal(page.requests.length, 0, 'Showing a result must not queue the long analysis ahead of the day view');
+  assert.equal(page.node('sens-actions').hidden, false, 'The button is offered');
+  page.choose(6);
+  page.choose(4);
+  assert.equal(page.requests.length, 0);
+  assert.equal(page.node('sens-actions').hidden, false);
+  assert.deepEqual(plain(page.drawn), []);
+});
+
+test('after the button, the analysis follows the chosen N and cached results show immediately', async () => {
+  const page = livePage();
+  page.run('setupWhy(result)');
+  page.choose(6);
+  page.node('sens-run').onclick();
+  assert.equal(page.requests.length, 1);
+  assert.equal(page.requests[0].url, '/api/opsplitsing/gevoeligheid');
+  assert.equal(page.requests[0].body.n, 6);
+  assert.deepEqual(plain(page.requests[0].body.modules), [1, 4, 6]);
+  assert.equal(page.node('sens-actions').hidden, true);
+  assert.match(page.node('tornado-status').innerHTML, /enkele minuten/);
+  page.requests[0].resolve({id: 'n6'});
+  await flush();
+  assert.deepEqual(plain(page.drawn), [['n6', 6]]);
+  assert.equal(page.node('tornado-status').innerHTML, '');
+
+  page.choose(4);
+  assert.equal(page.requests.length, 2, 'Already requested for this result: a new N is computed');
+  assert.equal(page.requests[1].body.n, 4);
+  page.choose(6);
+  assert.deepEqual(plain(page.drawn), [['n6', 6], ['n6', 6]], 'N = 6 is in the cache and shows at once');
+  assert.equal(page.requests.length, 2, 'No new request for a cached result');
+  page.requests[1].resolve({id: 'n4'});
+  await flush();
+  assert.equal(page.drawn.length, 2, 'The late answer for N = 4 is not drawn over N = 6');
+  page.choose(4);
+  assert.deepEqual(plain(page.drawn[2]), ['n4', 4], 'but it was kept for when the user returns');
+  assert.equal(page.requests.length, 2);
+});
+
+test('a cached sensitivity shows without a request even if it was not asked for again', async () => {
+  const page = livePage();
+  page.run('setupWhy(result)');
+  page.node('sens-run').onclick();
+  page.requests[0].resolve({id: 'first'});
+  await flush();
+  const chosen = page.drawn[0][1];
+  // A new calculation of the same outcome (same assumptions) starts without a request, but remembers the analysis.
+  page.run('setupWhy(result)');
+  assert.deepEqual(plain(page.drawn.at(-1)), ['first', chosen]);
+  assert.equal(page.requests.length, 1);
+  assert.equal(page.node('sens-actions').hidden, true);
+  page.choose(chosen === 4 ? 6 : 4);
+  assert.equal(page.requests.length, 1, 'Not asked for this outcome yet: another N is not computed');
+  assert.equal(page.node('sens-actions').hidden, false);
+});
+
+test('a cancelled sensitivity request is ignored silently, a real error is shown and offers a retry', async () => {
+  const page = livePage();
+  page.run('setupWhy(result)');
+  page.node('sens-run').onclick();
+  page.choose(6);
+  page.requests[0].reject(cancelled());
+  await flush();
+  assert.equal(page.node('tornado-status').classList.contains('error'), false);
+  assert.match(page.node('tornado-status').innerHTML, /Gevoeligheid berekenen/, 'The newer request is still showing its progress');
+  // A rejection that is not a cancellation is a real error.
+  const failing = livePage();
+  failing.run('setupWhy(result)');
+  failing.node('sens-run').onclick();
+  failing.requests[0].reject(new Error('De berekening is mislukt: x'));
+  await flush();
+  assert.equal(failing.node('tornado-status').textContent, 'De berekening is mislukt: x');
+  assert.equal(failing.node('tornado-status').classList.contains('error'), true);
+  assert.equal(failing.node('sens-actions').hidden, false, 'The button comes back');
+  failing.choose(6);
+  assert.equal(failing.requests.length, 1, 'After an error nothing restarts by itself');
+});
+
+test('a cancelled omslagkaart request leaves the page alone', async () => {
+  const page = livePage();
+  page.run('setupMap(result)');
+  page.node('map-run').onclick();
+  assert.equal(page.requests.length, 1);
+  page.requests[0].reject(cancelled());
+  await flush();
+  assert.doesNotMatch(page.node('map-status').textContent, /Vervangen/);
+});
