@@ -32,7 +32,7 @@ from . import windbron
 from .application import HYDROGEN_SHARE, PARKS, ROOT, load_curve, park_power_mw, parse_wind
 from .knmi import KNMIClient, KNMIError, load_env_file
 
-MODEL_VERSION = 14  # 14: degradatie als lineair meerverbruik per jaar; starts tellen niet meer als bedrijfsuren. 13: minimumlast PEM 25 %, alkaline 30 %. 12: gedigitaliseerde SWT-DD-130-curve als standaard; oude caches vervallen.
+MODEL_VERSION = 15  # 15: omslagkaart en scenario's rond minimumlast 25–30 % per module. 14: degradatie als lineair meerverbruik per jaar; starts tellen niet meer als bedrijfsuren. 13: minimumlast PEM 25 %, alkaline 30 %. 12: gedigitaliseerde SWT-DD-130-curve als standaard; oude caches vervallen.
 STEP_H = 1 / 6
 FRYSLAN_SHARE = HYDROGEN_SHARE["fryslan"]
 CACHE = ROOT / ".cache" / "opsplitsing"
@@ -131,7 +131,8 @@ AANNAMES_META = [
     ]),
     ("Rendement per module", [
         ("minimumlast", "Minimumlast", "%", 0, 80, 100,
-         "Onder deze last mag een module niet draaien. Grootste factor voor de winst van opsplitsen; staat in de datasheet."),
+         "Per module: onder deze last mag een module niet draaien (één PEM-module ca. 25–30 %, alkaline vergelijkbaar). "
+         "Bij N parallelle modules daalt de ondergrens van het systeem naar ca. 1/N hiervan. Grootste factor voor de winst van opsplitsen; staat in de datasheet."),
         ("systeemverbruik_vol", "Energieverbruik bij vollast", "kWh/kg", 35, 80, 1,
          "Stroom per kilo inclusief BoP, voor een nieuwe stack op nominaal vermogen. Dit is de ‘energy consumption’ uit de EU-tool."),
         ("deellastvoordeel", "Deellastvoordeel stack", "%", 0, 30, 100,
@@ -778,7 +779,7 @@ def sensitivity(a: Aannames, years: list[int], n: int, strategy: str, workers: i
     return data
 
 
-OMSLAG_MINIMUMLAST = [0.10, 0.20, 0.30, 0.40, 0.50]
+OMSLAG_MINIMUMLAST = [0.20, 0.25, 0.30, 0.40, 0.50]
 OMSLAG_VASTE_KOSTEN = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 
 
@@ -892,7 +893,7 @@ def main() -> int:
     parser.add_argument("--jaren", type=int, nargs="+", default=available_years())
     parser.add_argument("--modules", type=int, nargs="+", default=MODULE_COUNTS)
     parser.add_argument("--technologie", choices=TECHNOLOGIES, default="pem")
-    parser.add_argument("--aannames", type=Path, help="JSON-bestand met afwijkende aannames, in getoonde eenheden (minimumlast 20 = 20 %).")
+    parser.add_argument("--aannames", type=Path, help="JSON-bestand met afwijkende aannames, in getoonde eenheden (minimumlast 25 = 25 %).")
     parser.add_argument("--uit", type=Path, default=ROOT / "uitvoer" / "opsplitsing")
     parser.add_argument("--windmethode", choices=windbron.METHODS, default=windbron.DEFAULT,
                         help="Standaard productie-onafhankelijk; de oude methoden zijn er om te vergelijken.")
@@ -907,7 +908,7 @@ def main() -> int:
         print(str(exc))
         return 1
     scenarios = {"basis": ({}, list(STRATEGIES)),
-                 "minimumlast 10 %": ({"minimumlast": 0.10}, ["verdelen"]),
+                 "minimumlast 30 %": ({"minimumlast": 0.30}, ["verdelen"]),
                  "minimumlast 40 %": ({"minimumlast": 0.40}, ["verdelen"]),
                  "offerte -25 %": ({"offerte_meur": base.offerte_meur * 0.75}, ["verdelen"]),
                  "offerte +25 %": ({"offerte_meur": base.offerte_meur * 1.25}, ["verdelen"]),
