@@ -116,6 +116,7 @@
       'Stackvervanging is een continue jaarlijkse kostenbenadering op basis van equivalente uren. Het model rekent de stilstand voor stackwissels in een tweede simulatie mee.'
     ];
     if (assumptions.some(item=>item.source==='plaatshouder')) limitations.push('Er zijn voorlopige plaatshouders gebruikt. Vervang deze door onderbouwde installatiegegevens voordat je een investeringsconclusie trekt.');
+    if (assumptions.some(item=>item.source==='onzekere aanname')) limitations.push('De vaste kosten per extra module zijn een onzekere aanname, geen gevalideerde prijs. Toets de conclusie aan het omslagpunt en de gevoeligheidsanalyse.');
     if (assumptions.some(item=>item.source==='herkomst niet vastgelegd')) limitations.push('Voor een deel van de invoer is de herkomst niet vastgelegd; zie de invoertabel.');
     return {result,base,comparison,assumptions,calculations,checks,parts,economics:{base:b,comparison:c},delta,
       context:{years:result.jaren || [],strategy:result.strategie || '',technology:metadata.technologieen?.[result.technologie]?.naam || result.technologie || 'Niet vastgelegd',modelVersion:result.model_versie ?? 'Niet vastgelegd',windMethod:result.windmethode || 'Niet vastgelegd',windExplanation:result.windmethode_uitleg || '',key:result.sleutel || 'Niet vastgelegd',
