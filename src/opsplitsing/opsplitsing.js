@@ -112,13 +112,79 @@ function selection() {
   };
 }
 
+// ---------------------------------------------------------------- wat wil je berekenen?
+
+// De basisvergelijking (kopcijfers, laagste kostprijs, grafieken, tabel) is één aanvraag en rekent altijd.
+// De onderdelen hieronder rekenen alleen als de gebruiker ze kiest.
+const ONDERDELEN = [
+  {key: "basis", naam: "Kostprijs en productie per aantal modules", uitleg: "Conclusie, laagste kostprijs, stappen, grafieken en tabel. Altijd.", vast: true},
+  {key: "waarom", naam: "Waar het verschil vandaan komt", uitleg: "Uitsplitsing van het verschil per kilo. Geen extra rekentijd."},
+  {key: "dag", naam: "Een dag van dichtbij", uitleg: "Eén dag per tien minuten, met rekenvoorbeeld. Enkele seconden."},
+  {key: "kaart", naam: "Omslagkaart", uitleg: "Welk aantal wint bij andere minimumlast en vaste kosten. Duurt langer."},
+  {key: "gevoeligheid", naam: "Gevoeligheid van de aannames", uitleg: "Elke aanname 25 % lager en hoger. Enkele minuten.", nodig: "waarom"},
+];
+const STANDAARD_ONDERDELEN = ["waarom"];
+
+function chosenParts() {
+  const boxes = [...document.querySelectorAll("input[name=onderdeel]")];
+  return new Set(boxes.length ? boxes.filter(i => i.checked).map(i => i.value) : STANDAARD_ONDERDELEN);
+}
+
+function buildParts(chosen) {
+  const wanted = new Set(Array.isArray(chosen) ? chosen : STANDAARD_ONDERDELEN);
+  const html = (tag, className, content) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (content) node.textContent = content;
+    return node;
+  };
+  $("parts").replaceChildren(...ONDERDELEN.map(part => {
+    const input = html("input");
+    Object.assign(input, {type: "checkbox", name: "onderdeel", value: part.key});
+    input.checked = part.vast || wanted.has(part.key);
+    input.disabled = Boolean(part.vast);
+    input.addEventListener("change", () => {
+      // Gevoeligheid hoort bij de uitsplitsing: aan zonder uitsplitsing kan niet, uit met uitsplitsing wel.
+      const boxes = Object.fromEntries([...document.querySelectorAll("input[name=onderdeel]")].map(i => [i.value, i]));
+      if (part.key === "gevoeligheid" && input.checked) boxes.waarom.checked = true;
+      if (part.key === "waarom" && !input.checked) boxes.gevoeligheid.checked = false;
+      remember();
+      applyParts();
+    });
+    const row = html("label", "part" + (part.vast ? " fixed" : ""));
+    const body = html("span");
+    body.append(html("b", "", part.naam), html("small", "", part.uitleg));
+    row.append(input, body);
+    return row;
+  }));
+}
+
+// Wat er na een berekening per onderdeel al is opgevraagd, zodat aanzetten na afloop alleen het ontbrekende rekent.
+const partsDone = {dag: false, kaart: false};
+
+// Toont alleen de gekozen onderdelen en start wat gekozen is maar voor deze uitkomst nog niet gerekend.
+function applyParts() {
+  if (!lastResult) return;
+  const parts = chosenParts();
+  const others = lastResult.rijen.length > 1;
+  document.querySelector(".why").hidden = !others || !parts.has("waarom");
+  document.querySelector(".map-grid").hidden = !parts.has("kaart");
+  $("day-panel").hidden = !others || !parts.has("dag");
+  if (others && parts.has("dag") && !partsDone.dag) { partsDone.dag = true; runDay(); }
+  if (others && parts.has("kaart") && !partsDone.kaart) { partsDone.kaart = true; loadMap(lastResult); }
+  if (others && parts.has("gevoeligheid") && !sensitivityRequested) {
+    sensitivityRequested = true;
+    showSensitivity(lastResult, Number($("why-n").value));
+  }
+}
+
 function remember() {
   const changed = {};
   const current = values();
   for (const [key, value] of Object.entries(current)) {
     if (isFinite(value) && Math.abs(value - standard(key)) > 1e-9) changed[key] = value;
   }
-  save({technologie: tech, aannames: changed, ...selection()});
+  save({technologie: tech, aannames: changed, ...selection(), onderdelen: [...chosenParts()].filter(k => k !== "basis")});
   refreshResultStatus();
 }
 
@@ -935,7 +1001,7 @@ function render(result) {
   table(rows, net);
   renderSpeed(result);
   const others = rows.slice(1).map(r => r.modules);
-  $("day-panel").hidden = !others.length;
+  $("day-panel").hidden = true;
   if (others.length) {
     const prefer = others.includes(4) ? 4 : others[0];
     $("day-count").replaceChildren(...others.map(n => new Option(label(n), n, false, n === prefer)));
@@ -943,10 +1009,14 @@ function render(result) {
     day.min = `${Math.min(...result.jaren)}-01-01`;
     day.max = `${Math.max(...result.jaren)}-12-31`;
     if (!day.value || day.value < day.min || day.value > day.max) day.value = result.voorbeelddag || day.min;
-    runDay();
   }
-  // De waterfall staat er direct; de gevoeligheid rekent pas als de gebruiker erom vraagt. Wat er ook gevraagd wordt: de dag staat in de wachtrij vóór.
+  // De waterfall staat er direct. Dag, omslagkaart en gevoeligheid rekenen alleen als ze onder ‘Wat wil je berekenen?’ gekozen zijn;
+  // de rekenbrug zet de dag in de wachtrij vóór de lange omslagkaart en gevoeligheid.
   setupWhy(result);
+  partsDone.dag = partsDone.kaart = false;
+  const parts = chosenParts();
+  if (parts.has("waarom") || parts.has("kaart")) document.querySelector(".analysis-support").open = true;
+  applyParts();
 }
 
 // ---------------------------------------------------------------- dag van dichtbij
@@ -1112,7 +1182,9 @@ async function start() {
     $("status").classList.add("error");
     return;
   }
-  buildForm(load());
+  const stored = load();
+  buildParts(stored.onderdelen);
+  buildForm(stored);
   drawExplainers();
   renderSpeed(null);
   $("form").addEventListener("submit", submit);
