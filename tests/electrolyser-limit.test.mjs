@@ -7,6 +7,7 @@ import {resolveSetup, fillToTarget, fillWithinLimit, defaultLimit, validLimit, l
 const catalogue = JSON.parse(readFileSync(new URL('./fixtures/atlas-catalogue.json', import.meta.url), 'utf8'));
 const models = catalogueModels(catalogue).models;
 const byName = name => models.find(m => m.name.startsWith(name));
+const excludedByName = name => catalogueModels(catalogue).excluded.find(m => m.name.startsWith(name));
 const fixture = byName('Fixture Systeem 4,4 MW'); // 4,4 MW per module
 const setupOf = modules => ({id: 'a', modelId: fixture.id, modules, choices: {}});
 const limit = (mode, extra = {}) => ({...defaultLimit(), mode, ...extra});
@@ -67,7 +68,9 @@ test('catalogue fit: modules for 44 MW and whether they fit in 12', () => {
  const fit = name => modelFit(byName(name).power.value, 44, limit('blokkeren'));
  assert.deepEqual([fit('Nel PSM').needed, fit('Nel PSM').ok], [5, true]);
  assert.deepEqual([fit('Sunfire HyLink Alkaline 22').needed, fit('Sunfire HyLink Alkaline 22').ok], [5, true]);
- assert.deepEqual([fit('Accelera by Cummins HyLYZER 1000-30').needed, fit('Accelera by Cummins HyLYZER 1000-30').ok], [9, true]);
+ // Accelera by Cummins is disabled, so it is not in the catalogue list; the module rule itself still applies.
+ assert.equal(byName('Accelera by Cummins'), undefined);
+ assert.deepEqual([modelFit(excludedByName('Accelera by Cummins HyLYZER 1000-30').power.value, 44, limit('blokkeren')).needed], [9]);
  assert.deepEqual([fit('Stargate Hydrogen').needed, fit('Stargate Hydrogen').ok], [10, true]);
  for (const [name, needed] of [['Oort Energy Theia', 44], ['Quest One ME450', 44], ['H₂ Energy 1 MW PEM', 48], ['Enapter AEM Nexus 1000', 48]]) {
   const f = fit(name);

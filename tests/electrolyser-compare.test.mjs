@@ -12,6 +12,8 @@ const supplies = Object.fromEntries([2022, 2023, 2024, 2025].map(y => [y, read(`
 const catalogue = read('./fixtures/atlas-catalogue.json');
 const models = catalogueModels(catalogue).models;
 const byName = name => models.find(m => m.name.startsWith(name));
+// Accelera by Cummins is disabled (no longer produced), but its fixture still exercises the interpretation rules.
+const excludedByName = name => catalogueModels(catalogue).excluded.find(m => m.name.startsWith(name));
 const fixture = byName('Fixture Systeem 4,4 MW');
 const close = (a, b, tolerance = 1e-9) => Math.abs(a - b) <= tolerance * Math.max(1, Math.abs(b));
 const KEYS = ['waterstof_t', 'verbruik_mwh', 'standby_mwh', 'aanbod_mwh', 'benutting', 'bedrijfsuren_gem', 'productie_uur', 'starts_warm_per_module', 'starts_koud_per_module', 'dekking_uur', 'stackwissel_dagen'];
@@ -112,7 +114,7 @@ test('acceptance 3: stack-only consumption gives no result without an explicit, 
  assert.equal(stack.delivery.label, 'Losse stack');
  assert.equal(resolveSetup(stack, {id: 'a', modelId: stack.id, modules: 1, choices: {}}).ready, false);
  // A system whose consumption already includes BoP needs nothing extra and keeps the standard 10 %.
- const system = resolveSetup(byName('Accelera by Cummins HyLYZER 1000-30'), {id: 'b', modelId: 'x', modules: 9, choices: {}});
+ const system = resolveSetup(excludedByName('Accelera by Cummins HyLYZER 1000-30'), {id: 'b', modelId: 'x', modules: 9, choices: {}});
  assert.ok(system.ready); assert.equal(system.fields.find(f => f.key === 'bop_vast').status, 'standaard technologie');
 });
 
@@ -135,9 +137,9 @@ test('acceptance 4: hydrogen-basis minimum load and power ranges are never conve
  assert.equal(plug.power.value, 5); assert.equal(plug.boundary.value, 'stack'); assert.equal(plug.stackEnergy.status, 'open');
  assert.equal(interpretModel({id: 'x', name: 'x', manufacturer: 'x', technology: 'PEM', values: {power: '≈ 5,160 / 5,400 MW DC (berekend)', stackEnergy: '50 ± 1,1 kWh/kg H₂ stack'}}).power.status, 'open');
  assert.equal(interpretModel({id: 'x', name: 'x', manufacturer: 'x', technology: 'PEM', values: {stackEnergy: '50 ± 1,1 kWh/kg H₂ stack'}}).stackEnergy.status, 'open');
- const unknown = byName('Accelera by Cummins HyLYZER 1000-30').minimum;
+ const unknown = excludedByName('Accelera by Cummins HyLYZER 1000-30').minimum;
  assert.equal(unknown.status, 'afgeleid'); assert.equal(unknown.aanname, true); assert.match(unknown.rule, /aanname/);
- const acdc = resolveSetup(byName('Accelera by Cummins HyLYZER 1000-30'), {id: 'a', modelId: 'x', modules: 1, choices: {}}).fields.find(f => f.key === 'acdc');
+ const acdc = resolveSetup(excludedByName('Accelera by Cummins HyLYZER 1000-30'), {id: 'a', modelId: 'x', modules: 1, choices: {}}).fields.find(f => f.key === 'acdc');
  assert.equal(acdc.aanname, true); assert.match(acdc.rule, /niet vermeld/);
 });
 
@@ -163,7 +165,8 @@ test('acceptance 5: measurement gaps are dropped, never counted as zero, and cov
 
 test('catalogue: Atlas exclusions, missing endpoint fields and the part-load curve with 11,12 Nm³/kg', () => {
  const all = catalogueModels(catalogue);
- assert.ok(all.excluded.some(m => m.manufacturer === 'SANY')); assert.ok(!all.models.some(m => ['SANY', 'LONGi Hydrogen', 'Sungrow'].includes(m.manufacturer)));
+ assert.ok(all.excluded.some(m => m.manufacturer === 'SANY')); assert.ok(all.excluded.some(m => m.manufacturer === 'Accelera by Cummins'));
+ assert.ok(!all.models.some(m => ['SANY', 'LONGi Hydrogen', 'Sungrow', 'Accelera by Cummins'].includes(m.manufacturer)));
  assert.ok(all.other.some(m => m.technology === 'Vermogenselektronica'));
  assert.deepEqual(missingEndpointFields(catalogue.models).map(f => f.key).slice(0, 3), ['scope', 'stacks', 'partload']);
  const raw = catalogue.models.find(m => m.name.startsWith('H₂ Energy 1 MW PEM'));
