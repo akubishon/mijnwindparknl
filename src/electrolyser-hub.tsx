@@ -1,12 +1,11 @@
 import {useCallback,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import {SiteHeader,SiteNavigation} from './site-navigation';
-import Electrolyser from './electrolyser';
 import {catalogueModels,missingEndpointFields,DISABLED_MANUFACTURERS,NM3_PER_KG} from './electrolyser-catalogue.mjs';
 import {resolveSetup,generalValues,defaultGeneral,newSetup,fillToTarget,RESULT_ROWS,PERCENT_KEYS,differences,capacityWarnings,comparisonCSV,fieldMeta,GENERAL_KEYS,WIND_YEARS,WIND_SERIES,MAX_SETUPS,MAX_MODULES,DEFAULT_TARGET_MW,MODEL_KEYS,jobFor} from './electrolyser-setup.mjs';
 import {assemble} from './electrolyser-run.mjs';
 import {STRATEGIES,TECHNOLOGIES,SUPPLY_EDGES,KERNEL_VERSION} from './electrolyser-kernel.mjs';
 
-type Tab='vermogen'|'catalogus'|'samenstellen'|'vergelijken';
+type Tab='catalogus'|'samenstellen'|'vergelijken';
 type Choices={power?:number;powerNote?:string;boundary?:'systeem'|'stack';energy?:number;energyNote?:string;energySource?:'tech';minimum?:number;minimumNote?:string;minimumSource?:'tech';profile?:string;bopConfirmed?:boolean;usePartLoad?:boolean;values?:Record<string,number>};
 type Setup={id:string;modelId:string;modules:number;choices:Choices};
 type General={strategy:string;years:number[];values:Record<string,number>};
@@ -18,8 +17,8 @@ type Catalogue={schemaVersion:number;revision:string;sourceUpdatedAt?:string|nul
 type Metrics=Record<string,any>;
 type Assembled={years:number[];keys:string[];perYear:Metrics[];mean:Metrics;dropped:number};
 
-const TABS:[Tab,string,string][]=[['vermogen','Beschikbaar vermogen','/elektrolyser'],['catalogus','Catalogus','/elektrolyser/catalogus'],['samenstellen','Samenstellen','/elektrolyser/samenstellen'],['vergelijken','Vergelijken','/elektrolyser/vergelijken']];
-const tabFromPath=(path:string):Tab=>(TABS.find(t=>t[2]===path.replace(/\/$/,''))?.[0])||'vermogen';
+const TABS:[Tab,string,string][]=[['catalogus','Catalogus','/elektrolyser/catalogus'],['samenstellen','Samenstellen','/elektrolyser/samenstellen'],['vergelijken','Vergelijken','/elektrolyser/vergelijken']];
+const tabFromPath=(path:string):Tab=>(TABS.find(t=>t[2]===path.replace(/\/$/,''))?.[0])||'catalogus';
 const LETTERS='ABCD';
 const COLORS=['#0C2340','#00A6DE','#9A5B13','#4E7A3A'],DASHES=['','6 4','2 3','10 3 2 3'];
 const fmt=(n:number|null|undefined,d=1)=>typeof n==='number'&&Number.isFinite(n)?new Intl.NumberFormat('nl-NL',{maximumFractionDigits:d,minimumFractionDigits:0}).format(n):'—';
@@ -90,7 +89,7 @@ export default function ElectrolyserApp(){
   try{const r=await fetch('/api/atlas/catalogue');const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Waterstofatlas kon niet worden geladen. Probeer opnieuw.');setCatalogue({data:d,loading:false,error:''});}
   catch(e){setCatalogue(c=>({...c,loading:false,error:e instanceof Error?e.message:'Koppeling niet beschikbaar.'}));}
  },[]);
- useEffect(()=>{if(tab!=='vermogen'&&!catalogue.data&&!catalogue.loading&&!catalogue.error)void loadCatalogue();},[tab,catalogue,loadCatalogue]);
+ useEffect(()=>{if(!catalogue.data&&!catalogue.loading&&!catalogue.error)void loadCatalogue();},[tab,catalogue,loadCatalogue]);
  const interpreted=useMemo(()=>catalogueModels(catalogue.data) as {models:Model[];excluded:Model[];other:Model[]},[catalogue.data]);
  const byId=useMemo(()=>new Map(interpreted.models.map(m=>[m.id,m])),[interpreted]);
  const resolved=useMemo(()=>setups.map(s=>resolveSetup(byId.get(s.modelId),s,general) as Resolved),[setups,byId,general]);
@@ -102,7 +101,6 @@ export default function ElectrolyserApp(){
   setSetups(l=>l.some(s=>s.id===id)?l.map(s=>s.id===id?newSetup(id,modelId,modules):s):[...l,newSetup(id,modelId,modules)]);
   setActive(id);go('samenstellen');
  };
- if(tab==='vermogen')return <Electrolyser subnav={<SubTabs current={tab} go={go}/>}/>;
  const catalogueState=<>{catalogue.loading&&<p role="status" className="wind-note">Waterstofatlas-catalogus laden…</p>}{catalogue.error&&<div className="live-error" role="alert"><p>{catalogue.error}</p><button type="button" className="download" onClick={()=>void loadCatalogue()}>Opnieuw proberen</button></div>}</>;
  return <Shell tab={tab} go={go}>{catalogueState}
   {tab==='catalogus'&&<CatalogueTab catalogue={catalogue.data} interpreted={interpreted} onChoose={choose} onReload={()=>void loadCatalogue()} loading={catalogue.loading}/>}
