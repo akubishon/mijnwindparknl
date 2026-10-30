@@ -43,10 +43,48 @@ export function fillToTarget(moduleMW, target) {
  return {modules: Math.min(MAX_MODULES, above), exact: false, below: below >= 1 ? below : null};
 }
 
+// Optional module limit, off by default. The user chooses whether it only warns or blocks (mode) and whether the
+// target power must be reached with at most `max` modules or may be undershot by `tolerance` (reach).
+export const LIMIT_MODES = ['uit', 'waarschuwen', 'blokkeren'], LIMIT_REACH = ['volledig', 'onder'], DEFAULT_MAX_MODULES = 12;
+export const defaultLimit = () => ({mode: 'uit', max: DEFAULT_MAX_MODULES, reach: 'volledig', tolerance: 0.05});
+export const validLimit = v => !!v && LIMIT_MODES.includes(v.mode) && Number.isInteger(v.max) && v.max >= 1 && v.max <= MAX_MODULES
+ && LIMIT_REACH.includes(v.reach) && finite(v.tolerance) && v.tolerance >= 0 && v.tolerance <= 0.5;
+// Lowest total power that still counts as reaching the target under the chosen reach rule.
+export const limitFloorMW = (target, limit = defaultLimit()) => target * (limit.reach === 'onder' ? 1 - limit.tolerance : 1);
+// What the limit asks of one setup: at most `max` modules and enough total power for the target. Nothing when off.
+export function limitCheck({modules, moduleMW, target}, limit = defaultLimit()) {
+ const problems = [];
+ if (limit.mode !== 'uit' && Number.isInteger(modules)) {
+  if (modules > limit.max) problems.push(`Modulelimiet: ${modules} modules is meer dan de limiet van ${limit.max} modules.`);
+  if (finite(moduleMW) && moduleMW > 0 && finite(target) && target > 0) {
+   const nominal = modules * moduleMW;
+   if (nominal < limitFloorMW(target, limit) - target * 1e-9) problems.push(limit.reach === 'onder'
+    ? `Modulelimiet: ${modules} × ${fmt(moduleMW)} = ${fmt(nominal, 2)} MW ligt meer dan ${fmt(limit.tolerance * 100, 1)} % onder het doelvermogen van ${fmt(target, 2)} MW.`
+    : `Modulelimiet: ${modules} × ${fmt(moduleMW)} = ${fmt(nominal, 2)} MW haalt het doelvermogen van ${fmt(target, 2)} MW niet.`);
+  }
+ }
+ return {mode: limit.mode, ok: !problems.length, blocks: limit.mode === 'blokkeren' && problems.length > 0, problems};
+}
+// For the catalogue: modules needed for the target, and whether the model can reach it within the limit.
+export function modelFit(moduleMW, target, limit = defaultLimit()) {
+ if (!(moduleMW > 0) || !(target > 0)) return null;
+ const needed = Math.max(fillToTarget(moduleMW, target).modules, Math.ceil(target / moduleMW - 1e-9));
+ const modules = limit.mode === 'uit' ? needed : Math.min(needed, limit.max);
+ return {needed, modules, nominalMW: modules * moduleMW, ...limitCheck({modules, moduleMW, target}, limit)};
+}
+// fillToTarget, but a blocking limit caps the module count so the fill never goes past it.
+export function fillWithinLimit(moduleMW, target, limit = defaultLimit()) {
+ const fill = fillToTarget(moduleMW, target);
+ if (!fill) return null;
+ if (limit.mode !== 'blokkeren' || fill.modules <= limit.max) return {...fill, capped: false};
+ return {modules: limit.max, exact: false, below: null, capped: true};
+}
+
 const field = (key, label, value, unit, status, extra = {}) => ({key, label, value, unit, status, ...extra});
 
 // The interpreted catalogue model (interpretModel) + the stored setup → fields, problems and Aannames.
-export function resolveSetup(model, setup, general = defaultGeneral()) {
+// `rules` ({target, limit}) is optional: without it no module limit applies.
+export function resolveSetup(model, setup, general = defaultGeneral(), rules = {}) {
  const problems = [], fields = [], c = setup.choices || {}, own = c.values || {};
  const n = setup.modules;
  if (!Number.isInteger(n) || n < 1 || n > MAX_MODULES) problems.push(`Kies een geheel aantal modules van 1 tot ${MAX_MODULES}.`);
@@ -135,10 +173,13 @@ export function resolveSetup(model, setup, general = defaultGeneral()) {
  for (const f of fields) if (f.scale && f.key !== 'minimumlast' && f.value !== null && finite(f.value) && META[f.key] && !inRange(f.key, f.value)) problems.push(`${f.label} valt buiten ${fieldMeta(f.key).low}–${fieldMeta(f.key).high} ${fieldMeta(f.key).unit}.`);
 
  const moduleMW = power.value, stackModuleMW = finite(moduleMW) && bopFactor ? (boundary.value === 'stack' ? moduleMW : moduleMW / bopFactor) : null;
+ // A limit that only warns leaves the setup calculable; a blocking one makes it not ready.
+ const limit = limitCheck({modules: n, moduleMW, target: rules.target}, validLimit(rules.limit) ? rules.limit : defaultLimit());
+ if (limit.blocks) problems.push(...limit.problems);
  const ready = !problems.length && finite(stackModuleMW) && fields.every(f => f.value !== null);
  const counted = fields.filter(f => f.key !== 'rekenprofiel');
  const result = {
-  ready, problems: [...new Set(problems)], fields: [profileField, ...fields], modules: n, moduleMW, needsBoP,
+  ready, problems: [...new Set(problems)], limit, fields: [profileField, ...fields], modules: n, moduleMW, needsBoP,
   boundary: boundary.value, stackModuleMW, bopFactor,
   nominalMW: finite(moduleMW) ? n * moduleMW : null, intakeMW: finite(stackModuleMW) ? n * stackModuleMW * bopFactor : null,
   platformLimitMW: model.power.platformLimitMW || null,
