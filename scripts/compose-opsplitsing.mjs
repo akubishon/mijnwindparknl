@@ -1,4 +1,5 @@
 import {readFileSync,readdirSync} from 'node:fs';
+import {build} from 'esbuild';
 const root='src/opsplitsing/';
 const bundle={};
 function add(file,key){bundle[key]=readFileSync(root+file).toString('base64');}
@@ -9,8 +10,9 @@ const assets={};
 for(const file of ['opsplitsing.css','opsplitsing.js','bridge.js','calculator-worker.js','report.css','report-model.js','report-moments.js','report-xlsx.js','report-ui.js'])assets[file]=[readFileSync(root+file,'utf8'),file.endsWith('.css')?'text/css':'text/javascript'];
 assets['bundle.json']=[JSON.stringify(bundle),'application/json'];
 for(const file of readdirSync(root+'data').sort())assets['data/'+file]=[readFileSync(root+'data/'+file,'utf8'),'application/json'];
+assets['i18n.js']=[(await build({entryPoints:['src/i18n-page.mjs'],bundle:true,write:false,minify:true,format:'iife',target:['es2022']})).outputFiles[0].text,'text/javascript'];
 assets['scenarios.json']=['{"scenarios":[]}','application/json'];
-let html=readFileSync(root+'opsplitsing.html','utf8').replace('href="./opsplitsing.css"','href="/opsplitsing-assets/opsplitsing.css"').replace('<script src="./opsplitsing.js" defer></script>','<script src="/opsplitsing-assets/bridge.js" defer></script><script src="/opsplitsing-assets/opsplitsing.js" defer></script>');
+let html=readFileSync(root+'opsplitsing.html','utf8').replace('<title>','<script src="/opsplitsing-assets/i18n.js"></script><title>').replace('href="./opsplitsing.css"','href="/opsplitsing-assets/opsplitsing.css"').replace('<script src="./opsplitsing.js" defer></script>','<script src="/opsplitsing-assets/bridge.js" defer></script><script src="/opsplitsing-assets/opsplitsing.js" defer></script>');
 html=html.replace('href="/">Windparken</a>','href="/">mijnwindpark.nl</a>');
 html=html.replaceAll(/(?:href|src)="\.\/(report[^"]+)"/g, (match,file)=>match.replace('./'+file,'/opsplitsing-assets/'+file));
 html=html.replace('Lokale analyse · Europe/Amsterdam','Tijden in Nederland').replace('<section class="intro">','<section class="intro"><p class="note">De berekeningen draaien op dit apparaat. Houd deze pagina open tijdens het rekenen. Het eerste gebruik downloadt het rekenmodel; grote analyses kunnen enkele minuten duren.</p>');
