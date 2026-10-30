@@ -166,7 +166,7 @@ test('acceptance 5: measurement gaps are dropped, never counted as zero, and cov
 test('catalogue: Atlas exclusions, missing endpoint fields and the part-load curve with 11,12 Nm³/kg', () => {
  const all = catalogueModels(catalogue);
  assert.ok(all.excluded.some(m => m.manufacturer === 'SANY')); assert.ok(all.excluded.some(m => m.manufacturer === 'Accelera by Cummins'));
- assert.ok(!all.models.some(m => ['SANY', 'LONGi Hydrogen', 'Sungrow', 'Accelera by Cummins'].includes(m.manufacturer)));
+ assert.ok(!all.models.some(m => ['SANY', 'LONGi Hydrogen', 'Sungrow', 'Accelera by Cummins', 'Hitachi Zosen Inova'].includes(m.manufacturer)));
  assert.ok(all.other.some(m => m.technology === 'Vermogenselektronica'));
  assert.deepEqual(missingEndpointFields(catalogue.models).map(f => f.key).slice(0, 3), ['scope', 'stacks', 'partload']);
  const raw = catalogue.models.find(m => m.name.startsWith('H₂ Energy 1 MW PEM'));
