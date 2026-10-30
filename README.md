@@ -109,13 +109,23 @@ Deze wijziging is in GitHub gemaakt en moet nog naar Sites worden overgezet; `SI
 3. **Samenstellen** (`/elektrolyser/samenstellen`): tot vier opstellingen (A–D). Per opstelling een model en een geheel aantal modules, met totaalvermogen, opname bij vollast inclusief BoP en alle rekenwaarden met status, regel en brontekst. **Vul aan tot doelvermogen** (standaard 44 MW) kiest het aantal modules zoals `modules()` in `configurations.js`: exact als het past, anders het eerstvolgende aantal erboven, met het aantal eronder als alternatief.
 4. **Vergelijken** (`/elektrolyser/vergelijken`): 2 tot 4 complete opstellingen naast elkaar bij dezelfde windreeks en dezelfde algemene aannames, met een tabel, verschillen ten opzichte van een gekozen referentieopstelling, waterstof per windjaar, één grafiek en een CSV.
 
-`/onderzoek` verwijst voor Atlas-modellen naar Samenstellen en Vergelijken; de handmatige capaciteitsvergelijking blijft. `/opsplitsing` blijft de uitgebreide weergave met kosten en LCOH, met de Python-kern. Opstellingen, algemene aannames en doelvermogen worden als gemak in `localStorage` van de browser bewaard; zonder opslag werkt de pagina gewoon.
+`/onderzoek` verwijst voor Atlas-modellen naar Samenstellen en Vergelijken; de handmatige capaciteitsvergelijking blijft. `/opsplitsing` blijft de uitgebreide weergave met kosten en LCOH, met de Python-kern. Opstellingen, algemene aannames, doelvermogen en modulelimiet worden als gemak in `localStorage` van de browser bewaard; zonder opslag werkt de pagina gewoon.
 
 ### Begrippen
 
 - **Module**: de kleinste eenheid die zelfstandig aan en uit kan, met een eigen minimumlast. Een systeem met meerdere stacks telt als één module.
 - **Opstelling**: één model × een geheel aantal modules (1–200). Verschillende modellen in één opstelling vallen erbuiten.
 - **Vermogensgrens**: het modulevermogen geldt voor het systeem inclusief BoP of alleen voor de stack. `capaciteit_mw` in `opsplitsing.py` is stackvermogen; BoP komt daar bovenop (op vollast × (1 + BoP-vast + BoP-variabel), standaard × 1,10). Daarom is `capaciteit_mw = n × modulevermogen` bij een stackvermogen en `n × modulevermogen ÷ (1 + BoP-vast + BoP-variabel)` bij een systeemvermogen. Zo telt de BoP niet dubbel en draait een systeem van 4,4 MW op vollast ook 4,4 MW. De grens komt uit de brontekst ("systeem", "BoP + stack", "stack") of, als die niets zegt, uit een gelabelde aanname: losse stack of alleen stackverbruik → stack; DC → stack; anders systeem.
+
+### Modulelimiet (optioneel)
+
+Standaard staat de limiet **uit**: er wordt niets gemeld of geblokkeerd, alleen het vaste maximum van 200 modules per opstelling geldt. In Catalogus, Samenstellen en Vergelijken staat een paneel “Modulelimiet” waarin je zelf kiest:
+
+- **Limiet**: *Uit*, *Waarschuwen* of *Blokkeren*. Bij waarschuwen krijgt een opstelling buiten de limiet een melding, maar blijft ze rekenbaar en zit ze in de vergelijking. Bij blokkeren is zo'n opstelling niet “klaar om te rekenen”: de stepper stopt bij het maximum, “Vul aan tot doelvermogen” blijft binnen het maximum en Vergelijken laat de opstelling weg, met de reden.
+- **Maximaal aantal modules** (1–200, standaard 12).
+- **Doel halen**: *Moet gehaald worden* (totaalvermogen minstens het doelvermogen) of *Mag er licht onder blijven* met een toegestaan tekort in procenten (standaard 5 %).
+
+Een opstelling voldoet als ze ten hoogste het maximum aan modules heeft én minstens het doelvermogen haalt (min het toegestane tekort). De Catalogus toont per model hoeveel modules het doelvermogen vraagt en, bij een actieve limiet, of het model daarmee binnen de limiet blijft; een vinkje verbergt modellen daarbuiten. Modellen zonder eenduidig modulevermogen kunnen niet worden beoordeeld en blijven zichtbaar. De regels staan in `limitCheck()`, `modelFit()` en `fillWithinLimit()` in `src/electrolyser-setup.mjs`, met tests in `tests/electrolyser-limit.test.mjs`.
 
 ### Statussen en regels
 

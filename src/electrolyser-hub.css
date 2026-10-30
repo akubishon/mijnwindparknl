@@ -24,6 +24,11 @@
 .status-legend li{line-height:1.5}
 .endpoint-note{margin:14px 0}
 
+.limit-panel{border:1px solid #bcc8d2;border-radius:0 18px 0 0;padding:12px 16px 14px;margin:14px 0;min-width:0}
+.limit-panel legend{font-weight:600;padding:0 6px;color:#0C2340}
+.limit-panel .model-grid{margin:6px 0 2px}
+.limit-panel .wind-note{margin:8px 0 0}
+.limit-panel :disabled{opacity:.55}
 .catalogue-filters{margin:16px 0 4px}
 .catalogue-filters input{width:100%;padding:9px;border:1px solid #788b9f}
 .catalogue-list{list-style:none;padding:0;margin:14px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:16px}
