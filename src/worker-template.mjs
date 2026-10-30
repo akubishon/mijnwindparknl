@@ -39,48 +39,60 @@ async function siteAllowed(request,env){
 }
 const escapeHtml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function safeNext(value){if(typeof value!=='string'||!value.startsWith('/')||value.startsWith('//')||value.includes('\\')||/[\r\n]/.test(value))return '/';const u=new URL(value,'https://site.invalid');return u.origin==='https://site.invalid'&&!u.pathname.startsWith('/auth/')?u.pathname+u.search:'/';}
-function loginPage(message='',next='/',status=401){
- const html=`<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Welkom · Mijn Windpark</title><style>
+const loginText={
+ nl:{title:'Welkom · Mijn Windpark',welcome:'Welkom!',intro:'Voer je wachtwoord in.',password:'Wachtwoord',submit:'Inloggen',other:'English',otherLang:'en',otherLabel:'Show this page in English'},
+ en:{title:'Welcome · Mijn Windpark',welcome:'Welcome!',intro:'Enter your password.',password:'Password',submit:'Log in',other:'Nederlands',otherLang:'nl',otherLabel:'Toon deze pagina in het Nederlands'},
+};
+const loginMessages={'Toegang is nog niet ingesteld. Neem contact op met de beheerder.':'Access has not been set up yet. Please contact the administrator.','Te veel pogingen. Probeer over 15 minuten opnieuw.':'Too many attempts. Try again in 15 minutes.','Probeer het later opnieuw.':'Please try again later.','Ongeldige aanvraag.':'Invalid request.','Onjuist wachtwoord.':'Incorrect password.'};
+// Taalkeuze uit de cookie die de taalknop zet; de loginpagina heeft geen scripts en wordt daarom op de server vertaald.
+const requestLanguage=request=>/(?:^|;\s*)mwp_lang=en(?:;|$)/.test(request.headers.get('Cookie')||'')?'en':'nl';
+function withLanguage(path,lang){const u=new URL(path,'https://site.invalid');u.searchParams.set('lang',lang);return u.pathname+u.search;}
+function loginPage(message='',next='/',status=401,lang='nl'){
+ const text=loginText[lang]||loginText.nl;if(lang==='en')message=loginMessages[message]||message;
+ const html=`<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${text.title}</title><style>
  @font-face{font-family:'TASA Orbiter';src:url(data:font/ttf;base64,${brandFont}) format('truetype');font-style:normal;font-weight:400 800;font-display:swap}
  *{box-sizing:border-box}body{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:24px;background:#EFECE6;color:#0C2340;font-family:'TASA Orbiter','Segoe UI',Arial,sans-serif;line-height:1.5}
  main{width:100%;max-width:480px;padding:44px 42px;background:#fff;border:1px solid #bcc8d2;border-top:4px solid #00A6DE;border-radius:0 32px 0 0}
- .brand{margin:0 0 30px;font-size:15px;font-weight:600}h1{margin:0 0 10px;font-size:42px;font-weight:500;line-height:1.15;letter-spacing:-1px}.intro{margin:0 0 30px;font-size:18px;color:#465970}
+ .brand{margin:0 0 30px;font-size:15px;font-weight:600;display:flex;justify-content:space-between;gap:12px}.brand a{color:#0C2340;font-weight:500;font-size:14px}h1{margin:0 0 10px;font-size:42px;font-weight:500;line-height:1.15;letter-spacing:-1px}.intro{margin:0 0 30px;font-size:18px;color:#465970}
  label{display:block;margin-bottom:8px;font-size:16px;font-weight:600}input[type=password]{display:block;width:100%;min-height:60px;padding:14px 16px;border:1px solid #788b9f;border-radius:0 8px 0 0;background:#fff;color:#0C2340;font:inherit;font-size:20px}
  button{display:block;width:100%;min-height:58px;margin-top:22px;padding:14px 20px;border:1px solid #0C2340;border-radius:0 12px 0 0;background:#0C2340;color:#fff;font:inherit;font-size:18px;font-weight:600;cursor:pointer}button:hover{background:#193a5d}input:focus-visible,button:focus-visible{outline:3px solid #00A6DE;outline-offset:3px}
  .error{margin:18px 0 0;padding:12px 14px;border-left:3px solid #a32c22;background:#fff3f0;font-size:16px;color:#84251e}input[aria-invalid=true]{border-color:#a32c22}
  @media(max-width:520px){body{padding:20px}main{padding:32px 26px}h1{font-size:36px}.brand{margin-bottom:24px}}
- </style></head><body><main aria-labelledby="welcome-title"><p class="brand">mijnwindpark.nl</p><h1 id="welcome-title">Welkom!</h1><p class="intro">Voer je wachtwoord in.</p><form method="post" action="/auth/site"><input type="hidden" name="next" value="${escapeHtml(safeNext(next))}"><label for="password">Wachtwoord</label><input id="password" type="password" name="password" required maxlength="1024" autocomplete="current-password" autofocus${message?' aria-describedby="password-error" aria-invalid="true"':''}>${message?`<p class="error" id="password-error" role="alert">${escapeHtml(message)}</p>`:''}<button type="submit">Inloggen</button></form></main></body></html>`;
+ </style></head><body><main aria-labelledby="welcome-title"><p class="brand"><span>mijnwindpark.nl</span><a href="${escapeHtml(withLanguage(safeNext(next),text.otherLang))}" lang="${text.otherLang}" aria-label="${text.otherLabel}">${text.other}</a></p><h1 id="welcome-title">${text.welcome}</h1><p class="intro">${text.intro}</p><form method="post" action="/auth/site"><input type="hidden" name="next" value="${escapeHtml(safeNext(next))}"><label for="password">${text.password}</label><input id="password" type="password" name="password" required maxlength="1024" autocomplete="current-password" autofocus${message?' aria-describedby="password-error" aria-invalid="true"':''}>${message?`<p class="error" id="password-error" role="alert">${escapeHtml(message)}</p>`:''}<button type="submit">${text.submit}</button></form></main></body></html>`;
  const policy="default-src 'none'; style-src 'unsafe-inline'; font-src data:; form-action 'self'; base-uri 'none'; object-src 'none'";
  return new Response(html,{status,headers:{...securityHeaders,'Content-Security-Policy':policy,'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow'}});
 }
 async function gateRequest(request,env,url){
  const secret=siteSecret(env);
+ const choice=url.searchParams.get('lang');
+ if(request.method==='GET'&&!url.pathname.startsWith('/api/')&&(choice==='en'||choice==='nl')){url.searchParams.delete('lang');return new Response(null,{status:303,headers:{...securityHeaders,Location:safeNext(url.pathname+url.search),'Cache-Control':'no-store','Set-Cookie':`mwp_lang=${choice}; Path=/; Secure; SameSite=Lax; Max-Age=31536000`}});}
+ const lang=requestLanguage(request),login=(message,next,status)=>loginPage(message,next,status,lang);
  if(url.pathname==='/auth/logout'&&request.method==='POST'){
   if(request.headers.get('Origin')!==url.origin)return answer({error:'Ongeldige aanvraag.'},403);
   return new Response(null,{status:303,headers:{...securityHeaders,Location:'/','Cache-Control':'no-store','Set-Cookie':'__Host-site_session=; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=0'}});
  }
  if(url.pathname==='/auth/site'&&request.method==='POST'){
   if(request.headers.get('Origin')!==url.origin)return answer({error:'Ongeldige aanvraag.'},403);
-  if(!secret)return loginPage('Toegang is nog niet ingesteld. Neem contact op met de beheerder.','/',503);
+  if(!secret)return login('Toegang is nog niet ingesteld. Neem contact op met de beheerder.','/',503);
   const ip=request.headers.get('CF-Connecting-IP')||'unknown',now=Date.now();
   const previous=siteAttempts.get(ip);const attempts=previous&&previous.until>now?previous:{count:0,until:now+900000};
-  if(attempts.count>=5)return loginPage('Te veel pogingen. Probeer over 15 minuten opnieuw.','/',429);
-  if(siteAttempts.size>=10000&&!siteAttempts.has(ip))return loginPage('Probeer het later opnieuw.','/',429);
+  if(attempts.count>=5)return login('Te veel pogingen. Probeer over 15 minuten opnieuw.','/',429);
+  if(siteAttempts.size>=10000&&!siteAttempts.has(ip))return login('Probeer het later opnieuw.','/',429);
   if(siteAttempts.size>1000)for(const [key,value] of siteAttempts)if(value.until<=now)siteAttempts.delete(key);
   attempts.count++;siteAttempts.set(ip,attempts);
-  if(Number(request.headers.get('Content-Length')||0)>8192)return loginPage('Ongeldige aanvraag.','/',400);
-  let input;try{const body=await request.text();if(body.length>8192)throw Error();input=new URLSearchParams(body);}catch{return loginPage('Ongeldige aanvraag.','/',400);}
+  if(Number(request.headers.get('Content-Length')||0)>8192)return login('Ongeldige aanvraag.','/',400);
+  let input;try{const body=await request.text();if(body.length>8192)throw Error();input=new URLSearchParams(body);}catch{return login('Ongeldige aanvraag.','/',400);}
   const password=input.get('password'),next=safeNext(input.get('next'));
-  if(typeof password!=='string'||password.length>1024)return loginPage('Onjuist wachtwoord.',next);
+  if(typeof password!=='string'||password.length>1024)return login('Onjuist wachtwoord.',next);
   const expected=new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(secret))),actual=new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(password)));
   let difference=0;for(let i=0;i<expected.length;i++)difference|=expected[i]^actual[i];
-  if(difference)return loginPage('Onjuist wachtwoord.',next);
+  if(difference)return login('Onjuist wachtwoord.',next);
   siteAttempts.delete(ip);
   return new Response(null,{status:303,headers:{...securityHeaders,Location:next,'Cache-Control':'no-store','Set-Cookie':`__Host-site_session=${await siteSession(secret)}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=43200`}});
  }
  if(await siteAllowed(request,env))return null;
  if(url.pathname.startsWith('/api/'))return answer({error:'Voer eerst het websitewachtwoord in.'},401);
- return loginPage(secret?'':'Toegang is nog niet ingesteld. Neem contact op met de beheerder.',url.pathname+url.search,secret?401:503);
+ return login(secret?'':'Toegang is nog niet ingesteld. Neem contact op met de beheerder.',url.pathname+url.search,secret?401:503);
 }
 
 export default {

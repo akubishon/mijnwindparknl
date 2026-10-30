@@ -404,3 +404,6 @@ th,td{padding:12px 14px}
  .module-row{grid-template-columns:1fr;gap:8px}
  .module-tiles{height:96px}
 }
+.topbar .zone{margin-left:auto}
+.language-toggle{margin-left:16px;font:inherit;font-size:12px;background:transparent;color:#fff;border:1px solid currentColor;padding:6px 12px;cursor:pointer;border-radius:0 8px 0 0}
+.language-toggle:focus-visible{outline:3px solid var(--sky);outline-offset:3px}
