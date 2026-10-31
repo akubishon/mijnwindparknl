@@ -62,9 +62,11 @@
       rows.push(row(key + '-wake', label + ': wind na zog', 'wind op ashoogte × (1 − zogverlies)', `${n(w.v_as)} × (1 − ${n(w.zog)})`, w.v_turbine, 'm/s'));
       rows.push(row(key + '-curve', label + ': vermogen per turbine', 'Vermogenscurve bij wind na zog', `Vermogenscurve(${n(w.v_turbine)} m/s)`, w.turbine_kw, 'kW'));
       rows.push(row(key + '-park', label + ': parkvermogen', 'turbinevermogen × aantal turbines / 1.000', `${n(w.turbine_kw)} × ${n(w.turbines)} / 1000`, w.mw, 'MW'));
+      // Windprofiel geschaald naar gemeten dagproductie: het parkvermogen × de dagfactor, hooguit het nominale parkvermogen.
+      if (finite(w.dagfactor)) rows.push(row(key + '-scaled', label + ': geschaald naar gemeten dagproductie', 'parkvermogen × dagfactor, hooguit het nominale parkvermogen', `${n(w.mw)} × ${n(w.dagfactor)}`, w.mw_aanbod, 'MW'));
     }
     const share = key => data.aandeel?.[key] ?? wind?.[key]?.aandeel ?? (key === 'fryslan' ? data.aandeel_fryslan : 1);
-    rows.push(row('supply', 'Aanbod voor de elektrolyser', 'Σ parkvermogen × toegewezen aandeel', parks.map(key => `${n(wind[key].mw)} × ${n(share(key))}`).join(' + '), step.aanbod, 'MW'));
+    rows.push(row('supply', 'Aanbod voor de elektrolyser', 'Σ parkvermogen × toegewezen aandeel', parks.map(key => `${n(wind[key].mw_aanbod ?? wind[key].mw)} × ${n(share(key))}`).join(' + '), step.aanbod, 'MW'));
     return rows;
   }
 

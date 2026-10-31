@@ -87,6 +87,7 @@
 .bop-needed{border:2px solid #9a5b13;background:#fffaf2}
 
 .compare-controls{margin:16px 0}
+.compare-controls>label{align-content:start}
 .compare-controls small{font-size:13px;color:#465970;line-height:1.5}
 .year-picker{border:0;padding:0;margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px 18px}
 .year-picker legend{font-weight:600;margin-bottom:6px}

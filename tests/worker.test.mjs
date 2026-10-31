@@ -500,7 +500,7 @@ test('opsplitsing has the site header and a logout form like the other pages',as
  assert.match(html,/<header class="topbar">\s*<a class="brand site-brand" href="\/" aria-label="Mijnwindpark.nl · startpagina">/);
  assert.match(html,/mijnwindpark<span class="brand-domain">.nl<\/span><span class="brand-sub">WINDENERGIE &amp; WATERSTOF<\/span>/);
  assert.match(html,/<a class="mini-flow" href="\/#stroom"/);
- assert.doesNotMatch(html,/Windparken|class="zone"/);
+ assert.doesNotMatch(html,/>Windparken<\/a>|class="zone"/);
  assert.match(page.headers.get('Content-Security-Policy'),/form-action 'self'/);
 });
 test('Cloudflare cron handler tries both HARMONIE models and never throws',async()=>{

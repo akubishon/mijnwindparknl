@@ -109,7 +109,69 @@ function selection() {
     strategie: document.querySelector("input[name=strategie]:checked")?.value || "verdelen",
     jaren: [...document.querySelectorAll("input[name=jaar]:checked")].map(i => Number(i.value)),
     modules: [...document.querySelectorAll("input[name=modules]:checked")].map(i => Number(i.value)),
+    windprofiel: document.querySelector("input[name=windprofiel]:checked")?.value || "onafhankelijk",
+    parken: document.querySelector("input[name=park]") ? [...document.querySelectorAll("input[name=park]:checked")].map(i => i.value) : [...ALL_PARKS],
   };
+}
+
+// ---------------------------------------------------------------- windprofiel en windparken
+
+const ALL_PARKS = ["fryslan", "beabuorren"];
+const PARK_SHORT = {fryslan: "Fryslân", beabuorren: "Beabuorren"};
+// Aanbod volgens de parkkeuze. Met beide parken de teksten zoals de pagina ze altijd had.
+const SUPPLY_NOTE = {
+  "fryslan,beabuorren": "10 % van het gemodelleerde Windpark Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl.",
+  fryslan: "Alleen 10 % van het gemodelleerde Windpark Fryslân; Beabuorren telt niet mee.",
+  beabuorren: "Alleen heel Beabuorren; Windpark Fryslân telt niet mee.",
+};
+const FLOW_SUPPLY = {
+  "fryslan,beabuorren": ["De elektrolyser krijgt 10 % van het gemodelleerde Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl.", "P = 0,1 · Fryslân + Beabuorren"],
+  fryslan: ["De elektrolyser krijgt alleen 10 % van het gemodelleerde Fryslân.", "P = 0,1 · Fryslân"],
+  beabuorren: ["De elektrolyser krijgt alleen heel Beabuorren.", "P = Beabuorren"],
+};
+const knownParks = list => ALL_PARKS.filter(p => (Array.isArray(list) && list.length ? list : ALL_PARKS).includes(p));
+
+function buildWind(state) {
+  const wind = meta.windkeuze;
+  // Zonder keuzelijst (een rekenserver zonder browser-runtime.py) rekent het model met de standaard.
+  document.querySelector(".wind-choices").hidden = !wind;
+  if (!wind) return;
+  const chosen = wind.profielen[state.windprofiel] ? state.windprofiel : wind.standaard;
+  $("wind-profiles").replaceChildren(...Object.entries(wind.profielen).map(([key, entry]) => {
+    const labelNode = document.createElement("label");
+    labelNode.innerHTML = `<input type="radio" name="windprofiel" value="${key}"><span><b></b><small></small></span>`;
+    labelNode.querySelector("b").textContent = entry.naam;
+    labelNode.querySelector("small").textContent = entry.uitleg + ".";
+    labelNode.querySelector("input").checked = key === chosen;
+    return labelNode;
+  }));
+  const parks = knownParks(state.parken);
+  $("windparks").replaceChildren(...Object.entries(wind.parken).map(([key, entry]) => {
+    const labelNode = document.createElement("label");
+    labelNode.innerHTML = `<input type="checkbox" name="park" value="${key}"><span><b></b><small></small></span>`;
+    labelNode.querySelector("b").textContent = entry.naam;
+    labelNode.querySelector("small").textContent = key === "fryslan"
+      ? `${nf(entry.aandeel * 100, 0)} % · max. ${nf(entry.mw)} MW volgens contract` : `${nf(entry.aandeel * 100, 0)} % · ${nf(entry.mw)} MW`;
+    labelNode.querySelector("input").checked = parks.includes(key);
+    return labelNode;
+  }));
+  for (const input of document.querySelectorAll("input[name=windprofiel], input[name=park]")) input.addEventListener("change", describeWind);
+  describeWind();
+}
+
+// Uitleg bij de keuze en de teksten over het aanbod in ‘Zo werkt de analyse’.
+function describeWind() {
+  if (!meta.windkeuze) return;
+  const {windprofiel, parken} = selection();
+  const profile = meta.windkeuze.profielen[windprofiel];
+  $("wind-note").textContent = profile.let_op;
+  $("wind-note").hidden = !profile.let_op;
+  $("flow-profile").textContent = windprofiel === meta.windkeuze.standaard ? "" : `Gekozen windprofiel: ${profile.uitleg}.`;
+  $("flow-profile").hidden = windprofiel === meta.windkeuze.standaard;
+  const [supply, formula] = FLOW_SUPPLY[knownParks(parken).join(",")];
+  $("flow-supply").replaceChildren(supply + " ", windprofiel === "gemeten_dagproductie" && parken.includes("fryslan")
+    ? "Fryslân volgt per dag de gemeten productie, binnen de dag de modelvorm." : "Het is mogelijke opbrengst, geen gemeten levering.");
+  $("flow-formula").textContent = formula;
 }
 
 // ---------------------------------------------------------------- wat wil je berekenen?
@@ -213,6 +275,7 @@ function buildForm(state) {
   $("tech-note").textContent = meta.technologieen[tech].toelichting || "";
   checks("years", "jaar", meta.jaren, state.jaren?.length ? state.jaren : meta.jaren, String);
   checks("counts", "modules", meta.modules, state.modules?.length ? state.modules : meta.modules, String);
+  buildWind(state);
   const opened = loadOpen();
   $("groups").replaceChildren(...meta.groepen.map(group => {
     const set = document.createElement("details");
@@ -546,7 +609,9 @@ function snapshotRequest(result) {
   for (const group of meta.groepen) for (const entry of group.velden) {
     if (finite(result.aannames[entry.key])) aannames[entry.key] = result.aannames[entry.key] * entry.schaal;
   }
-  return {aannames, strategie: result.strategie, jaren: [...result.jaren], modules: result.rijen.map(r => r.modules)};
+  // Uitkomsten van vóór de wind- en parkkeuze rekenden met de standaard.
+  return {aannames, strategie: result.strategie, jaren: [...result.jaren], modules: result.rijen.map(r => r.modules),
+    windprofiel: result.windprofiel || "onafhankelijk", parken: knownParks(result.parken)};
 }
 
 function refreshResultStatus() {
@@ -555,6 +620,7 @@ function refreshResultStatus() {
   const sameList = (a, b) => [...a].sort((x, y) => x - y).join(",") === [...b].sort((x, y) => x - y).join(",");
   const same = snapshot.strategie === current.strategie && sameList(snapshot.jaren, current.jaren)
     && sameList(snapshot.modules, current.modules)
+    && snapshot.windprofiel === current.windprofiel && snapshot.parken.join(",") === current.parken.join(",")
     && Object.entries(snapshot.aannames).every(([key, value]) => finite(currentValues[key]) && Math.abs(currentValues[key] - value) < 1e-6);
   $("result-pending").hidden = same;
 }
@@ -564,7 +630,7 @@ function resultCsv(result) {
   const rowKeys = [...new Set(result.rijen.flatMap(Object.keys))];
   const assumptionKeys = Object.keys(result.aannames);
   const stepKeys = ["deltaKg", "deltaCost", "deltaHours", "deltaLcoh", "vsLowest", "marginal"];
-  const headers = ["berekening.windjaren", "berekening.strategie", "berekening.technologie", "berekening.windmethode", ...rowKeys, "stap.van_modules", ...stepKeys.map(k => "stap." + k), ...assumptionKeys.map(k => "aanname." + k)];
+  const headers = ["berekening.windjaren", "berekening.strategie", "berekening.technologie", "berekening.windmethode", "berekening.windparken", ...rowKeys, "stap.van_modules", ...stepKeys.map(k => "stap." + k), ...assumptionKeys.map(k => "aanname." + k)];
   const cell = value => {
     if (value == null) return "";
     if (typeof value === "number") return Number.isFinite(value) ? String(value).replace(".", ",") : "";
@@ -574,7 +640,7 @@ function resultCsv(result) {
   };
   const rows = result.rijen.map((row, i) => {
     const s = i ? steps[i - 1] : {vsLowest: difference(row.lcoh_eur_kg, lowestCost(result.rijen))};
-    return [result.jaren.join(", "), result.strategie, result.technologie ?? "", result.windmethode ?? "", ...rowKeys.map(k => row[k]),
+    return [result.jaren.join(", "), result.strategie, result.technologie ?? "", result.windmethode ?? "", knownParks(result.parken).join(", "), ...rowKeys.map(k => row[k]),
       s.before?.modules, ...stepKeys.map(k => s[k]), ...assumptionKeys.map(k => result.aannames[k])];
   });
   return "\ufeff" + [headers, ...rows].map(row => row.map(cell).join(";")).join("\r\n");
@@ -934,7 +1000,7 @@ async function showSaved(id) {
     const aannames = Object.fromEntries(Object.entries(result.aannames).filter(([key]) => key in scales && !oldBoP(key))
       .map(([key, value]) => [key, Math.round(value * scales[key] * 1e6) / 1e6]));
     buildForm({technologie: stored.technologie, strategie: result.strategie, jaren: result.jaren, aannames,
-      modules: result.rijen.map(r => r.modules).filter(n => meta.modules.includes(n))});
+      modules: result.rijen.map(r => r.modules).filter(n => meta.modules.includes(n)), windprofiel: result.windprofiel, parken: result.parken});
     remember();
     drawExplainers();
     render({...result, technologie: stored.technologie, uit_cache: true});
@@ -971,13 +1037,20 @@ function headline(rows, result) {
   const years = result.jaren.join(", ");
   // Gemodelleerd aanbod en het deel per park; een oud resultaat zonder parkverdeling toont alleen het totaal.
   const supply = Object.values(result.aanbod);
-  const perPark = park => supply.reduce((s, a) => s + (a.parken?.[park]?.naar_waterstof_mwh ?? NaN), 0) / result.jaren.length / 1000;
-  const parts = Number.isFinite(perPark("fryslan"))
-    ? ` (Fryslân ${nf(perPark("fryslan"), 0)} GWh = 10 % van ${nf(supply.reduce((s, a) => s + a.parken.fryslan.park_mwh, 0) / result.jaren.length / 1000, 0)} GWh modelopbrengst, Beabuorren ${nf(perPark("beabuorren"), 0)} GWh)`
-    : "";
+  const mean = (park, key) => supply.reduce((s, a) => s + (a.parken?.[park]?.[key] ?? NaN), 0) / result.jaren.length / 1000;
+  const perPark = park => mean(park, "naar_waterstof_mwh");
+  const parks = knownParks(result.parken);
+  const fryslan = `Fryslân ${nf(perPark("fryslan"), 0)} GWh = 10 % van ${nf(mean("fryslan", "park_mwh"), 0)} GWh ${result.windprofiel === "gemeten_dagproductie" ? "geschaalde opbrengst" : "modelopbrengst"}`;
+  const parts = !Number.isFinite(perPark(parks[0])) ? ""
+    : parks.length > 1 ? ` (${fryslan}, Beabuorren ${nf(perPark("beabuorren"), 0)} GWh)`
+    : parks[0] === "fryslan" ? ` (alleen ${fryslan})` : ` (alleen Beabuorren ${nf(perPark("beabuorren"), 0)} GWh)`;
   $("result-sub").textContent = `Besturing ‘${result.strategie}’, windjaren ${years}. Gemodelleerd aanbod gemiddeld `
     + `${nf(supply.reduce((s, a) => s + a.mwh, 0) / result.jaren.length / 1000, 0)} GWh per jaar${parts}. `
     + (result.windmethode_uitleg ? `Wind: ${result.windmethode_uitleg}.` : "Wind: oude methode (vóór modelversie 11).");
+  // Eén regel: heel Fryslân in dit windprofiel tegenover de gemeten productie (beide omgerekend naar 8.760 uur).
+  const model = mean("fryslan", "park_mwh"), measured = mean("fryslan", "gemeten_mwh");
+  if (Number.isFinite(model) && Number.isFinite(measured)) $("result-sub").append(document.createElement("br"),
+    `Heel Windpark Fryslân in dit windprofiel: ${nf(model, 0)} GWh per jaar; gemeten productie ${nf(measured, 0)} GWh per jaar (${pct(model / measured - 1)}).`);
 }
 
 function render(result) {
@@ -1183,7 +1256,8 @@ async function runDay() {
   setPlaying(false);
   const progress = progressView($("day-status"), "Dag berekenen…");
   try {
-    const data = await post("/api/opsplitsing/dag", {aannames: v, strategie: request.strategie, datum: requestedDate, modules: [1, n]}, progress);
+    const data = await post("/api/opsplitsing/dag", {aannames: v, strategie: request.strategie, windprofiel: request.windprofiel, parken: request.parken,
+      datum: requestedDate, modules: [1, n]}, progress);
     if (result !== lastResult || n !== Number($("day-count").value) || requestedDate !== $("day").value) return;
     dayChart(data, n, v);
     Object.assign(day, {data, n, v, strategie: request.strategie});
@@ -1218,6 +1292,11 @@ async function submit(event) {
   }
   if (!pick.jaren.length || !pick.modules.length) {
     status.textContent = "Kies minstens één windjaar en één moduleaantal.";
+    status.classList.add("error");
+    return;
+  }
+  if (!pick.parken.length) {
+    status.textContent = "Kies minstens één windpark.";
     status.classList.add("error");
     return;
   }
@@ -1434,8 +1513,11 @@ function renderWalk() {
       : `${nf(w.v10)} × F ${nf(w.factor, 3)} <span class="why">(≈ α ${nf(w.alpha, 3)})</span>`;
     return `<p class="calc"><b>${data.parken[park]}</b><br>${height} = <b>${nf(w.v_as)} m/s</b> op ${w.ashoogte} m<br>
       − ${nf(w.zog * 100, 0)} % zog = ${nf(w.v_turbine)} m/s → ${nf(w.turbine_kw, 0)} kW per turbine<br>
-      × ${w.turbines} turbines = <b>${nf(w.mw)} MW</b></p>`;
+      × ${w.turbines} turbines = <b>${nf(w.mw)} MW</b>${finite(w.dagfactor) ? `<br>
+      × dagfactor ${nf(w.dagfactor, 3)} naar de gemeten dagproductie = <b>${nf(w.mw_aanbod)} MW</b>` : ""}</p>`;
   };
+  const parkMw = park => wind[park].mw_aanbod ?? wind[park].mw;
+  const scaled = parks.some(park => finite(wind[park].dagfactor));
   const deploy = (config, step, color, count) => {
     const size = config.module_mw;
     const active = step.stack.filter(x => x > 0).length;
@@ -1479,14 +1561,14 @@ function renderWalk() {
       : `${perPark[park].join(", ")}, <b>${nf(wind[park].v10)} m/s</b>`;
   $("walk").replaceChildren(
     card("A", "KNMI-wind op 10 m", [legend, windSpark(data, index),
-      `<p class="calc">${measured}<br>Fryslân: ${source("fryslan")}.
-       <br>Beabuorren: ${source("beabuorren")}.</p>
-       <p class="note">Tienminutengemiddelden van het KNMI, gemeten op de stations, niet in de parken. ${data.windmethode_uitleg || ""}.</p>`], `${nf(wind.fryslan.v10)} m/s voor Fryslân · ${nf(wind.beabuorren.v10)} m/s voor Beabuorren`),
+      `<p class="calc">${measured}${parks.map(park => `<br>${PARK_SHORT[park]}: ${source(park)}.`).join("")}</p>
+       <p class="note">Tienminutengemiddelden van het KNMI, gemeten op de stations, niet in de parken. ${data.windmethode_uitleg || ""}.</p>`], parks.map(park => `${nf(wind[park].v10)} m/s voor ${PARK_SHORT[park]}`).join(" · ")),
     card("B", "Wind op ashoogte en gemodelleerd parkvermogen", [...parks.map(windLine),
       `<p class="note">Mogelijke opbrengst: turbinecurve, zogverlies en 100 % beschikbaarheid; geen afregeling of stilstand. De hoogtevertaling is een onderbouwde aanname zonder meting op ashoogte.</p>`],
-      `${nf(wind.fryslan.mw)} MW + ${nf(wind.beabuorren.mw)} MW`),
-    card("C", "Aanbod voor de elektrolyser", `<p class="calc">${nf(share, 1)} × ${nf(wind.fryslan.mw)} + ${nf(wind.beabuorren.mw)}<br><b class="big">= ${nf(a.aanbod)} MW</b></p>
-      <p class="note">10 % van het gemodelleerde Windpark Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl.</p>`, `${nf(a.aanbod)} MW beschikbaar`),
+      parks.map(park => `${nf(parkMw(park))} MW`).join(" + ")),
+    // Alleen de gekozen parken; zonder aandeel per park (oudere antwoorden) 10 % Fryslân en heel Beabuorren.
+    card("C", "Aanbod voor de elektrolyser", `<p class="calc">${parks.map(park => park === "fryslan" ? `${nf(data.aandeel?.fryslan ?? share, 1)} × ${nf(parkMw(park))}` : nf(parkMw(park))).join(" + ")}<br><b class="big">= ${nf(a.aanbod)} MW</b></p>
+      <p class="note">${SUPPLY_NOTE[knownParks(parks).join(",")]}</p>${scaled ? '<p class="note">Fryslân is per dag geschaald naar de gemeten dagproductie.</p>' : ""}`, `${nf(a.aanbod)} MW beschikbaar`),
     card("D", "Modules inzetten", [deploy(one, a, COLORS.one, 1), deploy(many, b, COLORS.many, n)], `${a.stack.filter(x => x > 0).length} van 1 aan · ${b.stack.filter(x => x > 0).length} van ${n} aan`),
     card("E", "Waterstof in deze tien minuten", [produce(one, a, 1), produce(many, b, n)], `${nf(sumKg(a), 2)} kg met 1 module · ${nf(sumKg(b), 2)} kg met ${n}`),
     card("F", "Optellen", `<p class="calc">Dit moment: <b>${nf(sumKg(a))} kg</b> met 1 module, <b>${nf(sumKg(b))} kg</b> met ${n}.</p>

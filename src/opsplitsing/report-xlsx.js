@@ -48,6 +48,8 @@
       ['Rapport gemaakt (ISO)', report.generatedAt || new Date().toISOString()],
       ['Windmethode', ctx.windMethod || report.result.windmethode || 'Niet vastgelegd'],
       ['Windaanbod', ctx.windExplanation || report.result.windmethode_uitleg || ''],
+      ['Windprofiel', ctx.windProfileName || ctx.windProfile || 'Niet vastgelegd'],
+      ['Windparken', ctx.parksText || 'Niet vastgelegd'],
       ['Jaaromrekening', ctx.annualisation || 'De simulatie schaalt geldige tienminutenstappen naar 8.760 uur. Jaaruitkomsten worden gemiddeld over de gekozen windjaren.'],
       ['Controle', 'Sluitende kostenformules bewijzen de rekenkundige aansluiting; aannames en windmodel bepalen de toepasbaarheid.']];
     for (const limitation of ctx.limitations || []) infoRows.push(['Beperking', limitation]);
