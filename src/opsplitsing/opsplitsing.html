@@ -6,10 +6,11 @@
   <link rel="stylesheet" href="./opsplitsing.css"><link rel="stylesheet" href="./report.css"><script src="./report-model.js" defer></script><script src="./report-moments.js" defer></script><script src="./report-xlsx.js" defer></script><script src="./report-ui.js" defer></script><script src="./opsplitsing.js" defer></script>
 </head>
 <body>
+  <div class="site-session"><form method="post" action="/auth/logout"><button type="submit">Uitloggen</button></form></div>
   <div class="shell">
     <header class="topbar">
-      <a class="brand" href="/">Windparken</a>
-      <span class="zone">Lokale analyse · Europe/Amsterdam</span>
+      <a class="brand site-brand" href="/" aria-label="Mijnwindpark.nl · startpagina"><span class="brand-symbol"><svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.8 19.6A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/><path d="M9.8 4.4A2 2 0 1 1 11 8H2"/></svg></span><span>mijnwindpark<span class="brand-domain">.nl</span><span class="brand-sub">WINDENERGIE &amp; WATERSTOF</span></span></a>
+      <a class="mini-flow" href="/#stroom" aria-label="Bekijk hoe de windstroom naar waterstof gaat"><svg viewBox="0 0 230 30" aria-hidden="true"><path class="flow-track flow-power" d="M24 15H104"/><path class="flow-dash flow-power" d="M24 15H104"/><path class="flow-track flow-h2" d="M150 15H206"/><path class="flow-dash flow-h2" d="M150 15H206"/><g class="mini-turbine"><path d="M12 28V12"/><g class="mini-rotor"><path d="M12 12V2M12 12L20 17M12 12L4 17"/></g></g><text x="64" y="11" text-anchor="middle">44 MW</text><rect x="106" y="5" width="42" height="20" rx="4"/><text class="mini-node" x="127" y="19" text-anchor="middle">ELY</text><text x="218" y="19" text-anchor="middle">H₂</text></svg><span>Van wind naar waterstof</span></a>
     </header>
     <main>
       <nav class="park-nav" aria-label="Hoofdnavigatie">

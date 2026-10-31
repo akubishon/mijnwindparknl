@@ -3,7 +3,7 @@
 Vraag: levert een 44 MW-elektrolyser in N modules meer waterstof en een lagere
 LCOH op dan in minder, grotere modules? De voeding is hetzelfde aandeel als op
 mijnwindpark.nl: 10 % van de gemodelleerde mogelijke opbrengst van Windpark Fryslân
-plus die van Wynpark Beabuorren, uit KNMI-tienminutenwaarden. Station en hoogtevertaling
+plus die van Windpark Beabuorren, uit KNMI-tienminutenwaarden. Station en hoogtevertaling
 komen uit `windbron.py`, dezelfde methode als het dagprofiel.
 
 Alle elektrolyser- en kostengetallen in `Aannames` zijn plaatshouders, geen
