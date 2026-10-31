@@ -3,9 +3,9 @@
 // result definitions shown on the comparison tab.
 import {TECHNOLOGIES, DEFAULTS, STRATEGIES, KERNEL_VERSION, hoursInYear} from './electrolyser-kernel.mjs';
 import {STATUS, fitPartLoadGain, NM3_PER_KG} from './electrolyser-catalogue.mjs';
+import {WIND_PROFILES, DEFAULT_WIND_PROFILE, windSeries} from './electrolyser-wind.mjs';
 
 export const WIND_YEARS = [2022, 2023, 2024, 2025];
-export const WIND_SERIES = 'Bruto toegewezen windaanbod uit /opsplitsing: 10 % Windpark Fryslân (hoogste wind van Stavoren en Houtribdijk) + Wynpark Beabuorren (Stavoren), KNMI-tienminutenwaarden, jaarreeksen 2022–2025';
 export const MAX_SETUPS = 4, MAX_MODULES = 200, DEFAULT_TARGET_MW = 44;
 
 // [key, label, unit, shown-scale, low, high] in the shown unit, as AANNAMES_META in opsplitsing.py.
@@ -33,7 +33,7 @@ const fmt = (n, d = 3) => new Intl.NumberFormat('nl-NL', {maximumFractionDigits:
 const finite = v => typeof v === 'number' && Number.isFinite(v);
 const inRange = (key, value) => { const m = fieldMeta(key); return finite(value) && value * m.scale >= m.low - 1e-9 && value * m.scale <= m.high + 1e-9; };
 
-export const defaultGeneral = () => ({strategy: 'verdelen', years: [...WIND_YEARS], values: {}});
+export const defaultGeneral = () => ({strategy: 'verdelen', years: [...WIND_YEARS], values: {}, wind: DEFAULT_WIND_PROFILE});
 export const newSetup = (id, modelId = '', modules = 1) => ({id, modelId, modules, choices: {}});
 export function fillToTarget(moduleMW, target) {
  if (!(moduleMW > 0) || !(target > 0)) return null;
@@ -206,7 +206,10 @@ export function generalValues(general = defaultGeneral()) {
  }
  const strategy = STRATEGIES[general.strategy] ? general.strategy : 'verdelen';
  const years = WIND_YEARS.filter(y => general.years?.includes(y));
- return {values, fields, strategy, years: years.length ? years : [...WIND_YEARS], strategyStatus: strategy === 'verdelen' ? STATUS.standaard : STATUS.eigen};
+ // Windprofiel: zonder (oude opslag) of onbekend de standaard.
+ const windProfile = WIND_PROFILES[general.wind] ? general.wind : DEFAULT_WIND_PROFILE;
+ return {values, fields, strategy, years: years.length ? years : [...WIND_YEARS], strategyStatus: strategy === 'verdelen' ? STATUS.standaard : STATUS.eigen,
+  windProfile, windStatus: windProfile === DEFAULT_WIND_PROFILE ? STATUS.standaard : STATUS.eigen};
 }
 
 // Canonical JSON (keys sorted at every level) and a stable short hash of it (cyrb53).
@@ -223,7 +226,7 @@ export function inputHash(value) {
 export function jobFor(resolved, general, year) {
  const g = generalValues(general);
  const aannames = Object.fromEntries(Object.keys(resolved.aannames).sort().map(k => [k, resolved.aannames[k]]));
- const input = {kernel: KERNEL_VERSION, year, modules: resolved.modules, strategy: g.strategy, aannames};
+ const input = {kernel: KERNEL_VERSION, year, modules: resolved.modules, strategy: g.strategy, wind: g.windProfile, aannames};
  return {...input, key: inputHash(input)};
 }
 
@@ -301,7 +304,7 @@ export function comparisonCSV({catalogue, entries, general}) {
  const head = ['bron.catalogusversie', 'bron.catalogus_bijgewerkt', 'bron.aanvullingen_versie', 'bron.opstelling', 'bron.model_id', 'bron.model', 'bron.fabrikant', 'bron.technologie',
   'bron.leveringstype', 'bron.leveringstype.status', 'bron.tekst_vermogen', 'bron.tekst_systeemverbruik', 'bron.tekst_stackverbruik', 'bron.tekst_minimumlast', 'bron.bronvermelding',
   'aanname.aantal_modules', ...modelCols.flatMap(k => [`aanname.${k}`, `aanname.${k}.status`, `aanname.${k}.regel`]),
-  'aanname.besturing', 'aanname.besturing.status', ...GENERAL_KEYS.flatMap(k => [`aanname.${k}`, `aanname.${k}.status`]), 'aanname.windreeks', 'aanname.windjaren', 'aanname.storingen',
+  'aanname.besturing', 'aanname.besturing.status', ...GENERAL_KEYS.flatMap(k => [`aanname.${k}`, `aanname.${k}.status`]), 'aanname.windprofiel', 'aanname.windprofiel.status', 'aanname.windreeks', 'aanname.windjaren', 'aanname.storingen',
   'uitkomst.windjaar', 'uitkomst.rust_op', ...RESULT_ROWS.map(row => 'uitkomst.' + row[4]), 'uitkomst.uren_met_data', 'uitkomst.invoer_hash', 'uitkomst.rekenkern'];
  const lines = [head];
  for (const entry of entries) {
@@ -311,7 +314,7 @@ export function comparisonCSV({catalogue, entries, general}) {
   const base = [catalogue?.revision, catalogue?.sourceUpdatedAt, catalogue?.additionsVersion, setup.label, model.id, model.name, model.manufacturer, model.technology,
    model.delivery.label, model.delivery.status, model.power.raw, model.systemEnergy.raw, model.stackEnergy.raw, model.minimum.raw, model.source,
    resolved.modules, ...modelCols.flatMap(k => { const f = byKey[k]; return f ? [shown(f), statusText(f), f.rule || ''] : ['', '', '']; }),
-   g.strategy, g.strategyStatus, ...g.fields.flatMap(f => [f.value * f.scale, f.status]), WIND_SERIES, g.years.join(', '), 'Vaste trekking per module en jaar (zaad jaar × 100 + modulenummer), gelijk voor elke opstelling'];
+   g.strategy, g.strategyStatus, ...g.fields.flatMap(f => [f.value * f.scale, f.status]), g.windProfile, g.windStatus, windSeries(g.windProfile), g.years.join(', '), 'Vaste trekking per module en jaar (zaad jaar × 100 + modulenummer), gelijk voor elke opstelling'];
   const rust = `${resolved.counts.bron} bronwaarden en ${resolved.counts.aanname} aannames`;
   const rows = [...result.years.map((y, i) => [String(y), withCoverage(result.perYear[i])]), ['gemiddelde', result.mean]];
   for (const [label, m] of rows) lines.push([...base, label, rust, ...RESULT_ROWS.map(([, k]) => PERCENT_KEYS.has(k) ? (finite(m[k]) ? m[k] * 100 : null) : m[k]), m.dekking_uur, result.keys.join(' '), KERNEL_VERSION]);

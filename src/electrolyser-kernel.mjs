@@ -1,10 +1,11 @@
-// JavaScript port of the per-module simulation in src/opsplitsing/python/opsplitsing.py (MODEL_VERSION 14).
+// JavaScript port of the per-module simulation in src/opsplitsing/python/opsplitsing.py (MODEL_VERSION 15; simulate() is unchanged
+// since 14, tests/fixtures/elektrolyser-kern-python.json is generated with 15).
 // Function names and operation order follow the Python source so results stay within floating-point noise;
 // scripts/test-python-browser.mjs and tests/electrolyser-kernel.test.mjs compare both kernels.
 // Additions that the Python kernel does not report (remaining energy split, supply classes, start counts)
 // are computed alongside the unchanged decisions and never feed back into them.
 
-export const KERNEL_VERSION = 'opsplitsing.py MODEL_VERSION 14 · JS 1';
+export const KERNEL_VERSION = 'opsplitsing.py MODEL_VERSION 15 · JS 1';
 export const STEP_H = 1 / 6;
 export const STRATEGIES = {
  verdelen: 'Per tijdstap het aantal modules dat de meeste waterstof geeft, last gelijk verdeeld.',

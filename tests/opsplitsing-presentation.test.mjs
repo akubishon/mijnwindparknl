@@ -129,13 +129,23 @@ test('request snapshots use saved assumptions and own their mutable collections'
     aannames: {capaciteit_mw: 44, minimumlast: 40, bop_vast: 3,
       storingen_per_jaar: 2, waterstofpremie_eur_kg: 0},
     strategie: 'verdelen', jaren: [2022, 2025], modules: [4, 6],
+    // A result from before the wind and park choice was calculated with the defaults.
+    windprofiel: 'onafhankelijk', parken: ['fryslan', 'beabuorren'],
   });
   request.aannames.minimumlast = 60;
   request.jaren.push(2024);
   request.modules.push(8);
+  request.parken.pop();
   assert.equal(result.aannames.minimumlast, 0.4);
   assert.deepEqual(result.jaren, [2022, 2025]);
   assert.deepEqual(result.rijen.map(r => r.modules), [4, 6]);
+  // The wind profile and parks of the result travel with every follow-up request (dag, gevoeligheid, omslagkaart).
+  const chosen = frozen({...structuredClone(result), windprofiel: 'gemeten_dagproductie', parken: ['beabuorren']});
+  const follow = snapshotRequest(chosen);
+  assert.equal(follow.windprofiel, 'gemeten_dagproductie');
+  assert.deepEqual(plain(follow.parken), ['beabuorren']);
+  follow.parken.push('fryslan');
+  assert.deepEqual(chosen.parken, ['beabuorren']);
 });
 
 function parseCsv(csv) {

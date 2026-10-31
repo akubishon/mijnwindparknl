@@ -1,17 +1,34 @@
 // Dedicated worker for /elektrolyser: runs comparison jobs off the main thread and reports progress.
 // Wind years are the /opsplitsing year series; results are cached per input hash for this page session.
 import {runJob} from './electrolyser-run.mjs';
+import {profileSupply, parseProduction} from './electrolyser-wind.mjs';
 
-const supplies = new Map(), results = new Map();
-let latest = 0;
-function supply(year) {
- if (!supplies.has(year)) supplies.set(year, fetch(`/opsplitsing-assets/data/${year}.json`).then(async r => {
-  if (!r.ok) throw Error(`Windjaar ${year} kon niet worden geladen (HTTP ${r.status}).`);
+const years = new Map(), supplies = new Map(), results = new Map();
+let latest = 0, production = null;
+function year(y) {
+ if (!years.has(y)) years.set(y, fetch(`/opsplitsing-assets/data/${y}.json`).then(async r => {
+  if (!r.ok) throw Error(`Windjaar ${y} kon niet worden geladen (HTTP ${r.status}).`);
   const d = await r.json();
-  if (d?.jaar !== year || !Array.isArray(d.t) || !Array.isArray(d.mw) || d.t.length !== d.mw.length) throw Error(`Windjaar ${year} heeft een onbekend formaat.`);
-  return {jaar: d.jaar, t: d.t, mw: d.mw};
- }).catch(e => { supplies.delete(year); throw e; }));
- return supplies.get(year);
+  if (d?.jaar !== y || !Array.isArray(d.t) || !Array.isArray(d.mw) || d.t.length !== d.mw.length) throw Error(`Windjaar ${y} heeft een onbekend formaat.`);
+  // Stationswind blijft bewaard: daaruit volgen de andere windprofielen.
+  return {jaar: d.jaar, t: d.t, mw: d.mw, stations: d.stations};
+ }).catch(e => { years.delete(y); throw e; }));
+ return years.get(y);
+}
+// Gemeten dagproductie van Fryslân: hetzelfde bestand als het Python-model, uit de bestaande rekenbundel (alleen voor dat profiel).
+function measured() {
+ return production ||= fetch('/opsplitsing-assets/bundle.json').then(async r => {
+  if (!r.ok) throw Error(`De productiegegevens konden niet worden geladen (HTTP ${r.status}).`);
+  const file = (await r.json())['windprofiel/data/productie_fryslan.csv'];
+  if (typeof file !== 'string') throw Error('De productiegegevens ontbreken in de rekenbundel.');
+  return parseProduction(new TextDecoder().decode(Uint8Array.from(atob(file), c => c.charCodeAt(0))));
+ }).catch(e => { production = null; throw e; });
+}
+async function supply(y, profile) {
+ const key = `${y}|${profile}`;
+ if (!supplies.has(key)) supplies.set(key, (async () => profileSupply(await year(y), profile, profile === 'gemeten_dagproductie' ? await measured() : null))()
+  .catch(e => { supplies.delete(key); throw e; }));
+ return supplies.get(key);
 }
 self.onmessage = async ({data}) => {
  const {id, jobs} = data;
@@ -23,7 +40,7 @@ self.onmessage = async ({data}) => {
    let result = results.get(job.key);
    const cached = !!result;
    if (!result) {
-    result = runJob(job, await supply(job.year));
+    result = runJob(job, await supply(job.year, job.wind));
     results.set(job.key, result);
    }
    out[job.key] = result;

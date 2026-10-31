@@ -1,6 +1,6 @@
 {
  "python": "3.13.17",
- "model_version": 14,
+ "model_version": 15,
  "cases": [
   {
    "naam": "10 x 4,4 MW verdelen",

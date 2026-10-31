@@ -19,7 +19,7 @@
     2025
   ],
   "source": "KNMI EDR (Houtribdijk en Stavoren, gemiddelde per tien minuten); hoogtevertaling WINS50 uit windprofiel/data/ashoogte.json; supply_year met de standaard windmethode; SWT-DD-130 bij 4,3 MW / 107 dB uit Siemens Gamesa-presentatie 2023 pagina 39, modelbereik tot 28,01 m/s (technische aanname)",
-  "runtime": "Pyodide 0.29.3; Python gelijk aan windprofiel/; SerialPool vervangt ProcessPoolExecutor; SimulationMemo onthoudt simulaties in het geheugen (sleutel zonder kostenaannames); meegeleverde jaarreeksen vervangen KNMI-aanvragen; alleen de standaard windmethode; browser-local saved scenarios",
+  "runtime": "Pyodide 0.29.3; Python gelijk aan windprofiel/; SerialPool vervangt ProcessPoolExecutor; SimulationMemo onthoudt simulaties in het geheugen (sleutel zonder kostenaannames); meegeleverde jaarreeksen vervangen KNMI-aanvragen; andere windprofielen en de parkkeuze worden afgeleid uit de meegeleverde stationswind; browser-local saved scenarios",
   "timezone_source": "IANA Europe/Amsterdam from system zoneinfo",
   "data_sha256": {
     "windprofiel/data/beabuorren.json": "ef066eb7f6abe2efe750bff97f22dbee0c20c8c44fac5f40ff215b8bf10c2fbb",

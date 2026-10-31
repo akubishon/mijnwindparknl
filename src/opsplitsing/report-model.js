@@ -109,9 +109,14 @@
       const hours=number(supply.dekking_uur);
       return {year,hours,scale:hours>0?8760/hours:null,supplyMwh:number(supply.mwh),parks:clone(supply.parken || {})};
     });
+    // Windprofiel en windparken van de uitkomst; zonder deze velden (oudere uitkomst) de standaard.
+    const windProfile = result.windprofiel || 'onafhankelijk', parks = Array.isArray(result.parken) && result.parken.length ? [...result.parken] : ['fryslan', 'beabuorren'];
+    const parkInfo = metadata.windkeuze?.parken || {}, share = {fryslan: 0.1, beabuorren: 1};
+    const parksText = parks.map(p => `${parkInfo[p]?.naam || p} (${fmt((parkInfo[p]?.aandeel ?? share[p]) * 100)} %)`).join(' + ');
     const limitations = [
       'De controles rekenen de kosten na met de opgeslagen simulatie-uitkomsten; ze zijn geen onafhankelijke validatie van het wind- of elektrolysermodel.',
-      'Het windaanbod is gemodelleerde mogelijke productie, geen gemeten levering aan de elektrolyser.',
+      windProfile === 'gemeten_dagproductie' ? 'Het windaanbod volgt voor Windpark Fryslân per dag de gemeten productie en binnen de dag de modelvorm; het is geen gemeten levering aan de elektrolyser.'
+        : 'Het windaanbod is gemodelleerde mogelijke productie, geen gemeten levering aan de elektrolyser.',
       'Storingen volgen één vaste, herhaalbare trekking per module en windjaar; spreiding tussen windjaren is geen betrouwbaarheidsinterval.',
       'Stackvervanging is een continue jaarlijkse kostenbenadering op basis van equivalente uren. Het model rekent de stilstand voor stackwissels in een tweede simulatie mee.'
     ];
@@ -119,7 +124,7 @@
     if (assumptions.some(item=>item.source==='onzekere aanname')) limitations.push('De vaste kosten per extra module zijn een onzekere aanname, geen gevalideerde prijs. Toets de conclusie aan het omslagpunt en de gevoeligheidsanalyse.');
     if (assumptions.some(item=>item.source==='herkomst niet vastgelegd')) limitations.push('Voor een deel van de invoer is de herkomst niet vastgelegd; zie de invoertabel.');
     return {result,base,comparison,assumptions,calculations,checks,parts,economics:{base:b,comparison:c},delta,
-      context:{years:result.jaren || [],strategy:result.strategie || '',technology:metadata.technologieen?.[result.technologie]?.naam || result.technologie || 'Niet vastgelegd',modelVersion:result.model_versie ?? 'Niet vastgelegd',windMethod:result.windmethode || 'Niet vastgelegd',windExplanation:result.windmethode_uitleg || '',key:result.sleutel || 'Niet vastgelegd',
+      context:{years:result.jaren || [],strategy:result.strategie || '',technology:metadata.technologieen?.[result.technologie]?.naam || result.technologie || 'Niet vastgelegd',modelVersion:result.model_versie ?? 'Niet vastgelegd',windMethod:result.windmethode || 'Niet vastgelegd',windExplanation:result.windmethode_uitleg || '',windProfile,windProfileName:metadata.windkeuze?.profielen?.[windProfile]?.naam || windProfile,parks,parksText,key:result.sleutel || 'Niet vastgelegd',
         annualisation:'Elke geldige tijdstap duurt 10 minuten (1/6 uur). Per windjaar worden kilo’s, energie en equivalente uren vermenigvuldigd met 8.760 / geldige uren. Meetgaten tellen niet als nul. Ook een schrikkeljaar wordt naar 8.760 uur omgerekend. Bij meerdere jaren worden de jaarlijkse fysieke uitkomsten eerst gemiddeld; de kostprijs wordt daarna uit deze gemiddelden berekend, niet door de kostprijzen per jaar te middelen.',coverage,limitations}};
   }
   const api={makeReport,costs};

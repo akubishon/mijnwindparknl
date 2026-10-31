@@ -67,7 +67,10 @@ document.addEventListener('DOMContentLoaded',()=>{
   try{
    const saved=JSON.parse(localStorage.getItem('opsplitsing-saved-v1')||'[]');
    const resultTechnology=lastResult.technologie;
-   const naam=(meta.technologieen[resultTechnology]?.naam||'Eigen aannames')+' · '+lastResult.strategie+' · '+lastResult.jaren.join(', ');
+   // Een ander windprofiel of één windpark staat in de naam; het resultaat zelf bewaart beide keuzes.
+   const profile=lastResult.windprofiel&&lastResult.windprofiel!=='onafhankelijk'?' · '+(meta.windkeuze?.profielen?.[lastResult.windprofiel]?.naam||lastResult.windprofiel):'';
+   const parks=lastResult.parken?.length===1?' · alleen '+({fryslan:'Fryslân',beabuorren:'Beabuorren'}[lastResult.parken[0]]||lastResult.parken[0]):'';
+   const naam=(meta.technologieen[resultTechnology]?.naam||'Eigen aannames')+' · '+lastResult.strategie+' · '+lastResult.jaren.join(', ')+profile+parks;
    saved.unshift({id:crypto.randomUUID(),naam,technologie:resultTechnology,eigen_aannames:{},gemaakt:new Date().toISOString(),resultaat:lastResult});
    localStorage.setItem('opsplitsing-saved-v1',JSON.stringify(saved));loadSaved();status.textContent='Scenario bewaard op dit apparaat.';
   }catch{status.textContent='Bewaren is niet gelukt. Mogelijk is de browseropslag vol of geblokkeerd.';}
