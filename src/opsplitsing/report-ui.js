@@ -1,7 +1,7 @@
 /* Reproducible report UI: always reads the last calculated snapshot, never live form inputs. */
 (function(root){
   'use strict';
-  const SUPPORTED_MODEL_VERSION=15; // MODEL_VERSION of the bundled Python runtime.
+  const SUPPORTED_MODEL_VERSION=17; // MODEL_VERSION of the bundled Python runtime.
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const finite=n=>typeof n==='number'&&Number.isFinite(n);
@@ -36,7 +36,7 @@
     const text=r.base.modules===r.comparison.modules
       ? r.result.rijen.length===1?'Er is één opstelling gekozen. Kies meerdere aantallen modules om het effect van opsplitsen te vergelijken.':'Je vergelijkt de basis met zichzelf. Kies een andere opstelling om het effect van opsplitsen te zien.'
       : `Met deze opsplitsing produceren we ${change(kgDelta,'ton waterstof per jaar')}. ${costText} ${r.delta==null?'Een kostprijsvergelijking is niet mogelijk door ontbrekende productie of kostengegevens.':r.delta===0?`De bruto kostprijs blijft ${price(b.lcoh)} €/kg.`:`Daardoor ${r.delta<0?'daalt':'stijgt'} de bruto kostprijs van ${price(b.lcoh)} naar ${price(c.lcoh)} €/kg.${price(b.lcoh)===price(c.lcoh)?' Het verschil is kleiner dan 0,01 €/kg; de precieze waarden staan bij Narekenen.':''}`}`;
-    return `<p class="report-verdict">${esc(text)}</p><div class="report-summary">${[[r.base,b,'Basis','base'],[r.comparison,c,'Opsplitsing','comparison']].map(([row,e,title,key])=>`<div class="report-${key}"><span>${title} · ${esc(cfg(row))}</span><strong>${price(e.lcoh)} <small>€/kg bruto</small></strong><p>${fmt(scaled(e.kg,1000),1)} ton waterstof per jaar<br>${fmt(scaled(e.annual,1e6),2)} miljoen euro per jaar</p></div>`).join('')}</div><p class="note">Beide opstellingen gebruiken hetzelfde windaanbod en ${fmt(r.result.aannames.capaciteit_mw,2)} MW totaal systeemvermogen. De basis is de eerste gekozen opstelling. Deze conclusie geldt voor de gekozen windjaren en aannames.</p>${criticalAssumptions(r)}`;
+    return `<p class="report-verdict">${esc(text)}</p><div class="report-summary">${[[r.base,b,'Basis','base'],[r.comparison,c,'Opsplitsing','comparison']].map(([row,e,title,key])=>`<div class="report-${key}"><span>${title} · ${esc(cfg(row))}</span><strong>${price(e.lcoh)} <small>€/kg bruto</small></strong><p>${fmt(scaled(e.kg,1000),1)} ton waterstof per jaar<br>${fmt(scaled(e.annual,1e6),2)} miljoen euro per jaar</p></div>`).join('')}</div><p class="note">Beide opstellingen gebruiken hetzelfde windaanbod en ${fmt(r.result.aannames.capaciteit_mw,2)} MW totaal stackvermogen. De basis is de eerste gekozen opstelling. Deze conclusie geldt voor de gekozen windjaren en aannames.</p>${criticalAssumptions(r)}`;
   }
   function calculationBlocks(r){
     const b=r.economics.base,c=r.economics.comparison;

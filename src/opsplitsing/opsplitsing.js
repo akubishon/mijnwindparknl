@@ -99,7 +99,7 @@ function validate(input) {
 }
 
 function values() {
-  const out = {bop_vast: 0, bop_variabel: 0};
+  const out = {};
   for (const input of document.querySelectorAll(".field input")) out[input.dataset.key] = parse(input.value);
   return out;
 }
@@ -893,7 +893,7 @@ function drawSaved(list) {
     const tr = document.createElement("tr");
     tr.classList.toggle("shown", item.id === shownSaved);
     // Berekend met een eerdere rekenwijze (bijvoorbeeld de oude windmethode): zichtbaar markeren.
-    const name = item.verouderd ? `${item.naam} (verouderd: ${item.windmethode}, opnieuw berekenen)` : item.naam;
+    const name = item.verouderd ? `${item.naam} (verouderd: ${item.reden ?? item.windmethode}, opnieuw berekenen)` : item.naam;
     const cells = [name, span(item.modules), label(item.beste.modules),
       `${price(item.een_module.lcoh_eur_kg)} → ${price(item.beste.lcoh_eur_kg)} €/kg`,
       pct(item.beste.waterstof_t / item.een_module.waterstof_t - 1),
@@ -929,7 +929,9 @@ async function showSaved(id) {
     const result = stored.resultaat;
     // De aannames staan opgeslagen in rekeneenheden (0,4); het formulier toont ze geschaald (40 %).
     const scales = Object.fromEntries(meta.groepen.flatMap(g => g.velden.map(v => [v.key, v.schaal])));
-    const aannames = Object.fromEntries(Object.entries(result.aannames).filter(([key]) => key in scales)
+    // Tot modelversie 17 stond de BoP in de browser vast op 0: die nullen waren geen keuze en gaan niet terug in het formulier.
+    const oldBoP = key => key.startsWith("bop_") && (result.model_versie ?? 0) < 17;
+    const aannames = Object.fromEntries(Object.entries(result.aannames).filter(([key]) => key in scales && !oldBoP(key))
       .map(([key, value]) => [key, Math.round(value * scales[key] * 1e6) / 1e6]));
     buildForm({technologie: stored.technologie, strategie: result.strategie, jaren: result.jaren, aannames,
       modules: result.rijen.map(r => r.modules).filter(n => meta.modules.includes(n))});
@@ -1454,7 +1456,7 @@ function renderWalk() {
     const spec = m.kg ? kWh(m.x, size) / m.kg : null;
     const startNote = lines.some(l => l.start) ? ` Opstarten kost ${nf(Math.max(...lines.map(l => l.start)), 0)} min productie.` : "";
     const many = lines.length > 1;
-    return `<p class="calc"><b>${label(count)}</b>${many ? `, per module` : ""}<br>${nf(m.x)} MW systeemvermogen inclusief BoP, 10 min = ${nf(kWh(m.x, size), 0)} kWh
+    return `<p class="calc"><b>${label(count)}</b>${many ? `, per module` : ""}<br>${nf(m.x)} MW stackvermogen + BoP, 10 min = ${nf(kWh(m.x, size), 0)} kWh
       ${spec ? `<br>÷ ${nf(spec, 1)} kWh/kg bij ${nf(m.x / size * 100, 0)} % last = <b>${nf(m.kg)} kg</b>` : "<br>Nog aan het opstarten: 0 kg"}${many ? `<br>× ${lines.length} modules = <b>${nf(sumKg(step))} kg</b>` : ""}.${startNote}</p>`;
   };
   const year = lastResult && (() => {
@@ -1539,7 +1541,7 @@ function renderSpeed(result) {
 const PARTS = [
   ["meer_waterstof", "Meer waterstof", "De vaste kosten worden over meer kilo's verdeeld."],
   ["duurdere_installatie", "Duurdere installatie", "Extra vaste kosten per module (gelijkrichter, transformator, besturing)."],
-  ["stroom_per_kilo", "Stroom per kilo", "Rendement bij de gekozen last, warmhouden en opstartverlies."],
+  ["stroom_per_kilo", "Stroom per kilo", "Rendement bij de gekozen last, vaste BoP per module, warmhouden en opstartverlies."],
   ["stackvervanging", "Stackvervanging", "Slijtage door bedrijfsuren."],
 ];
 let whyToken = 0;
