@@ -494,6 +494,15 @@ test('opsplitsing page, Python model and year data stay behind the site login',a
  assert.equal((await get(worker,'/opsplitsing-assets/data/2030.json')).status,404);
  assert.equal((await get(worker,'/fonts/tasa-orbiter.ttf')).status,200);
 });
+test('opsplitsing has the site header and a logout form like the other pages',async()=>{
+ const worker=await fresh();const page=await get(worker,'/opsplitsing');const html=await page.text();
+ assert.match(html,/<div class="site-session"><form method="post" action="\/auth\/logout"><button type="submit">Uitloggen<\/button><\/form><\/div>/);
+ assert.match(html,/<header class="topbar">\s*<a class="brand site-brand" href="\/" aria-label="Mijnwindpark.nl · startpagina">/);
+ assert.match(html,/mijnwindpark<span class="brand-domain">.nl<\/span><span class="brand-sub">WINDENERGIE &amp; WATERSTOF<\/span>/);
+ assert.match(html,/<a class="mini-flow" href="\/#stroom"/);
+ assert.doesNotMatch(html,/Windparken|class="zone"/);
+ assert.match(page.headers.get('Content-Security-Policy'),/form-action 'self'/);
+});
 test('Cloudflare cron handler tries both HARMONIE models and never throws',async()=>{
  const worker=await rawFresh(),prior=console.error,logged=[];
  console.error=(...args)=>logged.push(args.join(' '));

@@ -10,9 +10,33 @@ button:disabled{cursor:default;opacity:.45}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
 a{color:inherit}
 .shell{width:100%;max-width:none;margin:auto}
-.topbar{background:var(--ink);color:#fff;height:100px;padding:0 var(--page-gutter);display:flex;align-items:center;justify-content:space-between;border-radius:0 0 36px 0}
-.brand{color:#fff;font-size:30px;font-weight:700;letter-spacing:-.8px;text-decoration:none}
-.zone{color:var(--sky);font-size:12px}
+/* Sessiebalk en kopbalk gelijk aan de React-pagina's (.site-session en SiteHeader). */
+.site-session{display:flex;justify-content:flex-end;gap:8px;padding:8px var(--page-gutter);background:var(--paper);line-height:1.6}
+.site-session form{margin:0}
+.site-session button{font:inherit;font-size:12px;background:transparent;color:var(--ink);border:1px solid var(--ink);padding:6px 12px;cursor:pointer;border-radius:0 8px 0 0}
+.topbar{background:var(--ink);color:#fff;height:100px;padding:0 var(--page-gutter);display:flex;align-items:center;justify-content:space-between;border-radius:0 0 36px 0;line-height:1.6}
+.brand{display:flex;align-items:center;gap:12px;color:#fff;font-size:28px;font-weight:700;letter-spacing:-.8px;text-decoration:none}
+.brand-symbol{width:46px;height:46px;display:grid;place-items:center;color:var(--accent);border:1px solid var(--sky);border-radius:0 14px 0 0}
+.brand-symbol svg{display:block}
+.brand-domain{color:#7ad0ed}
+.brand-sub{display:block;margin-top:6px;color:var(--sky);font-size:10px;font-weight:500;letter-spacing:1.9px}
+.mini-flow{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font-size:13px;font-weight:600;padding:6px 12px;border:1px solid #a7b4bf;border-radius:0 14px 0 0;background:#fff}
+.mini-flow:hover{border-color:var(--accent)}
+.mini-flow svg{width:150px;height:auto;display:block}
+.mini-flow .flow-track,.mini-flow .flow-dash{fill:none;stroke-width:3;stroke-linecap:round}
+.mini-flow .flow-track{opacity:.18}
+.mini-flow .flow-dash{stroke-dasharray:1 13;animation:flow-move 1s linear infinite}
+.mini-flow .flow-power{stroke:var(--accent)}
+.mini-flow .flow-h2{stroke:#7fb800}
+.mini-flow text{font-size:10px;font-weight:700;fill:var(--muted)}
+.mini-flow .mini-node{fill:#fff}
+.mini-flow rect{fill:var(--ink)}
+.mini-turbine path{stroke:var(--ink);stroke-width:2;stroke-linecap:round;fill:none}
+.mini-rotor{transform-origin:12px 12px;animation:flow-spin 3s linear infinite}
+@keyframes flow-move{to{stroke-dashoffset:-14}}
+@keyframes flow-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.mini-flow .flow-dash{animation-duration:4s}}
+@media(max-width:760px){.brand{font-size:24px}.brand-sub{font-size:8px;letter-spacing:1.4px}.brand-symbol{width:38px;height:38px}.mini-flow span{display:none}.mini-flow svg{width:110px}}
 main{padding:0 var(--page-gutter) 40px;min-width:0}
 .park-nav{display:flex;flex-wrap:wrap;margin:26px 0 0;border-bottom:1px solid var(--ink)}
 .park-nav a{padding:13px 20px;font-size:14px;text-decoration:none}
@@ -190,7 +214,7 @@ footer{color:var(--muted);font-size:12px;border-top:1px solid var(--ink);margin-
 @media(max-width:1000px){.flow.walk{grid-template-columns:repeat(2,minmax(0,1fr))}.flow.walk li:nth-child(3)::after{display:block}.flow.walk li:nth-child(2n)::after{display:none}}
 @media(max-width:900px){.explain-grid,.chart-grid,.choices{grid-template-columns:1fr}.headline{grid-template-columns:1fr}.headline>div{padding:12px 0}.headline>div+div{border-left:0;border-top:1px solid #8ea9bc}}
 @media(max-width:720px){
-  .topbar{height:84px;padding:0 16px}.brand{font-size:24px}.zone{display:none}
+  .topbar{height:84px;padding:0 16px}
   main{padding:0 16px 30px}
   .intro{padding:24px;border-radius:0 28px 0 0}.intro h1{font-size:30px}
   .panel{padding:22px 18px}
@@ -404,6 +428,3 @@ th,td{padding:12px 14px}
  .module-row{grid-template-columns:1fr;gap:8px}
  .module-tiles{height:96px}
 }
-.topbar .zone{margin-left:auto}
-.language-toggle{margin-left:16px;font:inherit;font-size:12px;background:transparent;color:#fff;border:1px solid currentColor;padding:6px 12px;cursor:pointer;border-radius:0 8px 0 0}
-.language-toggle:focus-visible{outline:3px solid var(--sky);outline-offset:3px}
