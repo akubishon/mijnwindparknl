@@ -784,9 +784,9 @@ function setupMap(result) {
 async function loadMap(result) {
   const token = ++mapToken;
   $("map-run").disabled = true;
-  $("map-status").innerHTML = '<span class="spinner"></span>Omslagkaart berekenen…';
+  const progress = progressView($("map-status"), "Omslagkaart berekenen…");
   try {
-    const data = await post("/api/opsplitsing/omslagkaart", snapshotRequest(result));
+    const data = await post("/api/opsplitsing/omslagkaart", snapshotRequest(result), progress);
     if (token !== mapToken) return;
     $("map-status").textContent = "";
     drawMap(data);
@@ -1093,8 +1093,76 @@ function dayChart(data, n, v) {
     + `met ${n} modules ${nf(used(many), 0)} MWh en ${nf(many.waterstof_kg / 1000)} ton.`;
 }
 
-async function post(url, body) {
-  const response = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+// ---------------------------------------------------------------- voortgang
+
+// Voortgangsbalk voor een verzoek aan de rekenworker. bridge.js geeft de fasen door (zie calculator-worker.js en browser-runtime.py).
+// Tijdens de simulaties telt de balk de klare jobs: één windjaar met één aantal modules; een job uit de cache is meteen klaar.
+// Na drie gerekende jobs volgt een ruwe schatting van de resttijd, gewogen naar het aantal modules per job. Zonder telling loopt de
+// balk onbepaald, met de fase als label.
+// Vult iets anders het statusveld, dan doet de balk niets meer.
+const PROGRESS_WAIT = {aannames: "Wacht tot het rekenmodel geladen is…", run: "Wacht tot de berekening klaar is…",
+  dag: "Wacht tot de dag berekend is…", gevoeligheid: "Wacht tot de gevoeligheid klaar is…", omslagkaart: "Wacht tot de omslagkaart klaar is…"};
+const PROGRESS_PHASE = {rekenomgeving: "Python-rekenomgeving laden (de eerste keer een download)…", model: "Rekenmodel laden…",
+  starten: "Rekenmodel starten…", samenvatten: "Uitkomst samenstellen…"};
+const remainingTime = s => s < 50 ? `nog ongeveer ${Math.max(10, Math.ceil(s / 10) * 10)} s` : `nog ongeveer ${Math.max(1, Math.round(s / 60))} min`;
+
+function progressView(status, caption, note = "") {
+  const part = (className, content = "") => Object.assign(document.createElement("span"), {className, textContent: content});
+  const node = part("progress"), line = part("progress-text"), title = part("progress-label"), detail = part("progress-detail");
+  const bar = part("progress-bar"), fill = part("progress-fill");
+  // De regel onder het label verandert na elke job; de live-regio meldt daarom alleen de fase en de balk draagt de hele tekst.
+  detail.setAttribute("aria-hidden", "true");
+  Object.entries({role: "progressbar", "aria-label": "Voortgang van de berekening", "aria-valuemin": "0"}).forEach(([k, v]) => bar.setAttribute(k, v));
+  bar.append(fill);
+  line.append(title, detail);
+  node.append(line, bar);
+  if (note) node.append(part("progress-note", note));
+  status.classList.remove("error");
+  status.replaceChildren(node);
+  let began = null, shown = "";
+  const update = state => {
+    if (!status.contains(node)) return;
+    let heading = caption, info = "", value = null;
+    if (state.fase === "wachten") heading = PROGRESS_WAIT[state.na] || caption;
+    else if (state.fase === "windjaar") heading = `Windjaar ${state.jaar} laden…`;
+    else if (state.fase === "simulaties") {
+      began ??= performance.now();
+      heading = "Simulaties";
+      value = state.klaar;
+      const parts = [`${state.klaar} van ${state.totaal}`];
+      if (state.jaar != null) parts.push(`windjaar ${state.jaar}, ${label(state.modules)}`);
+      // Rekentijd per werkeenheid (browser-runtime.py: een job met n modules is n + 3 eenheden) maal het werk dat nog komt.
+      const done = state.werk ?? state.gerekend, left = (state.te_werken ?? state.te_rekenen) - done;
+      if (state.gerekend >= 3 && left > 0) parts.push(remainingTime((performance.now() - began) / 1000 / done * left));
+      info = parts.join(" · ");
+    } else heading = PROGRESS_PHASE[state.fase] || caption;
+    const text = [heading, info].filter(Boolean).join(" · ");
+    if (text === shown) return;
+    shown = text;
+    title.textContent = heading;
+    detail.textContent = info;
+    bar.setAttribute("aria-valuetext", text);
+    if (value == null) {
+      bar.removeAttribute("aria-valuenow");
+      bar.removeAttribute("aria-valuemax");
+      fill.style.width = "";
+    } else {
+      bar.setAttribute("aria-valuenow", String(value));
+      bar.setAttribute("aria-valuemax", String(state.totaal));
+      fill.style.width = `${state.totaal ? 100 * value / state.totaal : 0}%`;
+    }
+  };
+  update({fase: ""});
+  return {update, clear: () => { if (status.contains(node)) status.replaceChildren(); }};
+}
+
+async function post(url, body, progress) {
+  let response;
+  try {
+    response = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body), voortgang: progress?.update});
+  } finally {
+    progress?.clear();
+  }
   const data = await response.json().catch(() => ({error: "Onverwacht antwoord van de server."}));
   if (!response.ok) throw new Error(data.error || "Aanvraag mislukt.");
   return data;
@@ -1111,10 +1179,9 @@ async function runDay() {
   const requestedDate = $("day").value;
   const request = snapshotRequest(result), v = request.aannames;
   setPlaying(false);
-  $("day-status").innerHTML = '<span class="spinner"></span>Dag berekenen…';
-  $("day-status").classList.remove("error");
+  const progress = progressView($("day-status"), "Dag berekenen…");
   try {
-    const data = await post("/api/opsplitsing/dag", {aannames: v, strategie: request.strategie, datum: requestedDate, modules: [1, n]});
+    const data = await post("/api/opsplitsing/dag", {aannames: v, strategie: request.strategie, datum: requestedDate, modules: [1, n]}, progress);
     if (result !== lastResult || n !== Number($("day-count").value) || requestedDate !== $("day").value) return;
     dayChart(data, n, v);
     Object.assign(day, {data, n, v, strategie: request.strategie});
@@ -1155,10 +1222,10 @@ async function submit(event) {
   running = true;
   $("run").disabled = true;
   const began = performance.now();
-  status.innerHTML = '<span class="spinner"></span>Rekenen op dit apparaat met de meegeleverde KNMI-windreeksen…';
+  const progress = progressView(status, "Rekenen op dit apparaat met de meegeleverde KNMI-windreeksen…");
   const submitted = {aannames: values(), ...pick}, submittedTechnology = tech;
   try {
-    const result = await post("/api/opsplitsing", submitted);
+    const result = await post("/api/opsplitsing", submitted, progress);
     render({...result, technologie: submittedTechnology});
     status.textContent = `Klaar in ${nf((performance.now() - began) / 1000)} s.`;
     $("results").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start"});
@@ -1173,8 +1240,11 @@ async function submit(event) {
 }
 
 async function start() {
+  // De eerste aanvraag start de rekenworker: Pyodide en het rekenmodel laden, de eerste keer met een download.
+  const progress = progressView($("status"), "Rekenmodel laden…");
   try {
-    const response = await fetch("/api/opsplitsing/aannames");
+    const response = await fetch("/api/opsplitsing/aannames", {voortgang: progress.update});
+    progress.clear();
     if (!response.ok) throw new Error();
     meta = await response.json();
   } catch {
@@ -1565,9 +1635,10 @@ function showSensitivity(result, n) {
 
 async function loadSensitivity(result, n, token) {
   const status = $("tornado-status");
-  status.innerHTML = '<span class="spinner"></span>Gevoeligheid berekenen… elke aanname wordt twee keer doorgerekend en dit duurt enkele minuten. Andere berekeningen, zoals een nieuwe dag, wachten tot dit klaar is.';
+  const progress = progressView(status, "Gevoeligheid berekenen…",
+    "Elke aanname wordt twee keer doorgerekend en dit duurt enkele minuten. Andere berekeningen, zoals een nieuwe dag, wachten tot dit klaar is.");
   try {
-    const data = await post("/api/opsplitsing/gevoeligheid", {...snapshotRequest(result), n});
+    const data = await post("/api/opsplitsing/gevoeligheid", {...snapshotRequest(result), n}, progress);
     // Een antwoord voor een eerdere N of uitkomst is niet nutteloos: bewaar het voor als de gebruiker terugkeert.
     if (sensitivityCache.size >= 40) sensitivityCache.delete(sensitivityCache.keys().next().value);
     sensitivityCache.set(sensitivityKey(result, n), data);

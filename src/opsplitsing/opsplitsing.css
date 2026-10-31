@@ -135,6 +135,18 @@ input[type=radio],input[type=checkbox]{accent-color:var(--ink);width:16px;height
 .error{color:#b3261e !important}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--sky);border-top-color:var(--ink);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* Voortgang van een berekening (progressView in opsplitsing.js); zonder telling schuift een blok heen en weer. */
+#status,#map-status,#day-status{min-width:0;max-width:100%}
+.progress{display:inline-grid;gap:6px;width:30em;max-width:100%;vertical-align:middle}
+.progress-text{display:grid;font-variant-numeric:tabular-nums}
+.progress-detail:empty{display:none}
+.progress-label{color:var(--ink);font-weight:600}
+.progress-bar{display:block;position:relative;height:8px;background:var(--sky);border-radius:0 4px 0 0;overflow:hidden}
+.progress-fill{position:absolute;top:0;bottom:0;left:0;background:var(--ink);box-shadow:inset -3px 0 var(--accent);transition:width .4s ease}
+.progress-bar:not([aria-valuenow]) .progress-fill{width:30%;animation:progress-slide 1.6s ease-in-out infinite alternate}
+@keyframes progress-slide{from{left:0}to{left:70%}}
+.progress-note{color:var(--muted)}
+@media(prefers-reduced-motion:reduce){.progress-fill{transition:none}.progress-bar:not([aria-valuenow]) .progress-fill{animation:none;width:100%;opacity:.3}}
 
 /* Uitkomst */
 .headline{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;background:var(--sky);border-radius:0 28px 0 0;padding:24px 26px;margin-bottom:24px}

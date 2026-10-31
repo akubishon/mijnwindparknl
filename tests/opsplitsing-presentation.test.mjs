@@ -208,22 +208,33 @@ test('CSV preserves row fields, precise Dutch numbers, context and all original 
 
 // ---------------------------------------------------------------- gevoeligheid en omslagkaart op verzoek
 
+// Just enough DOM for the status fields and their progress bar: setting innerHTML or textContent replaces the children.
+class FakeElement {
+  constructor(props = {}) { Object.assign(this, {hidden: false, value: '', disabled: false, style: {}, children: [], text: '', className: ''}, props); this.classes = new Set(); }
+  get classList() { return {add: name => this.classes.add(name), remove: name => this.classes.delete(name), contains: name => this.classes.has(name)}; }
+  get innerHTML() { return this.text; }
+  set innerHTML(value) { this.text = value; this.children = []; }
+  get textContent() { return [this.text, ...this.children.map(child => child.textContent)].filter(Boolean).join(' '); }
+  set textContent(value) { this.text = String(value); this.children = []; }
+  append(...nodes) { this.children.push(...nodes); }
+  replaceChildren(...nodes) { this.text = ''; this.children = nodes; }
+  contains(node) { return node === this || this.children.some(child => child.contains(node)); }
+  setAttribute() {}
+  removeAttribute() {}
+}
+
 // The presentation code with a minimal fake page. Requests go to `requests`; a test settles them with `answer`.
 function livePage() {
   const nodes = new Map();
   const node = id => {
-    if (!nodes.has(id)) {
-      const classes = new Set();
-      nodes.set(id, {id, hidden: false, innerHTML: '', textContent: '', value: '', disabled: false, replaceChildren() {},
-        classList: {add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name)}});
-    }
+    if (!nodes.has(id)) nodes.set(id, new FakeElement({id}));
     return nodes.get(id);
   };
   // A <select> takes the value of its selected option.
   node('why-n').replaceChildren = (...options) => { node('why-n').value = String((options.find(option => option.selected) || options[0]).value); };
   const requests = [];
   const context = vm.createContext({
-    document: {getElementById: node, querySelector: () => ({}), querySelectorAll: () => []},
+    document: {getElementById: node, querySelector: () => ({}), querySelectorAll: () => [], createElement: () => new FakeElement()},
     Intl, Option: class { constructor(text, value, _default, selected) { Object.assign(this, {text, value, selected}); } },
     fetch: (url, options) => new Promise((resolve, reject) => {
       requests.push({url, body: JSON.parse(options.body), resolve: data => resolve({ok: true, json: async () => data}), reject});
@@ -271,7 +282,8 @@ test('after the button, the analysis follows the chosen N and cached results sho
   assert.equal(page.requests[0].body.n, 6);
   assert.deepEqual(plain(page.requests[0].body.modules), [1, 4, 6]);
   assert.equal(page.node('sens-actions').hidden, true);
-  assert.match(page.node('tornado-status').innerHTML, /enkele minuten/);
+  assert.match(page.node('tornado-status').textContent, /Gevoeligheid berekenen…/, 'A progress bar shows while it runs');
+  assert.match(page.node('tornado-status').textContent, /enkele minuten/);
   page.requests[0].resolve({id: 'n6'});
   await flush();
   assert.deepEqual(plain(page.drawn), [['n6', 6]]);
@@ -316,7 +328,7 @@ test('a cancelled sensitivity request is ignored silently, a real error is shown
   page.requests[0].reject(cancelled());
   await flush();
   assert.equal(page.node('tornado-status').classList.contains('error'), false);
-  assert.match(page.node('tornado-status').innerHTML, /Gevoeligheid berekenen/, 'The newer request is still showing its progress');
+  assert.match(page.node('tornado-status').textContent, /Gevoeligheid berekenen/, 'The newer request is still showing its progress');
   // A rejection that is not a cancellation is a real error.
   const failing = livePage();
   failing.run('setupWhy(result)');
