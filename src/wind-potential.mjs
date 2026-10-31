@@ -1,14 +1,15 @@
 import {hubFactor,modelOptions} from './knmi.mjs';
 // Visual scenario only: cubic power-equivalent extrapolation, not deliverable turbine power.
 // Same reference, hub-height and wake assumptions as the park model, without rated/cut-out caps.
-export function theoreticalWindMW(windSpeedMS,timestamp,settings){
+// `hubFactorOverride` replaces the height translation (HARMONIE grid wind, see forecastFactor in knmi.mjs).
+export function theoreticalWindMW(windSpeedMS,timestamp,settings,hubFactorOverride=null){
  if(typeof windSpeedMS!=='number'||!Number.isFinite(windSpeedMS)||windSpeedMS<0||!settings)return null;
  const height=Number(settings.height),alpha0=Number(settings.alpha),wake=Number(settings.wakePercent),ratedKW=Number(settings.ratedKW),cutIn=Number(settings.cutIn),ratedSpeed=Number(settings.ratedSpeed);
  const date=Date.parse(timestamp),year=new Date(date).getUTCFullYear();
  if(!Number.isFinite(date)||![height,alpha0,wake,ratedKW,cutIn,ratedSpeed].every(Number.isFinite)||height<=0||ratedKW<=0||ratedSpeed<=cutIn)return null;
  const doy=Math.floor((Date.UTC(year,new Date(date).getUTCMonth(),new Date(date).getUTCDate())-Date.UTC(year,0,1))/86400000)+1;
  const alpha=alpha0+(settings.seasonal==='1'?.065*Math.cos(2*Math.PI*(doy-1)/365):0);
- const factor=settings.hoogte==='wins50'?hubFactor(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Amsterdam',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(date)),modelOptions(new URLSearchParams(settings))):(height/10)**alpha;
+ const factor=hubFactorOverride??(settings.hoogte==='wins50'?hubFactor(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Amsterdam',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(date)),modelOptions(new URLSearchParams(settings))):(height/10)**alpha);
  const hub=windSpeedMS*factor;
  const effective=hub*(settings.wake==='1'?1-wake/100:1);
  const equivalent=ratedKW*Math.max(0,(effective**3-cutIn**3)/(ratedSpeed**3-cutIn**3))*(settings.park==='beabuorren'?8:89)/1000;

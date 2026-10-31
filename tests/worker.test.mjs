@@ -509,3 +509,24 @@ test('Cloudflare cron handler tries both HARMONIE models and never throws',async
  try{await worker.scheduled({cron:'5 * * * *'},{},{});}finally{console.error=prior;}
  assert.deepEqual(logged,['HARMONIE_SCHEDULED_FAILED p1 HARMONIE_STORAGE','HARMONIE_SCHEDULED_FAILED p2b HARMONIE_STORAGE']);
 });
+
+test('HARMONIE forecast power uses the WINS50 table of the KNMI curve: same park and Dutch month, height increase at the park',async()=>{
+ const worker=await fresh(),{windPowerModel,modelOptions,hubFactor}=await import('../src/knmi.mjs');
+ const table=JSON.parse(await readFile(new URL('../src/opsplitsing/python/data/ashoogte.json',import.meta.url),'utf8'));
+ const run='2026-10-30T18:00:00.000Z',key='harmonie/v1/p1/'+run+'.json';
+ const rows=['2026-10-31T21:00:00.000Z','2026-10-31T22:00:00.000Z','2026-10-31T23:00:00.000Z'].map(time=>({time,parks:[{id:'fryslan',windSpeedMS:7},{id:'beabuorren',windSpeedMS:5}]}));
+ const BUCKET=bucket({'harmonie/v1/p1/latest.json':JSON.stringify({run,key}),[key]:JSON.stringify({run,model:'p1',rows})});
+ const forecast=async query=>{const r=await worker.fetch(new Request('https://fixture.test/api/harmonie?model=p1&'+query),{...env,BUCKET});assert.equal(r.status,200);return (await r.json()).rows;};
+ const october=await forecast('park=fryslan&day=2026-10-31');assert.equal(october.length,2);
+ for(const id of ['fryslan','beabuorren']){
+  const park=october[0].parks.find(p=>p.id===id),options=modelOptions(new URLSearchParams({park:id}));
+  // Grid wind at 10 m: only the WINS50 height increase at the park (Fryslân in October 1.2209), not the station factor F (1.5114).
+  assert.equal(park.heightFactor,table.parken[id].schering[9]);assert.notEqual(park.heightFactor,hubFactor('2026-10-31',options));
+  assert.equal(park.powerMW,windPowerModel('2026-10-31',options,table.parken[id].schering[9])(park.windSpeedMS));
+ }
+ // 23:00 UTC on 31 October is 1 November in Dutch time: the November factor applies, as on the KNMI curve of that day.
+ const november=await forecast('park=fryslan&day=2026-11-01');assert.equal(november.length,1);assert.equal(november[0].parks[0].heightFactor,table.parken.fryslan.schering[10]);
+ // The old method gives HARMONIE the same α as the station wind.
+ const alpha=await forecast('park=fryslan&day=2026-10-31&hoogte=alpha'),options=modelOptions(new URLSearchParams({park:'fryslan',hoogte:'alpha'}));
+ assert.equal(alpha[0].parks[0].heightFactor,hubFactor('2026-10-31',options));assert.equal(alpha[0].parks[0].powerMW,windPowerModel('2026-10-31',options)(7));
+});
