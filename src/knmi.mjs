@@ -38,14 +38,20 @@ export function hubFactor(day,options) {
   const doy=Math.floor((base-Date.UTC(Number(day.slice(0,4)),0,1))/86400000)+1;
   return (options.height/10)**(options.alpha+(options.seasonal?.065*Math.cos(2*Math.PI*(doy-1)/365):0));
 }
+// v_as / v_10 voor HARMONIE-roosterwind op 10 m bij het park. Zelfde methode, tabel, park en maand als de KNMI-wind,
+// maar alleen de WINS50-hoogtetoename op de parklocatie: F voor stations bevat ook het verschil tussen station en park.
+// In de oude methode krijgt HARMONIE dezelfde α als de stationswind.
+export function forecastFactor(day,options) {
+  return options.hoogte==='alpha'?hubFactor(day,options):heightTable.parken[options.park].schering[Number(day.slice(5,7))-1];
+}
+export function dutchDay(stamp) {const p=localParts(stamp);return `${p.year}-${p.month}-${p.day}`;}
 export function describeWind(day,options) {
   const hub=options.park==='beabuorren'?60:115,f=hubFactor(day,options),nl=v=>v.toFixed(3).replace('.',',');
   const source='KNMI '+options.stationName+(options.stationId===AVERAGE?' (gemiddelde per tien minuten, alleen als beide meten)':'');
   if(options.hoogte==='alpha')return `${source}; oude methode met hoogte-exponent α (${options.seasonal?'seizoens-α, eerder geijkt op productie':'vaste α, aanname'}), deze dag factor ${nl(f)} van 10 naar ${options.height} m.`;
   return `${source}; hoogtevertaling F = ${nl(f)} voor deze maand (${monthFactors(options.park,options.stationId).origin}), gelijk aan α ≈ ${nl(Math.log(f)/Math.log(hub/10))} van 10 naar ${hub} m. Aanname zonder meting op ashoogte; geen productiegegevens.`;
 }
-export function windPowerModel(day,options) {
-  const factor=hubFactor(day,options);
+export function windPowerModel(day,options,factor=hubFactor(day,options)) {
   const isBea=options.park==='beabuorren';
   const curve=isBea?beabuorrenCurve:fryslanCurve.points;
   // A lower user limit may stop production earlier; it cannot extend the digitized source range.

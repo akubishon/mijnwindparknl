@@ -271,18 +271,18 @@ De bronpunten en API-resultaten blijven ongewijzigd; alleen kopieën voor de gra
 
 ### Historische HARMONIE-runs
 
-Op de windparkpagina’s kun je in de MW-weergave een datum en modeluur in UTC kiezen. De oranje lijn toont uitsluitend die oorspronkelijke modelrun binnen de Nederlandse grafiekdag, zonder terugval op een andere run. Bij eerdere grafiekdagen wordt standaard 18 UTC van de vorige dag gekozen (begrensd tot de archiefstart). KNMI vermeldt P1-archiefdekking vanaf 8 januari 2026. Ontbrekende bestanden geven een melding; er worden geen actuele voorspellingen of metingen voor in de plaats gezet.
+Op de windparkpagina’s kun je in de MW-weergave een datum en modeluur in Nederlandse tijd kiezen; de pagina rekent dit om naar het UTC-modeluur van KNMI (bij de overgang naar wintertijd telt het eerste 02:00, een uur dat door de zomertijd niet bestaat wordt geweigerd). Alle tijden op de parkpagina’s, ook berekentijden en de run van gisteravond, staan in Nederlandse tijd. De oranje lijn toont uitsluitend die oorspronkelijke modelrun binnen de Nederlandse grafiekdag, zonder terugval op een andere run. Bij eerdere grafiekdagen wordt standaard 18 UTC van de vorige dag gekozen, 19:00 of 20:00 Nederlandse tijd (begrensd tot de archiefstart). KNMI vermeldt P1-archiefdekking vanaf 8 januari 2026. Ontbrekende bestanden geven een melding; er worden geen actuele voorspellingen of metingen voor in de plaats gezet.
 
 De server valideert dat de run niet in de toekomst ligt en binnen de modelhorizon van de grafiekdag valt, verifieert de GRIB-initialisatietijd tegen de selectie, en leest tot 23/24/25 uurpunten afhankelijk van de Nederlandse kalenderdag. Historische runs worden niet als verouderde actuele forecasts verborgen. De cache is per key, run en grafiekdag, met maximaal twintig items en een dag bewaartijd voor geslaagde historische aanvragen. Dit is geen duurzaam eigen archief. De exacte oorspronkelijke publicatie-/beschikbaarheidstijd is onbekend; de selectie is geen volledige toets op wat destijds op een beslismoment beschikbaar was.
 
 ### Voorspellingsvenster in de grafiek
 
-HARMONIE wordt op de parkpagina’s pas opgehaald na een expliciete aanvraag. Vanaf het laatste bekende KNMI-/productiepunt tot het einde van de dag staat in de MW-grafiek een wazig venster met een decoratieve pseudowillekeurige golf en een aanvraagknop. Deze golf is uitsluitend vormgeving: geen datapunten, geen invloed op asschaal, export of berekeningen. Bij succesvolle zichtbare HARMONIE-punten verdwijnt het venster. Tijdens laden blijft de knop herkenbaar; fouten en verouderde runs kunnen opnieuw worden opgevraagd. De HARMONIE-selectieschakelaar blijft geldig. Historische runs worden via de uitklapbare runkeuze aangevraagd.
+HARMONIE wordt op de parkpagina’s pas opgehaald na een expliciete aanvraag. Vanaf het laatste bekende KNMI-/productiepunt tot het einde van de dag staat in de MW-grafiek een wazig venster met een aanvraagknop. Het venster toont geen verzonnen verloop: geen datapunten, geen invloed op asschaal, export of berekeningen. Bij succesvolle zichtbare HARMONIE-punten verdwijnt het venster. Tijdens laden blijft de knop herkenbaar; fouten en verouderde runs kunnen opnieuw worden opgevraagd. De HARMONIE-selectieschakelaar blijft geldig. Historische runs worden via de uitklapbare runkeuze aangevraagd.
 
 
 ### Overzichtelijke windparkpagina’s
 
-De daggrafiek begint met een korte uitleg van productie, windaanbod en HARMONIE. De eenheid en het theoretische scenario zijn direct te kiezen; stationsvergelijking, formules, historische modeluren en downloads zijn gegroepeerd in uitklapbare onderdelen. De voorspellingsknop heet ‘Toon voorspelling’, met behoud van de bestaande branding en het wazige voorbeeldvenster. Dagcijfers blijven over het hele park gaan; de grafiek vermeldt het gekozen parkaandeel. De berekeningen en bronnen zijn ongewijzigd.
+De daggrafiek begint met een korte uitleg van productie, windaanbod en HARMONIE. De eenheid en het theoretische scenario zijn direct te kiezen; stationsvergelijking, formules, historische modeluren en downloads zijn gegroepeerd in uitklapbare onderdelen. De voorspellingsknop heet ‘Toon voorspelling’, met behoud van de bestaande branding en het wazige aanvraagvenster. Dagcijfers blijven over het hele park gaan; de grafiek vermeldt het gekozen parkaandeel. De berekeningen en bronnen zijn ongewijzigd.
 
 ### HARMONIE P1 en P2b kiezen
 
@@ -295,11 +295,15 @@ De P2b-lijn toont één beschikbaar lid uit één bestand: de eerste windveldide
 (producerend centrum, proces en lokale GRIB1-extensie). Velden met een andere
 identiteit worden overgeslagen; tegenstrijdige dubbele velden worden geweigerd.
 Dit is geen selectie van controlelid 0, ensemblegemiddelde of onzekerheidsband.
-Beide keuzes gebruiken in deze app wind op 10 meter, gevolgd door de bestaande
-hoogtecorrectie en turbineberekening; de hogere modelniveaus worden niet benut. De P1-bestanden
+Beide keuzes gebruiken in deze app wind op 10 meter, gevolgd door de hoogtevertaling
+en turbineberekening van de KNMI-curve; de hogere modelniveaus worden niet benut. De P1-bestanden
 bevatten u en v ook op 50, 100, 200 en 300 m (gecontroleerd op run 2026-10-22 00 UTC); zie
-`docs/databronnen.md`. De parkpagina’s gebruiken nog de oude, op productie geijkte seizoens-α met
-standaard Stavoren; zie `docs/afhankelijkheden.md`.
+`docs/databronnen.md`. Hoogtevertaling: dezelfde methode als de KNMI-wind (`forecastFactor` in
+`src/knmi.mjs`). Standaard is dat de WINS50-tabel voor hetzelfde park en dezelfde Nederlandse
+kalendermaand. Roosterwind ligt al bij het park, dus HARMONIE krijgt alleen de WINS50-hoogtetoename
+op de parklocatie (`schering`, Σ v_as / Σ v_10); de stationsfactor F bevat ook het verschil tussen
+station en park. Voor Fryslân in oktober is dat 1,221 tegenover F = 1,511 voor de stations. Met
+de oude methode (`hoogte=alpha`) krijgen beide dezelfde α. `/api/harmonie` geeft per park `heightFactor` terug.
 P2b-runs ouder dan 72 uur worden vooraf geweigerd; P1 behoudt het bestaande archief.
 API: `/api/harmonie?model=p2b`; onbekende modelnamen krijgen HTTP 400.
 
@@ -354,7 +358,7 @@ Vanaf 1500 px staan de bestaande modelinstellingen rechts van het dagoverzicht,
 standaard uitgeklapt en met eigen scrollruimte. Op kleinere schermen blijft het
 paneel inklapbaar onder de grafiek. Invoer blijft een concept totdat Model
 bijwerken wordt gebruikt; een statusmelding maakt dit zichtbaar. De uitleg
-toont de hoogteformule, actieve seizoensafhankelijke alfa, windreductie door zog,
+toont de hoogteformule (WINS50-factor F, of in de oude methode de actieve seizoensafhankelijke alfa), windreductie door zog,
 turbinecurve en parkaandeel, met het onderscheid tussen begrensd vermogen en
 het standaard ingeschakelde onbegrensde scenario. Het KNMI-station verandert
 niet het vaste HARMONIE-roosterpunt. Alle parameters zijn ook bij Beabuorren
@@ -365,7 +369,7 @@ toepassen gevalideerd.
 
 ### GitHub-import 23 oktober 2026
 
-De wijzigingen tot en met `73565c8` uit `windpark-fryslan` zijn samengevoegd met de recentere Sites-bron. De Atlas-vergelijking en modelversie 11 waren daar al aanwezig. KNMI gebruikt standaard het gemiddelde van Houtribdijk en Stavoren met de WINS50-factor per maand. HARMONIE behoudt zijn bestaande hoogtevertaling met ashoogte en α; WINS50-stationsfactoren worden niet op modelroosterwind toegepast. De bestaande R2-binding, HARMONIE-archieven en modelzijbalk blijven behouden.
+De wijzigingen tot en met `73565c8` uit `windpark-fryslan` zijn samengevoegd met de recentere Sites-bron. De Atlas-vergelijking en modelversie 11 waren daar al aanwezig. KNMI gebruikt standaard het gemiddelde van Houtribdijk en Stavoren met de WINS50-factor per maand. HARMONIE gebruikt inmiddels dezelfde WINS50-tabel, met de hoogtetoename op de parklocatie in plaats van de stationsfactor (zie HARMONIE P1 en P2b kiezen). De bestaande R2-binding, HARMONIE-archieven en modelzijbalk blijven behouden.
 
 
 ## Actieve turbinecurve Fryslân
