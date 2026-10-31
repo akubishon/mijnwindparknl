@@ -152,3 +152,16 @@ test('bridge.js and opsplitsing.js load in one global scope without clashing nam
   vm.runInContext(source, context);
   assert.doesNotThrow(() => vm.runInContext(ui.replace(/^\s*start\(\);\s*$/m, ''), context));
 });
+
+test('saved scenarios from before model version 17 (old wind method or BoP 0) are listed as outdated', async () => {
+  const row = {modules: 1, lcoh_eur_kg: 8, waterstof_t: 3000};
+  const item = (id, model_versie, windmethode = 'onafhankelijk') => ({id, naam: id, gemaakt: '2026-10-01T00:00:00Z',
+    resultaat: {model_versie, windmethode, strategie: 'verdelen', jaren: [2025], rijen: [row]}});
+  const saved = [item('oud', 12, 'productie_hoogste'), item('zonder-bop', 16), item('nu', 17)];
+  const window = {fetch: async () => { throw new Error('Not an opsplitsing request'); }};
+  vm.runInContext(source, vm.createContext({window, Worker: class { postMessage() {} }, Response, DOMException, document: {addEventListener() {}},
+    localStorage: {getItem: () => JSON.stringify(saved)}}));
+  const {scenarios} = await (await window.fetch('/api/opsplitsing/scenarios')).json();
+  assert.deepEqual(scenarios.map(s => [s.id, s.verouderd, s.verouderd ? s.reden : null]),
+    [['oud', true, 'productie_hoogste'], ['zonder-bop', true, 'zonder BoP'], ['nu', false, null]]);
+});

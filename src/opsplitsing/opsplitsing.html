@@ -26,7 +26,7 @@
       </nav>
 
       <section class="intro">
-        <div class="eyebrow">ONDERZOEK · 44 MW ELEKTROLYSER</div><p class="note">De 44 MW is het totale systeemvermogen inclusief BoP. Er wordt geen extra BoP-verbruik bij opgeteld.</p>
+        <div class="eyebrow">ONDERZOEK · 44 MW ELEKTROLYSER</div><p class="note">De 44 MW is het totale stackvermogen. De BoP (standaard 10 %) komt erbij in de berekening: bij vollast 48,4 MW uit maximaal 48,7 MW aanbod.</p>
         <h1>Eén grote elektrolyser, of meerdere kleine modules?</h1>
         <p>Een elektrolyser kan niet onder zijn minimumlast draaien. Kleinere modules hebben een lagere ondergrens en
           vangen daardoor meer zwakke wind op, maar ze kosten meer per kW. Deze pagina rekent dat door op vier echte
@@ -267,7 +267,7 @@
             <p>De elektrolyser krijgt 10 % van het gemodelleerde Fryslân plus heel Beabuorren, zoals op mijnwindpark.nl. Het is mogelijke opbrengst, geen gemeten levering.</p>
             <code>P = 0,1 · Fryslân + Beabuorren</code></li>
           <li><span class="flow-n">D</span><h3>Modules inzetten</h3>
-            <p>Per tien minuten kiest de besturing hoeveel modules draaien. Grenzen: minimumlast, aan- en uittijden, startvertraging, onderhoud en storingen.</p>
+            <p>Per tien minuten kiest de besturing hoeveel modules draaien. Grenzen: minimumlast, BoP, aan- en uittijden, startvertraging, onderhoud en storingen.</p>
             <code>k modules · P/k per module</code></li>
           <li><span class="flow-n">E</span><h3>Waterstof en slijtage</h3>
             <p>Stackvermogen door de rendementscurve geeft kilo's. Starts en lastwisselingen tellen als extra bedrijfsuren voor de stack.</p>
@@ -282,7 +282,7 @@
             <h3>Waarom opsplitsen helpt</h3>
             <p>De minimumlast geldt per module. Eén grote module start pas als het aanbod boven haar minimumlast komt; vier modules van een kwart
               van de grootte starten bij een kwart van dat aanbod. Alles onder de drempel gaat verloren. Standaard: 25 % per PEM-module
-              en 30 % per alkalinemodule; bij 1 × 44 MW is de drempel ca. 11 MW, bij 4 × 11 MW ca. 2,75 MW.</p>
+              en 30 % per alkalinemodule; bij 1 × 44 MW is de drempel ca. 13 MW aanbod (11 MW stack plus BoP), bij 4 × 11 MW ca. 3,3 MW.</p>
             <svg id="threshold-art" viewBox="0 0 440 220" role="img" aria-labelledby="threshold-title">
               <title id="threshold-title">Schets: een golvend windaanbod met twee drempels. De lage drempel van een kleine module laat meer aanbod door dan de hoge drempel van één grote module.</title>
             </svg>

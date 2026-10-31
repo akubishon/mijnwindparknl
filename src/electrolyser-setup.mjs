@@ -34,6 +34,10 @@ const finite = v => typeof v === 'number' && Number.isFinite(v);
 const inRange = (key, value) => { const m = fieldMeta(key); return finite(value) && value * m.scale >= m.low - 1e-9 && value * m.scale <= m.high + 1e-9; };
 
 export const defaultGeneral = () => ({strategy: 'verdelen', years: [...WIND_YEARS], values: {}});
+// The doelvermogen is total stack power; BoP comes on top in the calculation. A system rating is converted with the
+// setup's BoP, or with the standard 3 % + 7 % of opsplitsing.py while that is not known yet (catalogue, new setup).
+const STANDARD_BOP = 1 + DEFAULTS.bop_vast + DEFAULTS.bop_variabel;
+export const stackPowerMW = (moduleMW, boundary, bopFactor) => !finite(moduleMW) ? null : boundary === 'stack' ? moduleMW : moduleMW / (bopFactor || STANDARD_BOP);
 export const newSetup = (id, modelId = '', modules = 1) => ({id, modelId, modules, choices: {}});
 export function fillToTarget(moduleMW, target) {
  if (!(moduleMW > 0) || !(target > 0)) return null;
@@ -51,7 +55,7 @@ export const validLimit = v => !!v && LIMIT_MODES.includes(v.mode) && Number.isI
  && LIMIT_REACH.includes(v.reach) && finite(v.tolerance) && v.tolerance >= 0 && v.tolerance <= 0.5;
 // Lowest total power that still counts as reaching the target under the chosen reach rule.
 export const limitFloorMW = (target, limit = defaultLimit()) => target * (limit.reach === 'onder' ? 1 - limit.tolerance : 1);
-// What the limit asks of one setup: at most `max` modules and enough total power for the target. Nothing when off.
+// What the limit asks of one setup: at most `max` modules and enough total stack power for the target. Nothing when off.
 export function limitCheck({modules, moduleMW, target}, limit = defaultLimit()) {
  const problems = [];
  if (limit.mode !== 'uit' && Number.isInteger(modules)) {
@@ -59,8 +63,8 @@ export function limitCheck({modules, moduleMW, target}, limit = defaultLimit()) 
   if (finite(moduleMW) && moduleMW > 0 && finite(target) && target > 0) {
    const nominal = modules * moduleMW;
    if (nominal < limitFloorMW(target, limit) - target * 1e-9) problems.push(limit.reach === 'onder'
-    ? `Modulelimiet: ${modules} × ${fmt(moduleMW)} = ${fmt(nominal, 2)} MW ligt meer dan ${fmt(limit.tolerance * 100, 1)} % onder het doelvermogen van ${fmt(target, 2)} MW.`
-    : `Modulelimiet: ${modules} × ${fmt(moduleMW)} = ${fmt(nominal, 2)} MW haalt het doelvermogen van ${fmt(target, 2)} MW niet.`);
+    ? `Modulelimiet: ${modules} × ${fmt(moduleMW)} = ${fmt(nominal, 2)} MW stackvermogen ligt meer dan ${fmt(limit.tolerance * 100, 1)} % onder het doelvermogen van ${fmt(target, 2)} MW.`
+    : `Modulelimiet: ${modules} × ${fmt(moduleMW)} = ${fmt(nominal, 2)} MW stackvermogen haalt het doelvermogen van ${fmt(target, 2)} MW niet.`);
   }
  }
  return {mode: limit.mode, ok: !problems.length, blocks: limit.mode === 'blokkeren' && problems.length > 0, problems};
@@ -172,16 +176,16 @@ export function resolveSetup(model, setup, general = defaultGeneral(), rules = {
  fields.push(gain, ...bopFields, ...MODEL_KEYS.map(key => standardOr(key)));
  for (const f of fields) if (f.scale && f.key !== 'minimumlast' && f.value !== null && finite(f.value) && META[f.key] && !inRange(f.key, f.value)) problems.push(`${f.label} valt buiten ${fieldMeta(f.key).low}–${fieldMeta(f.key).high} ${fieldMeta(f.key).unit}.`);
 
- const moduleMW = power.value, stackModuleMW = finite(moduleMW) && bopFactor ? (boundary.value === 'stack' ? moduleMW : moduleMW / bopFactor) : null;
+ const moduleMW = power.value, stackModuleMW = stackPowerMW(moduleMW, boundary.value, bopFactor);
  // A limit that only warns leaves the setup calculable; a blocking one makes it not ready.
- const limit = limitCheck({modules: n, moduleMW, target: rules.target}, validLimit(rules.limit) ? rules.limit : defaultLimit());
+ const limit = limitCheck({modules: n, moduleMW: stackModuleMW, target: rules.target}, validLimit(rules.limit) ? rules.limit : defaultLimit());
  if (limit.blocks) problems.push(...limit.problems);
- const ready = !problems.length && finite(stackModuleMW) && fields.every(f => f.value !== null);
+ const ready = !problems.length && finite(stackModuleMW) && !!bopFactor && fields.every(f => f.value !== null);
  const counted = fields.filter(f => f.key !== 'rekenprofiel');
  const result = {
   ready, problems: [...new Set(problems)], limit, fields: [profileField, ...fields], modules: n, moduleMW, needsBoP,
   boundary: boundary.value, stackModuleMW, bopFactor,
-  nominalMW: finite(moduleMW) ? n * moduleMW : null, intakeMW: finite(stackModuleMW) ? n * stackModuleMW * bopFactor : null,
+  nominalMW: finite(moduleMW) ? n * moduleMW : null, intakeMW: finite(stackModuleMW) && bopFactor ? n * stackModuleMW * bopFactor : null,
   platformLimitMW: model.power.platformLimitMW || null,
   counts: {bron: counted.filter(f => f.value !== null && !isAssumption(f)).length, aanname: counted.filter(f => f.value !== null && isAssumption(f)).length, open: counted.filter(f => f.value === null).length},
   nominalEnergy: energy.value,

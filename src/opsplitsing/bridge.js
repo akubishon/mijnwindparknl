@@ -46,10 +46,10 @@ window.fetch=async function(input,options){
   if(path==='/api/opsplitsing/scenarios')return Response.json({scenarios:saved.map(item=>{
    const rows=item.resultaat.rijen,one=rows.find(r=>r.modules===1)||rows[0];
    const best=rows.reduce((a,b)=>(b.lcoh_eur_kg??Infinity)<(a.lcoh_eur_kg??Infinity)?b:a);
-   // Vóór modelversie 11 rekende de opsplitsing met de oude, op productie geijkte windmethode.
-   const version=item.resultaat.model_versie??0;
+   // Vóór modelversie 11 rekende de opsplitsing met de oude, op productie geijkte windmethode; 13–16 zonder BoP bovenop het stackvermogen.
+   const version=item.resultaat.model_versie??0,windmethode=item.resultaat.windmethode||'productie_hoogste';
    return {...item,resultaat:undefined,strategie:item.resultaat.strategie,jaren:item.resultaat.jaren,modules:rows.map(r=>r.modules),beste:best,een_module:one,
-    windmethode:item.resultaat.windmethode||'productie_hoogste',model_versie:version,verouderd:version<13};
+    windmethode,model_versie:version,verouderd:version<17,reden:version<13?windmethode:'zonder BoP'};
   })});
   const item=saved.find(x=>x.id===decodeURIComponent(path.split('/').pop()));
   return Response.json(item||{error:'Scenario niet gevonden.'},{status:item?200:404});
