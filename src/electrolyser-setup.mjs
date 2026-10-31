@@ -3,6 +3,7 @@
 // result definitions shown on the comparison tab.
 import {TECHNOLOGIES, DEFAULTS, STRATEGIES, KERNEL_VERSION, hoursInYear} from './electrolyser-kernel.mjs';
 import {STATUS, fitPartLoadGain, NM3_PER_KG} from './electrolyser-catalogue.mjs';
+import {formatFixed, formatSigned, sharedDecimals, shownDifference, energyUnit} from './number-format.mjs';
 
 export const WIND_YEARS = [2022, 2023, 2024, 2025];
 export const WIND_SERIES = 'Bruto toegewezen windaanbod uit /opsplitsing: 10 % Windpark Fryslân (hoogste wind van Stavoren en Houtribdijk) + Wynpark Beabuorren (Stavoren), KNMI-tienminutenwaarden, jaarreeksen 2022–2025';
@@ -251,18 +252,42 @@ export function meanMetrics(resolved, perYear, summary, years) {
 }
 export const withCoverage = m => ({...m, dekking: m.dekking ?? (m.uren_in_jaar ? m.dekking_uur / m.uren_in_jaar : null)});
 
-// Comparison rows (label, metric key, unit, decimals); differences are against the chosen reference setup.
+// Comparison rows (label, metric key, unit, display, CSV name); differences are against the chosen reference setup.
+// Weergave: 'invoer' = afgeleid uit modules × catalogus- of invoerwaarde, getoond zoals ingevoerd (hoogstens 2 decimalen);
+// 'waterstof' = kg, getoond in t; 'energie' = MWh, getoond in MWh of GWh; 'procent' = hoogstens 1 decimaal;
+// 'uitkomst' = drie significante cijfers. De CSV houdt de waarden in de eenheid van de kolomnaam, in volle precisie.
 export const RESULT_ROWS = [
- ['Totaal nominaal vermogen', 'nominaal_mw', 'MW', 2, 'totaal_nominaal_MW'], ['Opname bij vollast incl. BoP', 'opname_vollast_mw', 'MW', 2, 'opname_vollast_incl_BoP_MW'], ['Aantal modules', 'modules', '', 0, 'modules'],
- ['Waterstof', 'waterstof_kg', 'kg per jaar', 0, 'waterstof_kg_per_jaar'], ['Opgenomen stroom incl. BoP', 'opgenomen_mwh', 'MWh per jaar', 0, 'opgenomen_MWh_per_jaar'], ['Stand-by (warmhouden)', 'standby_mwh', 'MWh per jaar', 0, 'standby_MWh_per_jaar'],
- ['Deel van het windaanbod benut', 'benut', '%', 1, 'aanbod_benut_pct'], ['Gemiddelde belasting', 'belasting', '%', 1, 'gemiddelde_belasting_pct'],
- ['Resterende windenergie', 'rest_mwh', 'MWh per jaar', 0, 'rest_MWh_per_jaar'], ['· onder minimumlast', 'onder_minimum_mwh', 'MWh per jaar', 0, 'rest_onder_minimumlast_MWh_per_jaar'], ['· boven maximum', 'boven_maximum_mwh', 'MWh per jaar', 0, 'rest_boven_maximum_MWh_per_jaar'],
- ['· overig (onderhoud, storing, wacht- en uittijd)', 'overig_mwh', 'MWh per jaar', 0, 'rest_overig_MWh_per_jaar'],
- ['Werkelijk stroomverbruik', 'kwh_per_kg', 'kWh/kg', 2, 'werkelijk_kWh_per_kg'], ['Nominaal systeemverbruik (rekenwaarde)', 'kwh_per_kg_nominaal', 'kWh/kg', 2, 'nominaal_kWh_per_kg'],
- ['Draaiuren per module', 'draaiuren', 'uur per jaar', 0, 'draaiuren_per_module'], ['Uren met productie', 'productie_uur', 'uur per jaar', 0, 'uren_met_productie'], ['Starts per module', 'starts_per_module', 'per jaar', 0, 'starts_per_module'],
- ['Datadekking', 'dekking', '%', 2, 'datadekking_pct'],
+ ['Totaal nominaal vermogen', 'nominaal_mw', 'MW', 'invoer', 'totaal_nominaal_MW'], ['Opname bij vollast incl. BoP', 'opname_vollast_mw', 'MW', 'invoer', 'opname_vollast_incl_BoP_MW'], ['Aantal modules', 'modules', '', 'invoer', 'modules'],
+ ['Waterstof', 'waterstof_kg', 'kg per jaar', 'waterstof', 'waterstof_kg_per_jaar'], ['Opgenomen stroom incl. BoP', 'opgenomen_mwh', 'MWh per jaar', 'energie', 'opgenomen_MWh_per_jaar'], ['Stand-by (warmhouden)', 'standby_mwh', 'MWh per jaar', 'energie', 'standby_MWh_per_jaar'],
+ ['Deel van het windaanbod benut', 'benut', '%', 'procent', 'aanbod_benut_pct'], ['Gemiddelde belasting', 'belasting', '%', 'procent', 'gemiddelde_belasting_pct'],
+ ['Resterende windenergie', 'rest_mwh', 'MWh per jaar', 'energie', 'rest_MWh_per_jaar'], ['· onder minimumlast', 'onder_minimum_mwh', 'MWh per jaar', 'energie', 'rest_onder_minimumlast_MWh_per_jaar'], ['· boven maximum', 'boven_maximum_mwh', 'MWh per jaar', 'energie', 'rest_boven_maximum_MWh_per_jaar'],
+ ['· overig (onderhoud, storing, wacht- en uittijd)', 'overig_mwh', 'MWh per jaar', 'energie', 'rest_overig_MWh_per_jaar'],
+ ['Werkelijk stroomverbruik', 'kwh_per_kg', 'kWh/kg', 'uitkomst', 'werkelijk_kWh_per_kg'], ['Nominaal systeemverbruik (rekenwaarde)', 'kwh_per_kg_nominaal', 'kWh/kg', 'invoer', 'nominaal_kWh_per_kg'],
+ ['Draaiuren per module', 'draaiuren', 'uur per jaar', 'uitkomst', 'draaiuren_per_module'], ['Uren met productie', 'productie_uur', 'uur per jaar', 'uitkomst', 'uren_met_productie'], ['Starts per module', 'starts_per_module', 'per jaar', 'uitkomst', 'starts_per_module'],
+ ['Datadekking', 'dekking', '%', 'procent', 'datadekking_pct'],
 ];
 export const PERCENT_KEYS = new Set(['benut', 'belasting', 'dekking']);
+
+// Eén uitkomstregel in de tabel: elke opstelling en elk verschil in dezelfde eenheid en met dezelfde afronding,
+// bepaald door de grootste waarde in de regel. Het verschil is dat van de getoonde waarden; het percentage komt
+// uit de onafgeronde waarden.
+export function resultRow([, key, unit, display], rows, diffs = []) {
+ const raw = rows.map(row => row?.[key]);
+ const energy = energyUnit(Math.max(0, ...raw.filter(finite).map(Math.abs)));
+ const scale = display === 'waterstof' ? {factor: 1e-3, unit: unit.replace('kg', 't')} : display === 'energie' ? {factor: energy.factor, unit: unit.replace('MWh', energy.unit)}
+  : display === 'procent' ? {factor: 100, unit} : {factor: 1, unit};
+ const shown = raw.map(v => finite(v) ? v * scale.factor : null);
+ const decimals = display === 'procent' ? 1 : display === 'invoer' ? 2 : sharedDecimals(shown), pad = display !== 'invoer';
+ return {unit: scale.unit, cells: shown.map((v, i) => {
+  const d = diffs[i]?.[key];
+  if (!d || v === null) return {value: v === null ? '—' : formatFixed(v, decimals, pad), diff: null};
+  const delta = Math.abs(d.delta) <= 1e-9 ? 0 : shownDifference(v, v - d.delta * scale.factor, decimals);
+  const relative = display !== 'procent' && d.pct !== null && delta !== 0 ? formatSigned(d.pct * 100, 1) : '±0';
+  const diff = Math.abs(d.delta) <= 1e-9 ? 'gelijk' : formatSigned(delta, decimals, pad)
+   + (display === 'procent' ? ' procentpunt' : relative !== '±0' ? ` (${relative}%)` : '');
+  return {value: formatFixed(v, decimals, pad), diff};
+ })};
+}
 
 export function differences(rows, reference) {
  const ref = rows[reference];
