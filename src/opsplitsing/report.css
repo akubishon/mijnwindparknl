@@ -35,3 +35,10 @@
  body.printing-report details>summary{display:none}body.printing-report .report-moment h4{font-size:13pt}
  body.printing-report .report-moment h5{break-after:avoid}body.printing-report .report-section a{text-decoration:none}
 }
+/* Conclusie binnen de modelonzekerheid en de vaste kanttekeningen bij de uitkomst. */
+.report-robust{border-left:4px solid var(--ink);background:#fff;padding:14px 20px;margin:16px 0}
+.report-robust h4{font-size:22px;font-weight:500;line-height:1.3;margin:0 0 8px}
+.report-robust p{font-size:16px;margin:6px 0}
+.report-robust p:last-child{font-size:14px;color:var(--muted)}
+.report-notes{margin:12px 0;padding-left:20px}
+.report-notes li{font-size:14px;margin:4px 0}

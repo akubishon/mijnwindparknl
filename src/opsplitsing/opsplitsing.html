@@ -120,7 +120,7 @@
         </aside>
         <div id="headline" class="headline"></div>
         <section class="winner" aria-labelledby="winner-title">
-          <span class="eyebrow">Laagste berekende kostprijs binnen deze instellingen</span>
+          <span class="eyebrow">Conclusie binnen de modelonzekerheid</span>
           <h3 id="winner-title"></h3>
           <div id="winner-compare" class="winner-compare"></div>
           <p id="winner-text" class="winner-text"></p>
@@ -180,6 +180,7 @@
             <div id="step-chart" class="chart"></div>
           </figure>
         </div>
+        <p class="note">1 (ref.) is 1 module: een theoretische referentie. Eén unit van het totale vermogen die als geheel aan- en uitschakelt, bouwt niemand.</p>
         <div class="why">
           <div class="why-head">
             <h3>Waarom wint of verliest <label class="sr-only" for="why-n">Aantal modules</label><select id="why-n"></select>
@@ -210,6 +211,8 @@
         <details class="table-details" open>
           <summary>Alle uitkomsten in een tabel</summary>
           <div class="table-scroll"><table id="table"></table></div>
+          <p class="note">CAPEX is de referentieofferte plus de vaste kosten per module; installatie, civiele werken en netaansluiting tellen alleen mee als ze in de offerte zitten.
+            Start/stop-slijtage zit niet in de kosten: meer modules starten vaker en lijken daardoor iets gunstiger dan ze zijn.</p>
         </details>
         </details>
       </section>
@@ -223,7 +226,7 @@
           <div class="day-overview">
             <div class="day-controls">
               <label>Dag <input type="date" id="day"></label>
-              <label>Vergelijk 1 module met <select id="day-count"></select></label>
+              <label>Vergelijk 1 module (theoretische referentie) met <select id="day-count"></select></label>
               <button class="secondary-button" type="button" id="day-run">Toon dag</button>
               <span id="day-status" role="status" aria-live="polite"></span>
             </div>
@@ -270,7 +273,7 @@
             <p>Per tien minuten kiest de besturing hoeveel modules draaien. Grenzen: minimumlast, aan- en uittijden, startvertraging, onderhoud en storingen.</p>
             <code>k modules · P/k per module</code></li>
           <li><span class="flow-n">E</span><h3>Waterstof en slijtage</h3>
-            <p>Stackvermogen door de rendementscurve geeft kilo's. Starts en lastwisselingen tellen als extra bedrijfsuren voor de stack.</p>
+            <p>Stackvermogen door de rendementscurve geeft kilo's. De stackslijtage volgt uit de bedrijfsuren; starts en lastwisselingen kosten in het model geen extra slijtage.</p>
             <code>kg = stack-MWh ÷ kWh/kg</code></li>
           <li><span class="flow-n">F</span><h3>Kosten</h3>
             <p>CAPEX met rente, vaste OPEX, stackvervanging en stroom, gedeeld door de waterstof per jaar.</p>
