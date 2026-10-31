@@ -58,7 +58,8 @@ test('three moments follow documented criteria and retain per-module mixed start
   assert.equal(modules[0].productiveFraction,0.9);
   assert.equal(modules[1].productiveFraction,1);
   assert.notEqual(modules[0].kg,modules[1].kg);
-  assert.match(report.moments[0].wind.find(row=>row.key==='supply').expression,/44.5 × 0.1 \+ 2 × 1/);
+  // Berekende parkvermogens met drie significante cijfers, invoer (aandeel) zoals ingevoerd, in Nederlandse notatie.
+  assert.equal(report.moments[0].wind.find(row=>row.key==='supply').expression,'44,5 × 0,1 + 2,00 × 1');
   assert.equal(JSON.stringify(data),original,'report must not mutate trace data');
 });
 

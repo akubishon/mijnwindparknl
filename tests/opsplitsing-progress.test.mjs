@@ -219,7 +219,7 @@ test('the bar is indeterminate with a phase label, then counts jobs with a rough
   assert.equal(bar.attributes['aria-valuenow'], '0');
   assert.equal(bar.attributes['aria-valuemax'], '40');
   step(4, 0, 2025, 1);
-  assert.equal(detail(), '4 van 40 · windjaar 2025, 1 module', 'Cache hits move the bar without a time estimate');
+  assert.equal(detail(), '4 van 40 · windjaar 2025, 1 module (theoretische referentie)', 'Cache hits move the bar without a time estimate');
   assert.equal(fill.style.width, '10%');
   clock.now = 10000;
   step(6, 2);

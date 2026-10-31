@@ -3,7 +3,11 @@
   'use strict';
   const finite = value => typeof value === 'number' && Number.isFinite(value);
   const sum = values => values.reduce((total, value) => total + (finite(value) ? value : 0), 0);
-  const number = value => finite(value) ? String(value) : 'onbekend';
+  // In de ingevulde formules: invoer (num) zoals ingevoerd, berekende en afgeronde dagwaarden (n) met drie significante cijfers.
+  const format = options => value => finite(value) ? new Intl.NumberFormat('nl-NL', options).format(value) : 'onbekend';
+  const significant = format({minimumSignificantDigits: 3, maximumSignificantDigits: 3});
+  const number = value => value === 0 ? '0' : significant(value);
+  const num = format({maximumFractionDigits: 6});
   const row = (key, label, formula, expression, value, unit) => ({key, label, formula, expression, value: finite(value) ? value : null, unit});
   const notes = [
     'Deze momenten komen uit één dag. Ze leggen de berekening uit; de jaaruitkomst gebruikt alle beschikbare tienminutenstappen.',
@@ -33,13 +37,13 @@
       rows: [
         row('stack', 'Stackvermogen', 'Gekozen door de besturing', `${n(stackMw)} MW uit het dagantwoord`, stackMw, 'MW'),
         row('load', 'Lastfractie', 'stackvermogen / modulevermogen', `${n(stackMw)} / ${n(size)}`, x, 'fractie'),
-        row('power', 'Elektrisch vermogen inclusief BoP', active ? 'stackvermogen × (1 + variabele BoP) + vaste BoP × modulevermogen' : 'Uitgeschakelde module: geen draaiend verbruik', active ? `${n(stackMw)} × (1 + ${n(a.bop_variabel)}) + ${n(a.bop_vast)} × ${n(size)}` : '0', power, 'MW'),
-        row('secFull', 'Stackverbruik bij vollast, nieuw', 'systeemverbruik × (1 − Faradayverlies × 0,1) / (1 + variabele BoP + vaste BoP)', `${n(a.systeemverbruik_vol)} × (1 − ${n(a.faradayverlies_10)} × 0,1) / (1 + ${n(a.bop_variabel)} + ${n(a.bop_vast)})`, secFull, 'kWh/kg'),
-        row('ageing', 'Gemiddelde degradatie (meer verbruik per kg)', 'degradatie per jaar × degradatieperiode / 2', `${n(a.degradatie_jaar)} × ${n(a.degradatie_jaren)} / 2`, ageing, 'fractie'),
-        row('sec', 'Stackverbruik bij deze last en degradatie', active ? 'stackverbruik vollast × (1 − deellastvoordeel × (1 − lastfractie)) × (1 + degradatie)' : 'Geen productie bij een uitgeschakelde module', active ? `${n(secFull)} × (1 − ${n(a.deellastvoordeel)} × (1 − ${n(x)})) × (1 + ${n(ageing)})` : 'Niet van toepassing', sec, 'kWh/kg'),
-        row('faraday', 'Faradayfactor', active ? 'max(0; 1 − Faradayverlies × 0,1 / lastfractie)' : 'Geen productie bij een uitgeschakelde module', active ? `max(0; 1 − ${n(a.faradayverlies_10)} × 0,1 / ${n(x)})` : '0', faraday, 'fractie'),
-        row('productive', 'Productief deel van tien minuten', 'max(0; 10 − opstartminuten) / 10', `max(0; 10 − ${n(startMinutes)}) / 10`, productive, 'fractie'),
-        row('kg', 'Waterstof in tien minuten', eligible ? 'stackvermogen × 1.000 / stackverbruik × Faradayfactor × 1/6 uur × productief deel' : 'Geen productie onder de minimumlast of bij stilstand', eligible ? `${n(stackMw)} × 1000 / ${n(sec)} × ${n(faraday)} / 6 × ${n(productive)}` : '0', kg, 'kg')
+        row('power', 'Elektrisch vermogen inclusief BoP', active ? 'stackvermogen × (1 + variabele BoP) + vaste BoP × modulevermogen' : 'Uitgeschakelde module: geen draaiend verbruik', active ? `${n(stackMw)} × (1 + ${num(a.bop_variabel)}) + ${num(a.bop_vast)} × ${n(size)}` : '0', power, 'MW'),
+        row('secFull', 'Stackverbruik bij vollast, nieuw', 'systeemverbruik × (1 − Faradayverlies × 0,1) / (1 + variabele BoP + vaste BoP)', `${num(a.systeemverbruik_vol)} × (1 − ${num(a.faradayverlies_10)} × 0,1) / (1 + ${num(a.bop_variabel)} + ${num(a.bop_vast)})`, secFull, 'kWh/kg'),
+        row('ageing', 'Gemiddelde degradatie (meer verbruik per kg)', 'degradatie per jaar × degradatieperiode / 2', `${num(a.degradatie_jaar)} × ${num(a.degradatie_jaren)} / 2`, ageing, 'fractie'),
+        row('sec', 'Stackverbruik bij deze last en degradatie', active ? 'stackverbruik vollast × (1 − deellastvoordeel × (1 − lastfractie)) × (1 + degradatie)' : 'Geen productie bij een uitgeschakelde module', active ? `${n(secFull)} × (1 − ${num(a.deellastvoordeel)} × (1 − ${n(x)})) × (1 + ${n(ageing)})` : 'Niet van toepassing', sec, 'kWh/kg'),
+        row('faraday', 'Faradayfactor', active ? 'max(0; 1 − Faradayverlies × 0,1 / lastfractie)' : 'Geen productie bij een uitgeschakelde module', active ? `max(0; 1 − ${num(a.faradayverlies_10)} × 0,1 / ${n(x)})` : '0', faraday, 'fractie'),
+        row('productive', 'Productief deel van tien minuten', 'max(0; 10 − opstartminuten) / 10', `max(0; 10 − ${num(startMinutes)}) / 10`, productive, 'fractie'),
+        row('kg', 'Waterstof in tien minuten', eligible ? 'stackvermogen × 1.000 / stackverbruik × Faradayfactor × 1/6 uur × productief deel' : 'Geen productie onder de minimumlast of bij stilstand', eligible ? `${n(stackMw)} × 1.000 / ${n(sec)} × ${n(faraday)} / 6 × ${n(productive)}` : '0', kg, 'kg')
       ]
     };
   }
@@ -48,7 +52,7 @@
     const rows = [];
     const n = number;
     for (const [key, value] of Object.entries(wind?.knmi || {})) {
-      rows.push(row('station-' + key, data.stations?.[key] || key, 'KNMI-meting op 10 m', value == null ? 'Meetgat' : `${n(value)} m/s gemeten`, value, 'm/s'));
+      rows.push(row('station-' + key, data.stations?.[key] || key, 'KNMI-meting op 10 m', value == null ? 'Meetgat' : `${num(value)} m/s gemeten`, value, 'm/s'));
     }
     const parks = Object.keys(data.parken || {}).filter(key => wind?.[key]);
     // A trace fixture may omit park display names while retaining the park values.
@@ -56,17 +60,17 @@
     for (const key of parks) {
       const w = wind[key], label = data.parken?.[key] || key;
       const heightFormula = w.hoogtevertaling === 'alpha' ? 'v10 × (ashoogte / 10)^α' : 'v10 × maandfactor';
-      const heightExpression = w.hoogtevertaling === 'alpha' ? `${n(w.v10)} × (${n(w.ashoogte)} / 10)^${n(w.alpha)}` : `${n(w.v10)} × ${n(w.factor)}`;
-      rows.push(row(key + '-v10', label + ': gekozen wind op 10 m', data.regel_per_park?.[key] || 'Geselecteerde stationswind', n(w.v10), w.v10, 'm/s'));
+      const heightExpression = w.hoogtevertaling === 'alpha' ? `${num(w.v10)} × (${num(w.ashoogte)} / 10)^${num(w.alpha)}` : `${num(w.v10)} × ${num(w.factor)}`;
+      rows.push(row(key + '-v10', label + ': gekozen wind op 10 m', data.regel_per_park?.[key] || 'Geselecteerde stationswind', num(w.v10), w.v10, 'm/s'));
       rows.push(row(key + '-hub', label + ': wind op ashoogte', heightFormula, heightExpression, w.v_as, 'm/s'));
-      rows.push(row(key + '-wake', label + ': wind na zog', 'wind op ashoogte × (1 − zogverlies)', `${n(w.v_as)} × (1 − ${n(w.zog)})`, w.v_turbine, 'm/s'));
+      rows.push(row(key + '-wake', label + ': wind na zog', 'wind op ashoogte × (1 − zogverlies)', `${n(w.v_as)} × (1 − ${num(w.zog)})`, w.v_turbine, 'm/s'));
       rows.push(row(key + '-curve', label + ': vermogen per turbine', 'Vermogenscurve bij wind na zog', `Vermogenscurve(${n(w.v_turbine)} m/s)`, w.turbine_kw, 'kW'));
-      rows.push(row(key + '-park', label + ': parkvermogen', 'turbinevermogen × aantal turbines / 1.000', `${n(w.turbine_kw)} × ${n(w.turbines)} / 1000`, w.mw, 'MW'));
+      rows.push(row(key + '-park', label + ': parkvermogen', 'turbinevermogen × aantal turbines / 1.000', `${n(w.turbine_kw)} × ${num(w.turbines)} / 1.000`, w.mw, 'MW'));
       // Windprofiel geschaald naar gemeten dagproductie: het parkvermogen × de dagfactor, hooguit het nominale parkvermogen.
       if (finite(w.dagfactor)) rows.push(row(key + '-scaled', label + ': geschaald naar gemeten dagproductie', 'parkvermogen × dagfactor, hooguit het nominale parkvermogen', `${n(w.mw)} × ${n(w.dagfactor)}`, w.mw_aanbod, 'MW'));
     }
     const share = key => data.aandeel?.[key] ?? wind?.[key]?.aandeel ?? (key === 'fryslan' ? data.aandeel_fryslan : 1);
-    rows.push(row('supply', 'Aanbod voor de elektrolyser', 'Σ parkvermogen × toegewezen aandeel', parks.map(key => `${n(wind[key].mw_aanbod ?? wind[key].mw)} × ${n(share(key))}`).join(' + '), step.aanbod, 'MW'));
+    rows.push(row('supply', 'Aanbod voor de elektrolyser', 'Σ parkvermogen × toegewezen aandeel', parks.map(key => `${n(wind[key].mw_aanbod ?? wind[key].mw)} × ${num(share(key))}`).join(' + '), step.aanbod, 'MW'));
     return rows;
   }
 
@@ -88,17 +92,17 @@
       traceKg, calculatedKg, tracePowerMw: step.verbruik, calculatedPowerMw,
       reasons: Array.isArray(step.redenen) ? [...step.redenen] : [], moduleRows,
       rows: [
-        row('size', 'Vermogen per module', 'totaal stackvermogen / aantal modules', `${n(a.capaciteit_mw)} / ${n(count)}`, size, 'MW'),
-        row('threshold', 'Startdrempel inclusief BoP', 'minimumlast × modulevermogen × (1 + variabele BoP) + vaste BoP × modulevermogen', `${n(a.minimumlast)} × ${n(size)} × (1 + ${n(a.bop_variabel)}) + ${n(a.bop_vast)} × ${n(size)}`, a.minimumlast * size * (1 + a.bop_variabel) + a.bop_vast * size, 'MW'),
+        row('size', 'Vermogen per module', 'totaal stackvermogen / aantal modules', `${num(a.capaciteit_mw)} / ${num(count)}`, size, 'MW'),
+        row('threshold', 'Startdrempel inclusief BoP', 'minimumlast × modulevermogen × (1 + variabele BoP) + vaste BoP × modulevermogen', `${num(a.minimumlast)} × ${n(size)} × (1 + ${num(a.bop_variabel)}) + ${num(a.bop_vast)} × ${n(size)}`, a.minimumlast * size * (1 + a.bop_variabel) + a.bop_vast * size, 'MW'),
         row('active', 'Actieve modules', 'Aantal modules met stackvermogen > 0', stacks.map(x => n(x)).join('; '), stacks.filter(x => x > 0).length, 'modules'),
         row('power', 'Totaal draaiend verbruik', 'Som van het vermogen inclusief BoP per actieve module', moduleRows.map(m => n(m.powerMw)).join(' + ') || '0', calculatedPowerMw, 'MW'),
-        row('energy', 'Stroom in tien minuten', 'draaiend verbruik × 1.000 × 1/6 uur', `${n(calculatedPowerMw)} × 1000 / 6`, calculatedPowerMw * 1000 / 6, 'kWh'),
+        row('energy', 'Stroom in tien minuten', 'draaiend verbruik × 1.000 × 1/6 uur', `${n(calculatedPowerMw)} × 1.000 / 6`, calculatedPowerMw * 1000 / 6, 'kWh'),
         row('kg', 'Berekende waterstof', 'Som van de kilo’s per module', moduleRows.map(m => n(m.kg)).join(' + ') || '0', calculatedKg, 'kg'),
         row('traceKg', 'Waterstof volgens het dagantwoord', 'Som van de afgeronde kilo’s per module uit het rekenmodel', (step.kg || []).map(n).join(' + ') || '0', traceKg, 'kg')
       ],
       check: {ok, tolerance, deltaKg: difference, detail: nearMinimum
         ? 'Een afgerond stackvermogen ligt op de minimumlast. De exacte drempelcontrole is met deze afgeronde trace niet vast te stellen.'
-        : `Verschil tussen narekenen en dagantwoord: ${n(difference)} kg; tolerantie ${n(tolerance)} kg vanwege afgeronde tussenwaarden.`}
+        : `Verschil tussen narekenen en dagantwoord: ${n(difference)} kg; tolerantie ${num(tolerance)} kg vanwege afgeronde tussenwaarden.`}
     };
   }
 

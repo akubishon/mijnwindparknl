@@ -150,7 +150,7 @@ test('missing wear data leaves known production visible and never becomes zero a
  const shown=h.node('result-conclusion').innerHTML;
  assert.match(shown,/kostengegevens/);
  assert.doesNotMatch(shown,/geen waterstof produceert/);
- assert.match(shown,/2\.980,8 ton waterstof per jaar/,'Known physical production remains readable');
+ assert.match(shown,/2\.980 ton waterstof per jaar/,'Known physical production remains readable');
  assert.doesNotMatch(shown,/(?:>|\s)0(?:,00)? miljoen euro/,'Missing stack and annual costs must not become zero');
  assert.match(shown,/Niet beschikbaar/);
  h.ui.open();
@@ -203,4 +203,18 @@ test('sensitivity summary uses saved provenance, explains both signs and resets 
  const newer=structuredClone(h.result);newer.sleutel='newer-sensitivity-result';
  h.ui.setResult(newer,h.meta);
  assert.equal(shown.hidden,true,'A new result must hide the previous sensitivity conclusion');
+});
+
+test('the result opens with the conclusion within the model uncertainty, scope notes and starts',()=>{
+ const h=harness();h.ui.setResult(h.result,h.meta);
+ const shown=h.node('result-conclusion').innerHTML;
+ assert.match(shown,/<div class="report-robust"><h4>2 modules: duidelijk het goedkoopst<\/h4>/);
+ assert.match(shown,/Regel: een aantal heet pas duidelijk goedkoper/);
+ assert.match(shown,/Basis · 1 × 44 MW \(theoretische referentie\)/);
+ assert.match(shown,/Met 2 modules: 120 ton waterstof per jaar meer dan met 1 module \(theoretische referentie\)\./,'3.100 t − 2.980 t');
+ assert.match(shown,/1\.180 starts per jaar \(592 per module\)/);
+ assert.match(shown,/alleen mee als ze in de ingevoerde offerte zitten/);
+ assert.match(shown,/Start\/stop-slijtage zit niet in de kosten/);
+ assert.match(shown,/Verschil: −0,06 €\/kg/);
+ assert.doesNotMatch(shown,/2\.980,8|3\.097,8/,'No full-precision tonnes');
 });
