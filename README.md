@@ -62,6 +62,10 @@ The calendar discovers years and recorded days through shallow Firebase reads. D
 
 Only the newest live snapshot is confirmed. During a short check, source timestamps changed by 10 seconds. Polling every second does not establish one-second source resolution. The live chart keeps the latest 900 distinct timestamped readings in browser memory while observing, pauses checks when hidden, and clears on refresh. The median interval measures the observed updates, which can include gaps. Historical second-by-second production is not available through the endpoints confirmed so far.
 
+A live reading is stale when it is more than 2 minutes old (`STALE_AFTER_S` in `src/live-reading.mjs`): well above the ~10 s source cadence, so a few missed readings do not count, but a reading labelled as current is never older than that. A stale reading is no longer called “Vermogen op dit moment”: the tab shows it as the latest available reading, with its date when it is not today (Europe/Amsterdam) and its age in one unit, rounded down (seconds below 2 minutes, minutes below 2 hours, hours below 2 days, then days). When the server's own answer already contained a stale reading (`receivedAt` − `timestamp` above the threshold), the tab says plainly that the source has delivered no new readings since that moment; pausing or a failed connection on the viewer's side does not trigger that message. The calendar counts days with data up to and including today; the source can already hold an empty day for tomorrow.
+
+Displayed results use one helper, `src/number-format.mjs`: computed values get three significant figures in Dutch notation, energy switches from MWh to GWh at 1.000 MWh, and values shown side by side (a table row, a tooltip) share the rounding of the largest; a difference is the difference of the values as shown. Measured source hours in the hourly table, input fields, datasheet values and CSV exports keep their full precision.
+
 ## Verification
 
 Worker tests cover request validation, authentication, calendar filtering, hourly normalization, caching, live field projection, missing data, and upstream failures. Real API checks verified history years, recorded days, daily readings, and live snapshots. Browser interaction QA is unavailable on this host. See `../docs/graph-access.md` and `../analysis/live-cadence.json` for reverse-engineering evidence.
@@ -152,12 +156,14 @@ Windaanbod: de jaarreeksen 2022–2025 van `/opsplitsing` (bruto toegewezen aanb
 ### Uitkomsten per opstelling
 
 - Totaal nominaal vermogen = n × modulevermogen (op de vermogensgrens van de bron); opname bij vollast incl. BoP = n × stackvermogen × (1 + BoP).
-- Waterstof (kg per jaar), opgenomen stroom inclusief BoP (MWh per jaar) en stand-by (warmhouden).
+- Waterstof (t per jaar), opgenomen stroom inclusief BoP (MWh of GWh per jaar) en stand-by (warmhouden).
 - Deel van het windaanbod benut = opgenomen ÷ aanbod.
 - Gemiddelde belasting = opgenomen ÷ (opname bij vollast incl. BoP × uren met data). Dezelfde grens als de opgenomen stroom, dus hooguit 100 %.
 - Resterende windenergie = aanbod − opgenomen, gesplitst in **onder minimumlast** (niets draait en het aanbod ligt onder de minimumlast van één module; bij `samen` van alle modules samen), **boven maximum** (aanbod boven de opname bij vollast van alle modules) en **overig** (onderhoud, storingen, startvertraging, minimale uit-tijd).
 - Werkelijk stroomverbruik = (opgenomen + stand-by) × 1000 ÷ kg, naast de nominale rekenwaarde.
 - Draaiuren per module, uren met productie, starts per module en datadekking.
+
+Weergave (`resultRow()` in `src/electrolyser-setup.mjs`): per regel één eenheid en één afronding voor alle opstellingen en verschillen, met drie significante cijfers van de grootste waarde. Waterstof staat in t per jaar, energie in MWh of vanaf 1.000 MWh in GWh per jaar, percentages met hoogstens één decimaal (verschil in procentpunt). Het verschil is dat van de getoonde waarden; het percentage komt uit de onafgeronde waarden en vervalt als het op 0 % afrondt. Vermogen, modules en de nominale rekenwaarde volgen uit invoer en staan zoals ingevoerd. De CSV houdt kg en MWh in volle precisie.
 
 De vergelijking waarschuwt als het nominale vermogen meer dan 5 % van de referentie afwijkt, of als de opname bij vollast meer dan 5 % verschilt door een andere vermogensgrens, en biedt dan “Vul alle opstellingen aan tot doelvermogen”. Er is geen oordeel “beste” en geen financieel advies. De grafiek toont per aanbodklasse (0–2,5 … 45+ MW) welk deel van de windenergie elke opstelling opneemt, met het aandeel van het jaaraanbod per klasse.
 
