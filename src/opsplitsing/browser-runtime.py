@@ -7,7 +7,7 @@ class SerialPool:
     def __init__(self, *args, **kwargs): pass
     def __enter__(self): return self
     def __exit__(self, *args): pass
-    def map(self, fn, jobs): return map(fn, jobs)
+    def map(self, fn, jobs): return tracked_map(fn, list(jobs))
 # This page uses total system power: BoP is already included in the 44 MW.
 model.MODEL_VERSION = 16
 model.SENSITIVE_OPERATION = [key for key in model.SENSITIVE_OPERATION if not key.startswith('bop_')]
@@ -69,6 +69,36 @@ class SimulationMemo:
         self.hits = self.misses = 0
 SIM_MEMO = model._job = SimulationMemo(model._job)
 def sim_cache_stats(): return {'hits': SIM_MEMO.hits, 'misses': SIM_MEMO.misses, 'jobs': len(SIM_MEMO.entries)}
+# Voortgang. run(), sensitivity() en omslagkaart() rekenen hun jobs via SerialPool.map; elke job is één simulatie (windjaar, aantal
+# modules, besturing). Na elke job gaat er een bericht naar progress_sink: de worker zet daar een JS-functie die het meteen naar de
+# pagina post, ook terwijl runPython nog rekent. Een cachetreffer is direct klaar; te_rekenen telt alleen de jobs die echt
+# gesimuleerd worden, zodat de pagina de resttijd kan schatten. jaar en modules horen bij de job die nu rekent.
+# Een job met n modules kost ongeveer n + 3 eenheden rekentijd (gemeten in Chromium: 1,4 s bij 1 module, 3,3 s bij 6, 5,5 s bij 12);
+# werk en te_werken tellen die eenheden voor de gesimuleerde jobs, want 12 modules duren bijna vier keer zo lang als 1.
+progress_sink = None
+def report_progress(**message):
+    if progress_sink is not None: progress_sink(json.dumps(message))
+def job_work(n): return n + 3
+def tracked_map(fn, jobs):
+    memo = fn if isinstance(fn, SimulationMemo) else None
+    todo = [key[2] for key in set(map(memo.key, jobs)) if key not in memo.entries] if memo else [args[1] for args in jobs]
+    done = computed = work = 0
+    def report():
+        upcoming = jobs[done] if done < len(jobs) else None
+        report_progress(fase='simulaties', klaar=done, totaal=len(jobs), gerekend=computed, te_rekenen=max(len(todo), computed),
+                        werk=work, te_werken=max(sum(map(job_work, todo)), work),
+                        jaar=upcoming[0]['jaar'] if upcoming else None, modules=upcoming[1] if upcoming else None)
+    report()
+    for args in jobs:
+        misses = memo.misses if memo else 0
+        result = fn(args)
+        done += 1
+        if memo is None or memo.misses > misses:
+            computed += 1
+            work += job_work(args[1])
+        report()
+        yield result
+    report_progress(fase='samenvatten')
 def dispatch(path, body):
     if path.endswith('/aannames'):
         meta = model.meta_json()

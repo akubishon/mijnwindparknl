@@ -8,6 +8,8 @@ let serial=0;
 // started always runs to the end. Requests therefore wait here, not in the worker's message queue, which makes it possible to
 // (1) drop a request that has not started when a newer one of the same kind arrives and (2) let /dag overtake the long
 // /gevoeligheid and /omslagkaart. A dropped request rejects with an AbortError; the UI ignores that silently.
+// Progress: fetch(path, {voortgang}) takes a callback. It receives the worker's {fase, ...} messages for the running request
+// (calculator-worker.js, browser-runtime.py) and {fase:'wachten', na:kind} while the request waits for another one.
 const queue=[];let running=null;
 const PRIORITY={aannames:0,run:0,dag:1,gevoeligheid:2,omslagkaart:2};
 const kindOf=path=>{const kind=path.slice('/api/opsplitsing/'.length);return Object.hasOwn(PRIORITY,kind)?kind:'run';};
@@ -16,20 +18,25 @@ function next(){
  queue.sort((a,b)=>PRIORITY[a.kind]-PRIORITY[b.kind]||a.id-b.id);
  running=queue.shift();
  calculator.postMessage({id:running.id,path:running.path,body:running.body});
+ for(const item of queue)item.voortgang?.({fase:'wachten',na:running.kind});
 }
-function enqueue(path,body){
+function enqueue(path,body,voortgang){
  const kind=kindOf(path);
  return new Promise((resolve,reject)=>{
   // Nothing newer than a queued request of the same kind is wanted any more. The meta request is never replaced.
   if(kind!=='aannames')for(let i=queue.length-1;i>=0;i--)if(queue[i].kind===kind){
    queue.splice(i,1)[0].reject(new DOMException('Vervangen door een nieuwer verzoek.','AbortError'));
   }
-  queue.push({id:++serial,kind,path,body,resolve,reject});
+  const item={id:++serial,kind,path,body,resolve,reject,voortgang};
+  queue.push(item);
   next();
+  if(running!==item)voortgang?.({fase:'wachten',na:running.kind});
  });
 }
 calculator.onmessage=({data})=>{
  if(!running||running.id!==data.id)return;
+ // Progress does not settle the request; only a message with result or error does.
+ if(data.voortgang){running.voortgang?.(data.voortgang);return;}
  const done=running;running=null;done.resolve(data);next();
 };
 calculator.onerror=()=>{
@@ -54,7 +61,7 @@ window.fetch=async function(input,options){
   const item=saved.find(x=>x.id===decodeURIComponent(path.split('/').pop()));
   return Response.json(item||{error:'Scenario niet gevonden.'},{status:item?200:404});
  }
- const data=await enqueue(path,options?.body?JSON.parse(options.body):{});
+ const data=await enqueue(path,options?.body?JSON.parse(options.body):{},options?.voortgang);
  return Response.json(data.error?{error:data.error}:data.result,{status:data.error?400:200});
 };
 
