@@ -15,7 +15,7 @@ function harness(){
  const meta={groepen:[{naam:'Test',velden:Object.keys(fixture.aannames).map(key=>({key,label:key,schaal:scales.has(key)?100:1,eenheid:scales.has(key)?'%':'',bron:'plaatshouder'}))}],technologieen:{pem:{naam:'PEM',waarden:Object.fromEntries(Object.entries(fixture.aannames).map(([k,v])=>[k,v*(scales.has(k)?100:1)]))}}};
  const ctx=vm.createContext({document,Intl,Date,JSON,Blob,URL:{createObjectURL:blob=>{downloads.push(blob);return '';},revokeObjectURL(){}},Option:function(text,value,def,selected){return {text,value,selected};},setTimeout(){},addEventListener:(n,fn)=>{if(!events.has(n))events.set(n,[]);events.get(n).push(fn);},fetch:(url,options)=>new Promise(resolve=>requests.push({url,body:JSON.parse(options.body),resolve})),OpsReportMoments:{build:(data,a,b,c)=>({date:data.datum,notes:[],moments:[],a,b,c})}});
  vm.runInContext(modelSource,ctx);vm.runInContext(uiSource,ctx);docEvents.get('DOMContentLoaded')();
- const result={...structuredClone(fixture),technologie:'pem',model_versie:15};
+ const result={...structuredClone(fixture),technologie:'pem',model_versie:17};
  return {ctx,ui:ctx.OpsReportUI,node,requests,meta,result,downloads};
 }
 
@@ -57,7 +57,7 @@ test('a failed example request leaves annual arithmetic and export available',as
 });
 
 test('old, unknown and different wind-model snapshots do not silently request current-model moments',()=>{
- for(const change of [{model_versie:12},{model_versie:11},{model_versie:undefined},{windmethode:'productie_hoogste'}]){
+ for(const change of [{model_versie:16},{model_versie:12},{model_versie:11},{model_versie:undefined},{windmethode:'productie_hoogste'}]){
   const h=harness();Object.assign(h.result,change);h.ui.setResult(h.result,h.meta);h.ui.open();
   assert.equal(h.requests.length,0,'Incompatible snapshot must not call current Python runtime');
   assert.match(h.node('report-day-status').textContent,/oudere of andere modelbasis/);
@@ -150,7 +150,7 @@ test('missing wear data leaves known production visible and never becomes zero a
  const shown=h.node('result-conclusion').innerHTML;
  assert.match(shown,/kostengegevens/);
  assert.doesNotMatch(shown,/geen waterstof produceert/);
- assert.match(shown,/2\.980,8 ton waterstof per jaar/,'Known physical production remains readable');
+ assert.match(shown,/2\.980 ton waterstof per jaar/,'Known physical production remains readable');
  assert.doesNotMatch(shown,/(?:>|\s)0(?:,00)? miljoen euro/,'Missing stack and annual costs must not become zero');
  assert.match(shown,/Niet beschikbaar/);
  h.ui.open();
@@ -203,4 +203,18 @@ test('sensitivity summary uses saved provenance, explains both signs and resets 
  const newer=structuredClone(h.result);newer.sleutel='newer-sensitivity-result';
  h.ui.setResult(newer,h.meta);
  assert.equal(shown.hidden,true,'A new result must hide the previous sensitivity conclusion');
+});
+
+test('the result opens with the conclusion within the model uncertainty, scope notes and starts',()=>{
+ const h=harness();h.ui.setResult(h.result,h.meta);
+ const shown=h.node('result-conclusion').innerHTML;
+ assert.match(shown,/<div class="report-robust"><h4>2 modules: duidelijk het goedkoopst<\/h4>/);
+ assert.match(shown,/Regel: een aantal heet pas duidelijk goedkoper/);
+ assert.match(shown,/Basis · 1 × 44 MW \(theoretische referentie\)/);
+ assert.match(shown,/Met 2 modules: 120 ton waterstof per jaar meer dan met 1 module \(theoretische referentie\)\./,'3.100 t − 2.980 t');
+ assert.match(shown,/1\.180 starts per jaar \(592 per module\)/);
+ assert.match(shown,/alleen mee als ze in de ingevoerde offerte zitten/);
+ assert.match(shown,/Start\/stop-slijtage zit niet in de kosten/);
+ assert.match(shown,/Verschil: −0,06 €\/kg/);
+ assert.doesNotMatch(shown,/2\.980,8|3\.097,8/,'No full-precision tonnes');
 });

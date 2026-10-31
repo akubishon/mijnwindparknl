@@ -26,7 +26,8 @@ test('Python source files stay identical to the hashes in PROVENANCE.json', () =
 
 test('JavaScript kernel matches Python with the active turbine curve for all reference cases', () => {
  const reference = read('./fixtures/elektrolyser-kern-python.json');
- assert.equal(reference.model_version, 14);
+ assert.equal(reference.model_version, 15);
+ assert.match(kernel.KERNEL_VERSION, new RegExp(`MODEL_VERSION ${reference.model_version} `), 'The kernel label names the Python version it is checked against');
  for (const c of reference.cases) {
   const r = kernel.simulate_with_replacements(supplies[c.jaar], c.modules, c.aannames, c.strategie);
   for (const [key, expected] of Object.entries(c.uitkomst)) {

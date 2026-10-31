@@ -3,9 +3,10 @@
 // result definitions shown on the comparison tab.
 import {TECHNOLOGIES, DEFAULTS, STRATEGIES, KERNEL_VERSION, hoursInYear} from './electrolyser-kernel.mjs';
 import {STATUS, fitPartLoadGain, NM3_PER_KG} from './electrolyser-catalogue.mjs';
+import {formatFixed, formatSigned, sharedDecimals, shownDifference, energyUnit} from './number-format.mjs';
+import {WIND_PROFILES, DEFAULT_WIND_PROFILE, windSeries} from './electrolyser-wind.mjs';
 
 export const WIND_YEARS = [2022, 2023, 2024, 2025];
-export const WIND_SERIES = 'Bruto toegewezen windaanbod uit /opsplitsing: 10 % Windpark Fryslân (hoogste wind van Stavoren en Houtribdijk) + Wynpark Beabuorren (Stavoren), KNMI-tienminutenwaarden, jaarreeksen 2022–2025';
 export const MAX_SETUPS = 4, MAX_MODULES = 200, DEFAULT_TARGET_MW = 44;
 
 // [key, label, unit, shown-scale, low, high] in the shown unit, as AANNAMES_META in opsplitsing.py.
@@ -33,7 +34,11 @@ const fmt = (n, d = 3) => new Intl.NumberFormat('nl-NL', {maximumFractionDigits:
 const finite = v => typeof v === 'number' && Number.isFinite(v);
 const inRange = (key, value) => { const m = fieldMeta(key); return finite(value) && value * m.scale >= m.low - 1e-9 && value * m.scale <= m.high + 1e-9; };
 
-export const defaultGeneral = () => ({strategy: 'verdelen', years: [...WIND_YEARS], values: {}});
+export const defaultGeneral = () => ({strategy: 'verdelen', years: [...WIND_YEARS], values: {}, wind: DEFAULT_WIND_PROFILE});
+// The doelvermogen is total stack power; BoP comes on top in the calculation. A system rating is converted with the
+// setup's BoP, or with the standard 3 % + 7 % of opsplitsing.py while that is not known yet (catalogue, new setup).
+const STANDARD_BOP = 1 + DEFAULTS.bop_vast + DEFAULTS.bop_variabel;
+export const stackPowerMW = (moduleMW, boundary, bopFactor) => !finite(moduleMW) ? null : boundary === 'stack' ? moduleMW : moduleMW / (bopFactor || STANDARD_BOP);
 export const newSetup = (id, modelId = '', modules = 1) => ({id, modelId, modules, choices: {}});
 export function fillToTarget(moduleMW, target) {
  if (!(moduleMW > 0) || !(target > 0)) return null;
@@ -51,7 +56,7 @@ export const validLimit = v => !!v && LIMIT_MODES.includes(v.mode) && Number.isI
  && LIMIT_REACH.includes(v.reach) && finite(v.tolerance) && v.tolerance >= 0 && v.tolerance <= 0.5;
 // Lowest total power that still counts as reaching the target under the chosen reach rule.
 export const limitFloorMW = (target, limit = defaultLimit()) => target * (limit.reach === 'onder' ? 1 - limit.tolerance : 1);
-// What the limit asks of one setup: at most `max` modules and enough total power for the target. Nothing when off.
+// What the limit asks of one setup: at most `max` modules and enough total stack power for the target. Nothing when off.
 export function limitCheck({modules, moduleMW, target}, limit = defaultLimit()) {
  const problems = [];
  if (limit.mode !== 'uit' && Number.isInteger(modules)) {
@@ -59,8 +64,8 @@ export function limitCheck({modules, moduleMW, target}, limit = defaultLimit()) 
   if (finite(moduleMW) && moduleMW > 0 && finite(target) && target > 0) {
    const nominal = modules * moduleMW;
    if (nominal < limitFloorMW(target, limit) - target * 1e-9) problems.push(limit.reach === 'onder'
-    ? `Modulelimiet: ${modules} × ${fmt(moduleMW)} = ${fmt(nominal, 2)} MW ligt meer dan ${fmt(limit.tolerance * 100, 1)} % onder het doelvermogen van ${fmt(target, 2)} MW.`
-    : `Modulelimiet: ${modules} × ${fmt(moduleMW)} = ${fmt(nominal, 2)} MW haalt het doelvermogen van ${fmt(target, 2)} MW niet.`);
+    ? `Modulelimiet: ${modules} × ${fmt(moduleMW)} = ${fmt(nominal, 2)} MW stackvermogen ligt meer dan ${fmt(limit.tolerance * 100, 1)} % onder het doelvermogen van ${fmt(target, 2)} MW.`
+    : `Modulelimiet: ${modules} × ${fmt(moduleMW)} = ${fmt(nominal, 2)} MW stackvermogen haalt het doelvermogen van ${fmt(target, 2)} MW niet.`);
   }
  }
  return {mode: limit.mode, ok: !problems.length, blocks: limit.mode === 'blokkeren' && problems.length > 0, problems};
@@ -172,16 +177,16 @@ export function resolveSetup(model, setup, general = defaultGeneral(), rules = {
  fields.push(gain, ...bopFields, ...MODEL_KEYS.map(key => standardOr(key)));
  for (const f of fields) if (f.scale && f.key !== 'minimumlast' && f.value !== null && finite(f.value) && META[f.key] && !inRange(f.key, f.value)) problems.push(`${f.label} valt buiten ${fieldMeta(f.key).low}–${fieldMeta(f.key).high} ${fieldMeta(f.key).unit}.`);
 
- const moduleMW = power.value, stackModuleMW = finite(moduleMW) && bopFactor ? (boundary.value === 'stack' ? moduleMW : moduleMW / bopFactor) : null;
+ const moduleMW = power.value, stackModuleMW = stackPowerMW(moduleMW, boundary.value, bopFactor);
  // A limit that only warns leaves the setup calculable; a blocking one makes it not ready.
- const limit = limitCheck({modules: n, moduleMW, target: rules.target}, validLimit(rules.limit) ? rules.limit : defaultLimit());
+ const limit = limitCheck({modules: n, moduleMW: stackModuleMW, target: rules.target}, validLimit(rules.limit) ? rules.limit : defaultLimit());
  if (limit.blocks) problems.push(...limit.problems);
- const ready = !problems.length && finite(stackModuleMW) && fields.every(f => f.value !== null);
+ const ready = !problems.length && finite(stackModuleMW) && !!bopFactor && fields.every(f => f.value !== null);
  const counted = fields.filter(f => f.key !== 'rekenprofiel');
  const result = {
   ready, problems: [...new Set(problems)], limit, fields: [profileField, ...fields], modules: n, moduleMW, needsBoP,
   boundary: boundary.value, stackModuleMW, bopFactor,
-  nominalMW: finite(moduleMW) ? n * moduleMW : null, intakeMW: finite(stackModuleMW) ? n * stackModuleMW * bopFactor : null,
+  nominalMW: finite(moduleMW) ? n * moduleMW : null, intakeMW: finite(stackModuleMW) && bopFactor ? n * stackModuleMW * bopFactor : null,
   platformLimitMW: model.power.platformLimitMW || null,
   counts: {bron: counted.filter(f => f.value !== null && !isAssumption(f)).length, aanname: counted.filter(f => f.value !== null && isAssumption(f)).length, open: counted.filter(f => f.value === null).length},
   nominalEnergy: energy.value,
@@ -206,7 +211,10 @@ export function generalValues(general = defaultGeneral()) {
  }
  const strategy = STRATEGIES[general.strategy] ? general.strategy : 'verdelen';
  const years = WIND_YEARS.filter(y => general.years?.includes(y));
- return {values, fields, strategy, years: years.length ? years : [...WIND_YEARS], strategyStatus: strategy === 'verdelen' ? STATUS.standaard : STATUS.eigen};
+ // Windprofiel: zonder (oude opslag) of onbekend de standaard.
+ const windProfile = WIND_PROFILES[general.wind] ? general.wind : DEFAULT_WIND_PROFILE;
+ return {values, fields, strategy, years: years.length ? years : [...WIND_YEARS], strategyStatus: strategy === 'verdelen' ? STATUS.standaard : STATUS.eigen,
+  windProfile, windStatus: windProfile === DEFAULT_WIND_PROFILE ? STATUS.standaard : STATUS.eigen};
 }
 
 // Canonical JSON (keys sorted at every level) and a stable short hash of it (cyrb53).
@@ -223,7 +231,7 @@ export function inputHash(value) {
 export function jobFor(resolved, general, year) {
  const g = generalValues(general);
  const aannames = Object.fromEntries(Object.keys(resolved.aannames).sort().map(k => [k, resolved.aannames[k]]));
- const input = {kernel: KERNEL_VERSION, year, modules: resolved.modules, strategy: g.strategy, aannames};
+ const input = {kernel: KERNEL_VERSION, year, modules: resolved.modules, strategy: g.strategy, wind: g.windProfile, aannames};
  return {...input, key: inputHash(input)};
 }
 
@@ -251,18 +259,42 @@ export function meanMetrics(resolved, perYear, summary, years) {
 }
 export const withCoverage = m => ({...m, dekking: m.dekking ?? (m.uren_in_jaar ? m.dekking_uur / m.uren_in_jaar : null)});
 
-// Comparison rows (label, metric key, unit, decimals); differences are against the chosen reference setup.
+// Comparison rows (label, metric key, unit, display, CSV name); differences are against the chosen reference setup.
+// Weergave: 'invoer' = afgeleid uit modules × catalogus- of invoerwaarde, getoond zoals ingevoerd (hoogstens 2 decimalen);
+// 'waterstof' = kg, getoond in t; 'energie' = MWh, getoond in MWh of GWh; 'procent' = hoogstens 1 decimaal;
+// 'uitkomst' = drie significante cijfers. De CSV houdt de waarden in de eenheid van de kolomnaam, in volle precisie.
 export const RESULT_ROWS = [
- ['Totaal nominaal vermogen', 'nominaal_mw', 'MW', 2, 'totaal_nominaal_MW'], ['Opname bij vollast incl. BoP', 'opname_vollast_mw', 'MW', 2, 'opname_vollast_incl_BoP_MW'], ['Aantal modules', 'modules', '', 0, 'modules'],
- ['Waterstof', 'waterstof_kg', 'kg per jaar', 0, 'waterstof_kg_per_jaar'], ['Opgenomen stroom incl. BoP', 'opgenomen_mwh', 'MWh per jaar', 0, 'opgenomen_MWh_per_jaar'], ['Stand-by (warmhouden)', 'standby_mwh', 'MWh per jaar', 0, 'standby_MWh_per_jaar'],
- ['Deel van het windaanbod benut', 'benut', '%', 1, 'aanbod_benut_pct'], ['Gemiddelde belasting', 'belasting', '%', 1, 'gemiddelde_belasting_pct'],
- ['Resterende windenergie', 'rest_mwh', 'MWh per jaar', 0, 'rest_MWh_per_jaar'], ['· onder minimumlast', 'onder_minimum_mwh', 'MWh per jaar', 0, 'rest_onder_minimumlast_MWh_per_jaar'], ['· boven maximum', 'boven_maximum_mwh', 'MWh per jaar', 0, 'rest_boven_maximum_MWh_per_jaar'],
- ['· overig (onderhoud, storing, wacht- en uittijd)', 'overig_mwh', 'MWh per jaar', 0, 'rest_overig_MWh_per_jaar'],
- ['Werkelijk stroomverbruik', 'kwh_per_kg', 'kWh/kg', 2, 'werkelijk_kWh_per_kg'], ['Nominaal systeemverbruik (rekenwaarde)', 'kwh_per_kg_nominaal', 'kWh/kg', 2, 'nominaal_kWh_per_kg'],
- ['Draaiuren per module', 'draaiuren', 'uur per jaar', 0, 'draaiuren_per_module'], ['Uren met productie', 'productie_uur', 'uur per jaar', 0, 'uren_met_productie'], ['Starts per module', 'starts_per_module', 'per jaar', 0, 'starts_per_module'],
- ['Datadekking', 'dekking', '%', 2, 'datadekking_pct'],
+ ['Totaal nominaal vermogen', 'nominaal_mw', 'MW', 'invoer', 'totaal_nominaal_MW'], ['Opname bij vollast incl. BoP', 'opname_vollast_mw', 'MW', 'invoer', 'opname_vollast_incl_BoP_MW'], ['Aantal modules', 'modules', '', 'invoer', 'modules'],
+ ['Waterstof', 'waterstof_kg', 'kg per jaar', 'waterstof', 'waterstof_kg_per_jaar'], ['Opgenomen stroom incl. BoP', 'opgenomen_mwh', 'MWh per jaar', 'energie', 'opgenomen_MWh_per_jaar'], ['Stand-by (warmhouden)', 'standby_mwh', 'MWh per jaar', 'energie', 'standby_MWh_per_jaar'],
+ ['Deel van het windaanbod benut', 'benut', '%', 'procent', 'aanbod_benut_pct'], ['Gemiddelde belasting', 'belasting', '%', 'procent', 'gemiddelde_belasting_pct'],
+ ['Resterende windenergie', 'rest_mwh', 'MWh per jaar', 'energie', 'rest_MWh_per_jaar'], ['· onder minimumlast', 'onder_minimum_mwh', 'MWh per jaar', 'energie', 'rest_onder_minimumlast_MWh_per_jaar'], ['· boven maximum', 'boven_maximum_mwh', 'MWh per jaar', 'energie', 'rest_boven_maximum_MWh_per_jaar'],
+ ['· overig (onderhoud, storing, wacht- en uittijd)', 'overig_mwh', 'MWh per jaar', 'energie', 'rest_overig_MWh_per_jaar'],
+ ['Werkelijk stroomverbruik', 'kwh_per_kg', 'kWh/kg', 'uitkomst', 'werkelijk_kWh_per_kg'], ['Nominaal systeemverbruik (rekenwaarde)', 'kwh_per_kg_nominaal', 'kWh/kg', 'invoer', 'nominaal_kWh_per_kg'],
+ ['Draaiuren per module', 'draaiuren', 'uur per jaar', 'uitkomst', 'draaiuren_per_module'], ['Uren met productie', 'productie_uur', 'uur per jaar', 'uitkomst', 'uren_met_productie'], ['Starts per module', 'starts_per_module', 'per jaar', 'uitkomst', 'starts_per_module'],
+ ['Datadekking', 'dekking', '%', 'procent', 'datadekking_pct'],
 ];
 export const PERCENT_KEYS = new Set(['benut', 'belasting', 'dekking']);
+
+// Eén uitkomstregel in de tabel: elke opstelling en elk verschil in dezelfde eenheid en met dezelfde afronding,
+// bepaald door de grootste waarde in de regel. Het verschil is dat van de getoonde waarden; het percentage komt
+// uit de onafgeronde waarden.
+export function resultRow([, key, unit, display, _column], rows, diffs = []) {
+ const raw = rows.map(row => row?.[key]);
+ const energy = energyUnit(Math.max(0, ...raw.filter(finite).map(Math.abs)));
+ const scale = display === 'waterstof' ? {factor: 1e-3, unit: unit.replace('kg', 't')} : display === 'energie' ? {factor: energy.factor, unit: unit.replace('MWh', energy.unit)}
+  : display === 'procent' ? {factor: 100, unit} : {factor: 1, unit};
+ const shown = raw.map(v => finite(v) ? v * scale.factor : null);
+ const decimals = display === 'procent' ? 1 : display === 'invoer' ? 2 : sharedDecimals(shown), pad = display !== 'invoer';
+ return {unit: scale.unit, cells: shown.map((v, i) => {
+  const d = diffs[i]?.[key];
+  if (!d || v === null) return {value: v === null ? '—' : formatFixed(v, decimals, pad), diff: null};
+  const delta = Math.abs(d.delta) <= 1e-9 ? 0 : shownDifference(v, v - d.delta * scale.factor, decimals);
+  const relative = display !== 'procent' && d.pct !== null && delta !== 0 ? formatSigned(d.pct * 100, 1) : '±0';
+  const diff = Math.abs(d.delta) <= 1e-9 ? 'gelijk' : formatSigned(delta, decimals, pad)
+   + (display === 'procent' ? ' procentpunt' : relative !== '±0' ? ` (${relative}%)` : '');
+  return {value: formatFixed(v, decimals, pad), diff};
+ })};
+}
 
 export function differences(rows, reference) {
  const ref = rows[reference];
@@ -301,7 +333,7 @@ export function comparisonCSV({catalogue, entries, general}) {
  const head = ['bron.catalogusversie', 'bron.catalogus_bijgewerkt', 'bron.aanvullingen_versie', 'bron.opstelling', 'bron.model_id', 'bron.model', 'bron.fabrikant', 'bron.technologie',
   'bron.leveringstype', 'bron.leveringstype.status', 'bron.tekst_vermogen', 'bron.tekst_systeemverbruik', 'bron.tekst_stackverbruik', 'bron.tekst_minimumlast', 'bron.bronvermelding',
   'aanname.aantal_modules', ...modelCols.flatMap(k => [`aanname.${k}`, `aanname.${k}.status`, `aanname.${k}.regel`]),
-  'aanname.besturing', 'aanname.besturing.status', ...GENERAL_KEYS.flatMap(k => [`aanname.${k}`, `aanname.${k}.status`]), 'aanname.windreeks', 'aanname.windjaren', 'aanname.storingen',
+  'aanname.besturing', 'aanname.besturing.status', ...GENERAL_KEYS.flatMap(k => [`aanname.${k}`, `aanname.${k}.status`]), 'aanname.windprofiel', 'aanname.windprofiel.status', 'aanname.windreeks', 'aanname.windjaren', 'aanname.storingen',
   'uitkomst.windjaar', 'uitkomst.rust_op', ...RESULT_ROWS.map(row => 'uitkomst.' + row[4]), 'uitkomst.uren_met_data', 'uitkomst.invoer_hash', 'uitkomst.rekenkern'];
  const lines = [head];
  for (const entry of entries) {
@@ -311,7 +343,7 @@ export function comparisonCSV({catalogue, entries, general}) {
   const base = [catalogue?.revision, catalogue?.sourceUpdatedAt, catalogue?.additionsVersion, setup.label, model.id, model.name, model.manufacturer, model.technology,
    model.delivery.label, model.delivery.status, model.power.raw, model.systemEnergy.raw, model.stackEnergy.raw, model.minimum.raw, model.source,
    resolved.modules, ...modelCols.flatMap(k => { const f = byKey[k]; return f ? [shown(f), statusText(f), f.rule || ''] : ['', '', '']; }),
-   g.strategy, g.strategyStatus, ...g.fields.flatMap(f => [f.value * f.scale, f.status]), WIND_SERIES, g.years.join(', '), 'Vaste trekking per module en jaar (zaad jaar × 100 + modulenummer), gelijk voor elke opstelling'];
+   g.strategy, g.strategyStatus, ...g.fields.flatMap(f => [f.value * f.scale, f.status]), g.windProfile, g.windStatus, windSeries(g.windProfile), g.years.join(', '), 'Vaste trekking per module en jaar (zaad jaar × 100 + modulenummer), gelijk voor elke opstelling'];
   const rust = `${resolved.counts.bron} bronwaarden en ${resolved.counts.aanname} aannames`;
   const rows = [...result.years.map((y, i) => [String(y), withCoverage(result.perYear[i])]), ['gemiddelde', result.mean]];
   for (const [label, m] of rows) lines.push([...base, label, rust, ...RESULT_ROWS.map(([, k]) => PERCENT_KEYS.has(k) ? (finite(m[k]) ? m[k] * 100 : null) : m[k]), m.dekking_uur, result.keys.join(' '), KERNEL_VERSION]);

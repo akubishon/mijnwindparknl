@@ -15,3 +15,8 @@ export function elapsedHoursToday(day,now=Date.now()){
  const offsetHours=match?(Number(match[2])+Number(match[3])/60)*(match[1]==='+'?1:-1):0;
  return Math.max(0,(now-(base-offsetHours*3600000))/3600000);
 }
+
+// The source can already hold an (empty) day for tomorrow: count only days up to and including today.
+export function daysUpToToday(days,year,month,today){
+ return days.filter(d=>`${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`<=today);
+}

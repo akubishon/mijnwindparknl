@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {catalogueModels} from '../src/electrolyser-catalogue.mjs';
-import {resolveSetup, fillToTarget, fillWithinLimit, defaultLimit, validLimit, limitCheck, modelFit, MAX_MODULES} from '../src/electrolyser-setup.mjs';
+import {resolveSetup, fillToTarget, fillWithinLimit, defaultLimit, validLimit, limitCheck, modelFit, stackPowerMW, MAX_MODULES} from '../src/electrolyser-setup.mjs';
 
 const catalogue = JSON.parse(readFileSync(new URL('./fixtures/atlas-catalogue.json', import.meta.url), 'utf8'));
 const models = catalogueModels(catalogue).models;
 const byName = name => models.find(m => m.name.startsWith(name));
-const fixture = byName('Fixture Systeem 4,4 MW'); // 4,4 MW per module
+const fixture = byName('Fixture Systeem 4,4 MW'); // 4,4 MW systeemvermogen per module = 4 MW stack met de standaard 10 % BoP
 const setupOf = modules => ({id: 'a', modelId: fixture.id, modules, choices: {}});
 const limit = (mode, extra = {}) => ({...defaultLimit(), mode, ...extra});
 
@@ -26,9 +26,9 @@ test('the module limit is off by default and then changes nothing', () => {
 
 test('a blocking limit makes a setup with too many modules not ready', () => {
  const rules = {target: 44, limit: limit('blokkeren')};
- const ok = resolveSetup(fixture, setupOf(10), undefined, rules);
+ const ok = resolveSetup(fixture, setupOf(11), undefined, rules); // 11 × 4 = 44 MW stack
  assert.equal(ok.ready, true); assert.equal(ok.limit.ok, true);
- const twelve = resolveSetup(fixture, setupOf(12), undefined, rules); // exactly at the limit, 52,8 MW
+ const twelve = resolveSetup(fixture, setupOf(12), undefined, rules); // exactly at the limit, 48 MW stack
  assert.equal(twelve.ready, true);
  const over = resolveSetup(fixture, setupOf(13), undefined, rules);
  assert.equal(over.ready, false); assert.equal(over.limit.blocks, true);
@@ -57,10 +57,12 @@ test('the limit also decides whether the target power has to be reached', () => 
  assert.equal(limitCheck({modules: 10, moduleMW: 4.4, target: 44}, limit('blokkeren')).ok, true);
  // Without a target only the module count is checked.
  assert.equal(limitCheck({modules: 3, moduleMW: 4.4, target: undefined}, limit('blokkeren')).ok, true);
- const under = resolveSetup(fixture, setupOf(9), undefined, {target: 44, limit: limit('blokkeren')});
+ // The target is total stack power: 10 × 4,4 MW system is 10 × 4 = 40 MW stack, 9 % below 44 MW.
+ const under = resolveSetup(fixture, setupOf(10), undefined, {target: 44, limit: limit('blokkeren')});
  assert.equal(under.ready, false);
- assert.equal(resolveSetup(fixture, setupOf(9), undefined, {target: 44, limit: limit('blokkeren', {reach: 'onder', tolerance: 0.1})}).ready, true);
- assert.equal(resolveSetup(fixture, setupOf(9), undefined, {target: 44, limit: limit('uit')}).ready, true);
+ assert.match(under.limit.problems[0], /10 × 4 = 40 MW stackvermogen haalt het doelvermogen van 44 MW niet/);
+ assert.equal(resolveSetup(fixture, setupOf(10), undefined, {target: 44, limit: limit('blokkeren', {reach: 'onder', tolerance: 0.1})}).ready, true);
+ assert.equal(resolveSetup(fixture, setupOf(10), undefined, {target: 44, limit: limit('uit')}).ready, true);
 });
 
 test('catalogue fit: modules for 44 MW and whether they fit in 12', () => {
@@ -99,4 +101,19 @@ test('validLimit accepts stored limits only when every part is sound', () => {
  for (const bad of [null, {}, limit('aan'), limit('blokkeren', {max: 0}), limit('blokkeren', {max: 12.5}), limit('blokkeren', {max: MAX_MODULES + 1}),
   limit('blokkeren', {reach: 'ruim'}), limit('blokkeren', {tolerance: -0.1}), limit('blokkeren', {tolerance: 0.6}), limit('blokkeren', {tolerance: NaN})])
   assert.equal(validLimit(bad), false, JSON.stringify(bad));
+});
+
+test('the target counts stack power: a system rating is converted with the BoP before filling', () => {
+ assert.ok(Math.abs(stackPowerMW(4.4, 'systeem') - 4) < 1e-12);
+ assert.equal(stackPowerMW(4.4, 'stack'), 4.4);
+ assert.ok(Math.abs(stackPowerMW(4.4, 'systeem', 1.2) - 4.4 / 1.2) < 1e-12);
+ assert.equal(stackPowerMW(undefined, 'systeem'), null);
+ const r = resolveSetup(fixture, setupOf(1));
+ assert.ok(Math.abs(r.stackModuleMW - 4) < 1e-12);
+ // Vul aan tot doelvermogen: 11 modules of 4 MW stack reach 44 MW stack (48,4 MW at full load with BoP), not 10 × 4,4 MW system.
+ assert.deepEqual(fillWithinLimit(r.stackModuleMW, 44), {modules: 11, exact: true, below: null, capped: false});
+ const filled = resolveSetup(fixture, setupOf(11));
+ assert.ok(Math.abs(filled.aannames.capaciteit_mw - 44) < 1e-9);
+ assert.ok(Math.abs(filled.intakeMW - 48.4) < 1e-9);
+ assert.equal(modelFit(stackPowerMW(fixture.power.value, fixture.boundary.value), 44).needed, 11);
 });

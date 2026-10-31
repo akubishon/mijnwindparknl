@@ -16,7 +16,7 @@ function presentation(meta = {groepen: []}) {
     values = () => { throw new Error('Live form must not be read'); };
     selection = () => { throw new Error('Live selection must not be read'); };
     tech = 'different-live-technology';
-    globalThis.presentation = {stepMetrics, snapshotRequest, resultCsv};`, context);
+    globalThis.presentation = {stepMetrics, snapshotRequest, resultCsv, change, sig, price, label, tick, startsOf};`, context);
   return context.presentation;
 }
 
@@ -129,13 +129,49 @@ test('request snapshots use saved assumptions and own their mutable collections'
     aannames: {capaciteit_mw: 44, minimumlast: 40, bop_vast: 3,
       storingen_per_jaar: 2, waterstofpremie_eur_kg: 0},
     strategie: 'verdelen', jaren: [2022, 2025], modules: [4, 6],
+    // A result from before the wind and park choice was calculated with the defaults.
+    windprofiel: 'onafhankelijk', parken: ['fryslan', 'beabuorren'],
   });
   request.aannames.minimumlast = 60;
   request.jaren.push(2024);
   request.modules.push(8);
+  request.parken.pop();
   assert.equal(result.aannames.minimumlast, 0.4);
   assert.deepEqual(result.jaren, [2022, 2025]);
   assert.deepEqual(result.rijen.map(r => r.modules), [4, 6]);
+  // The wind profile and parks of the result travel with every follow-up request (dag, gevoeligheid, omslagkaart).
+  const chosen = frozen({...structuredClone(result), windprofiel: 'gemeten_dagproductie', parken: ['beabuorren']});
+  const follow = snapshotRequest(chosen);
+  assert.equal(follow.windprofiel, 'gemeten_dagproductie');
+  assert.deepEqual(plain(follow.parken), ['beabuorren']);
+  follow.parken.push('fryslan');
+  assert.deepEqual(chosen.parken, ['beabuorren']);
+});
+
+test('shown results have three significant figures and differences the resolution of the values they compare', () => {
+  const {change, sig, price} = presentation();
+  assert.equal(sig(255.37), '255');
+  assert.equal(sig(3128.4), '3.130');
+  assert.equal(sig(24), '24,0', 'Trailing zero keeps three significant figures');
+  assert.equal(price(131.52), '132', 'Marginal cost of a small step: three significant figures');
+  assert.equal(price(7.9531), '7,95');
+  assert.equal(change(3128.4, 2873, {unit: ' t'}), '+260 t', '3.130 t − 2.870 t');
+  assert.equal(change(7.9531, 7.892, {kind: 'price', factor: 100}), '+6', 'Cents: same resolution as the €/kg values');
+  assert.equal(change(25.72, 25.533, {unit: ' M€'}), '+0,2 M€');
+  assert.equal(change(3260.6, 3259.7), '+&lt;10', 'Below the resolution, but not zero');
+  assert.equal(change(3260.6, 3259.7, {html: false}), '+<10');
+  assert.equal(change(3128.4, 2873, {sign: false}), '260');
+  assert.equal(change(null, 1), '–');
+});
+
+test('1 module is labelled as a theoretical reference and starts are totalled per configuration', () => {
+  const {label, tick, startsOf} = presentation();
+  assert.equal(label(1), '1 module (theoretische referentie)');
+  assert.equal(label(4), '4 modules');
+  assert.equal(tick(1), '1 (ref.)');
+  assert.equal(tick(9), '9');
+  assert.deepEqual(plain(startsOf({modules: 3, starts_warm_per_module: 400, starts_koud_per_module: 238})), {perModule: 638, total: 1914});
+  assert.equal(startsOf({modules: 3}), null);
 });
 
 function parseCsv(csv) {
@@ -208,22 +244,33 @@ test('CSV preserves row fields, precise Dutch numbers, context and all original 
 
 // ---------------------------------------------------------------- gevoeligheid en omslagkaart op verzoek
 
+// Just enough DOM for the status fields and their progress bar: setting innerHTML or textContent replaces the children.
+class FakeElement {
+  constructor(props = {}) { Object.assign(this, {hidden: false, value: '', disabled: false, style: {}, children: [], text: '', className: ''}, props); this.classes = new Set(); }
+  get classList() { return {add: name => this.classes.add(name), remove: name => this.classes.delete(name), contains: name => this.classes.has(name)}; }
+  get innerHTML() { return this.text; }
+  set innerHTML(value) { this.text = value; this.children = []; }
+  get textContent() { return [this.text, ...this.children.map(child => child.textContent)].filter(Boolean).join(' '); }
+  set textContent(value) { this.text = String(value); this.children = []; }
+  append(...nodes) { this.children.push(...nodes); }
+  replaceChildren(...nodes) { this.text = ''; this.children = nodes; }
+  contains(node) { return node === this || this.children.some(child => child.contains(node)); }
+  setAttribute() {}
+  removeAttribute() {}
+}
+
 // The presentation code with a minimal fake page. Requests go to `requests`; a test settles them with `answer`.
 function livePage() {
   const nodes = new Map();
   const node = id => {
-    if (!nodes.has(id)) {
-      const classes = new Set();
-      nodes.set(id, {id, hidden: false, innerHTML: '', textContent: '', value: '', disabled: false, replaceChildren() {},
-        classList: {add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name)}});
-    }
+    if (!nodes.has(id)) nodes.set(id, new FakeElement({id}));
     return nodes.get(id);
   };
   // A <select> takes the value of its selected option.
   node('why-n').replaceChildren = (...options) => { node('why-n').value = String((options.find(option => option.selected) || options[0]).value); };
   const requests = [];
   const context = vm.createContext({
-    document: {getElementById: node, querySelector: () => ({}), querySelectorAll: () => []},
+    document: {getElementById: node, querySelector: () => ({}), querySelectorAll: () => [], createElement: () => new FakeElement()},
     Intl, Option: class { constructor(text, value, _default, selected) { Object.assign(this, {text, value, selected}); } },
     fetch: (url, options) => new Promise((resolve, reject) => {
       requests.push({url, body: JSON.parse(options.body), resolve: data => resolve({ok: true, json: async () => data}), reject});
@@ -271,7 +318,8 @@ test('after the button, the analysis follows the chosen N and cached results sho
   assert.equal(page.requests[0].body.n, 6);
   assert.deepEqual(plain(page.requests[0].body.modules), [1, 4, 6]);
   assert.equal(page.node('sens-actions').hidden, true);
-  assert.match(page.node('tornado-status').innerHTML, /enkele minuten/);
+  assert.match(page.node('tornado-status').textContent, /Gevoeligheid berekenen…/, 'A progress bar shows while it runs');
+  assert.match(page.node('tornado-status').textContent, /enkele minuten/);
   page.requests[0].resolve({id: 'n6'});
   await flush();
   assert.deepEqual(plain(page.drawn), [['n6', 6]]);
@@ -316,7 +364,7 @@ test('a cancelled sensitivity request is ignored silently, a real error is shown
   page.requests[0].reject(cancelled());
   await flush();
   assert.equal(page.node('tornado-status').classList.contains('error'), false);
-  assert.match(page.node('tornado-status').innerHTML, /Gevoeligheid berekenen/, 'The newer request is still showing its progress');
+  assert.match(page.node('tornado-status').textContent, /Gevoeligheid berekenen/, 'The newer request is still showing its progress');
   // A rejection that is not a cancellation is a real error.
   const failing = livePage();
   failing.run('setupWhy(result)');

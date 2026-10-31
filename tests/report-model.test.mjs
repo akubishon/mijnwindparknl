@@ -96,3 +96,80 @@ test('base follows first chosen configuration even when one module was not selec
  assert.equal(makeReport({aannames:fixture.aannames,rijen:[fixture.rijen[0]]},{}).comparison.modules,1);
  assert.throws(()=>makeReport({aannames:{},rijen:[]}),/Bereken eerst/);
 });
+
+// ---------------------------------------------------------------- conclusie binnen de modelonzekerheid
+
+const {materiality,describe,format}=context.OpsReportModel;
+// Rijen met een andere productie: de kostprijs volgt uit dezelfde kostenformule, zodat opgeslagen en nagerekend gelijk blijven.
+function scenario(scales){
+ const input=structuredClone(fixture);
+ input.rijen=scales.map(([modules,scale],i)=>{const row=structuredClone(fixture.rijen[Math.min(i,1)]);row.modules=modules;row.waterstof_t*=scale;
+  row.eq_uren_per_module=Array(modules).fill(row.eq_uren_per_module[0]);row.lcoh_eur_kg=costs(row,input.aannames).lcoh;return row;});
+ return input;
+}
+const lcohWith=(input,changes)=>input.rijen.map(row=>costs(row,{...input.aannames,...changes}).lcoh);
+
+test('a clear winner stays cheapest in every test case and is reported with its margin',()=>{
+ const m=materiality(fixture,{});
+ assert.equal(m.clear,true);assert.equal(m.lowest,2);assert.deepEqual(plain(m.equivalent),[2]);assert.deepEqual(plain(m.dearer),[1]);
+ assert.deepEqual(plain(m.band),[0.3,2],'Default fixed costs per module are tested over 0,3–2 M€');
+ for(const f of m.band){const [one,two]=lcohWith(fixture,{vaste_kosten_module_meur:f});assert.ok(two<one,`2 modules cheaper at ${f} M€`);}
+ close(m.margin,fixture.rijen[0].lcoh_eur_kg-fixture.rijen[1].lcoh_eur_kg);
+ assert.ok(m.worstMargin>0&&m.worstMargin<m.margin);
+ const v=describe(m);
+ assert.equal(v.title,'2 modules: duidelijk het goedkoopst');
+ assert.match(v.lines[0],/^7,97 €\/kg, 0,06 €\/kg goedkoper dan 1 module \(theoretische referentie\)\. In elk toetsgeval blijft het minstens 0,01 €\/kg goedkoper/);
+ assert.ok(v.lines.some(line=>/^Regel: /.test(line)),'The rule is stated');
+});
+
+test('options whose order flips in a test case are equivalent; the headline crowns none of them',()=>{
+ // 3 modules is iets goedkoper bij 1 M€, maar bij 2 M€ vaste kosten zijn 2 modules en zelfs de referentie van 1 module goedkoper.
+ const input=scenario([[1,1],[2,1],[3,1.006],[8,1.006]]);
+ const m=materiality(input,{});
+ const [,two,three]=input.rijen.map(row=>row.lcoh_eur_kg);
+ assert.ok(three<two,'3 modules has the lowest calculated cost price');
+ const atTwo=lcohWith(input,{vaste_kosten_module_meur:2});
+ assert.ok(atTwo[1]<atTwo[2],'but 2 modules is cheaper at 2 M€');
+ assert.equal(m.clear,false);
+ assert.deepEqual(plain(m.equivalent),[1,2,3]);assert.deepEqual(plain(m.dearer),[8]);
+ for(const n of m.dearer){
+  const i=input.rijen.findIndex(row=>row.modules===n),best=input.rijen.findIndex(row=>row.modules===m.lowest);
+  for(const f of [0.3,2]){const l=lcohWith(input,{vaste_kosten_module_meur:f});assert.ok(l[i]>l[best],`${n} modules dearer at ${f} M€`);}
+ }
+ const v=describe(m);
+ assert.match(v.title,/modules: gelijkwaardig binnen de modelonzekerheid$/);
+ assert.doesNotMatch([v.title,...v.lines].join(' '),/duidelijk het goedkoopst/);
+ assert.match(v.lines[0],/^Kostprijs \d,\d(–\d,\d)? €\/kg, onderling verschil ≤ 0,\d\d €\/kg\.$/);
+ assert.equal(v.title,'1–3 modules: gelijkwaardig binnen de modelonzekerheid');
+ assert.ok(v.lines.includes('De groep bevat de theoretische referentie van 1 module.'));
+ assert.ok(v.lines.includes('In elk toetsgeval duurder: 8 modules.'));
+ assert.ok(v.lines.some(line=>/de stroomprijs en de investering/.test(line)),'The heavier cost assumptions are named');
+});
+
+test('own fixed costs per module are varied by 25 %, not over the default 0,3–2 M€ band',()=>{
+ const meta={groepen:[{naam:'Kosten',velden:[{key:'vaste_kosten_module_meur',schaal:1,min:0,max:50,bron:'onzekere aanname'}]}],technologieen:{pem:{waarden:{vaste_kosten_module_meur:1}}}};
+ const input={...structuredClone(fixture),technologie:'pem'};
+ assert.deepEqual(plain(materiality(input,meta).band),[0.3,2]);
+ input.aannames.vaste_kosten_module_meur=0.8;input.rijen.forEach(row=>{row.lcoh_eur_kg=costs(row,input.aannames).lcoh;});
+ const m=materiality(input,meta);
+ assert.equal(m.band,null);assert.equal(m.ownFixedCost,true);
+ assert.match(describe(m).lines.at(-1),/bij elke kostenaanname 25 % lager en hoger/);
+ assert.equal(materiality({...fixture,rijen:fixture.rijen.slice(0,1)},{}),null,'One configuration: nothing to compare');
+});
+
+test('results get three significant figures, €/kg at most two decimals, differences the resolution of their values',()=>{
+ assert.equal(format.sig(255.37),'255');assert.equal(format.sig(1608),'1.610');assert.equal(format.sig(24),'24,0');assert.equal(format.sig(0),'0');
+ assert.equal(format.price(131.52),'132');assert.equal(format.price(7.95),'7,95');assert.equal(format.price(8.5),'8,50');assert.equal(format.price(13.24),'13,2');
+ assert.equal(format.diff(3128.4,2873),'+260','Tonnes: 3.130 − 2.870');
+ assert.equal(format.diff(24.689,22.974),'+1,7');
+ assert.equal(format.diff(7.9531,7.892,'price'),'+0,06');
+ assert.equal(format.diff(3260.6,3259.7),'+<10','A change below the resolution is not shown as zero');
+ assert.equal(format.diff(7.892,7.9531,'price',false),'0,06');
+ const report=makeReport(fixture,{},2);
+ assert.equal(report.calculations.find(c=>c.key==='kg').baseExpression,'2.980 ton');
+ assert.match(report.calculations.find(c=>c.key==='powerPrice').baseExpression,/^88,91 \+ MAX\(0; 18,2 \+ 3,8 − 0\)$/,'Electricity prices stay as entered');
+ assert.doesNotMatch(JSON.stringify(report.calculations.map(c=>[c.baseExpression,c.comparisonExpression])),/\.\d{3},\d|,\d{5}/,'No full-precision numbers in filled-in formulas');
+ assert.ok(report.context.limitations.some(text=>/Start\/stop-slijtage zit niet in de kosten/.test(text)));
+ assert.ok(report.context.limitations.some(text=>/alleen mee als ze in de ingevoerde offerte zitten/.test(text)));
+ assert.ok(report.context.limitations.some(text=>/1 module is een theoretische referentie/.test(text)));
+});
