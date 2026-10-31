@@ -28,7 +28,7 @@ PARKS = {
                        "130 m. Gedigitaliseerde fabrikantgrafiek als turbinecurve; zogverlies als scenario-aanname; 100 % beschikbaarheid, geen afregeling.",
     },
     "beabuorren": {
-        "name": "Wynpark Beabuorren",
+        "name": "Windpark Beabuorren",
         "model": "Siemens SWT-1.3-62",
         "count": 8,
         "rated_kw": 1300,

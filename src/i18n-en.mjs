@@ -19,7 +19,6 @@ export default {
   'Vergelijken': 'Compare',
   'Opsplitsen': 'Splitting',
   'Onderzoek': 'Research',
-  'Windparken': 'Wind farms',
   'Windpark': 'Wind farm',
 
   // ── Elektrolyser: catalogus en status
@@ -783,7 +782,6 @@ export default {
   'Bekijk het stroomprofiel per dag →': 'View the power profile per day →',
   'Een volgende stap kan gaan over opstartgedrag of opslag. Deze vergelijking geeft daar nog geen antwoord op.': 'A next step could cover start-up behaviour or storage. This comparison does not yet answer that.',
   'Onderzoek met KNMI-model · Tijden in Nederland': 'Research with KNMI model · Times in the Netherlands',
-  'Tijden in Nederland': 'Times in the Netherlands',
 
   // ── Stationsvergelijking en tienminutenwind
   'Stationsvergelijking niet beschikbaar.': 'Station comparison not available.',
@@ -1081,7 +1079,6 @@ export default {
   'Gelijk': 'Equal',
 
   // ── Opsplitsen: pagina (opsplitsing.html)
-  'Lokale analyse · Europe/Amsterdam': 'Local analysis · Europe/Amsterdam',
   'De berekeningen draaien op dit apparaat. Houd deze pagina open tijdens het rekenen. Het eerste gebruik downloadt het rekenmodel; grote analyses kunnen enkele minuten duren.': 'The calculations run on this device. Keep this page open while calculating. The first use downloads the calculation model; large analyses can take a few minutes.',
   'ONDERZOEK · 44 MW ELEKTROLYSER': 'RESEARCH · 44 MW ELECTROLYSER',
   'De 44 MW is het totale systeemvermogen inclusief BoP. Er wordt geen extra BoP-verbruik bij opgeteld.': 'The 44 MW is the total system capacity including BoP. No extra BoP consumption is added.',

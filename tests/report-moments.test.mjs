@@ -43,7 +43,7 @@ function fixture() {
     v_as:6,zog:0.1,v_turbine:5.4,turbines:89,turbine_kw:500,mw:44.5,aandeel:0.1};
   return {datum:'2025-06-15', configuraties:config,
     wind:[0,1,2,3].map(()=>({knmi:{267:5,269:5},fryslan:{...park},beabuorren:{...park,turbines:4,mw:2,aandeel:1}})),
-    stations:{267:'Stavoren',269:'Houtribdijk'},parken:{fryslan:'Windpark Fryslân',beabuorren:'Wynpark Beabuorren'},
+    stations:{267:'Stavoren',269:'Houtribdijk'},parken:{fryslan:'Windpark Fryslân',beabuorren:'Windpark Beabuorren'},
     aandeel:{fryslan:0.1,beabuorren:1},regel_per_park:{fryslan:'gemiddelde',beabuorren:'gemiddelde'}};
 }
 
