@@ -1,7 +1,7 @@
 import {useCallback,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import {SiteHeader,SiteNavigation} from './site-navigation';
 import {formatFixed,formatSigned,shownDifference,sharedDecimals,decimalsFor,energyUnit} from './number-format.mjs';
-import {resultRow} from './electrolyser-setup.mjs';
+import {resultRow,parseAtlasImport,setupsFromImport} from './electrolyser-setup.mjs';
 import {catalogueModels,missingEndpointFields,DISABLED_MANUFACTURERS,NM3_PER_KG} from './electrolyser-catalogue.mjs';
 import {resolveSetup,generalValues,defaultGeneral,newSetup,fillWithinLimit,stackPowerMW,defaultLimit,validLimit,modelFit,limitFloorMW,RESULT_ROWS,PERCENT_KEYS,differences,capacityWarnings,comparisonCSV,fieldMeta,GENERAL_KEYS,WIND_YEARS,MAX_SETUPS,MAX_MODULES,DEFAULT_TARGET_MW,MODEL_KEYS,jobFor} from './electrolyser-setup.mjs';
 import {assemble} from './electrolyser-run.mjs';
@@ -23,9 +23,9 @@ type Assembled={years:number[];keys:string[];perYear:Metrics[];mean:Metrics;drop
 
 const TABS:[Tab,string,string][]=[['catalogus','Catalogus','/elektrolyser/catalogus'],['samenstellen','Samenstellen','/elektrolyser/samenstellen'],['vergelijken','Vergelijken','/elektrolyser/vergelijken']];
 const tabFromPath=(path:string):Tab=>(TABS.find(t=>t[2]===path.replace(/\/$/,''))?.[0])||'catalogus';
-const LETTERS='ABCD';
+const LETTERS='ABCDEF';
 const TARGET_NOTE='Het doelvermogen is het totale stackvermogen; de BoP komt daar in de berekening bovenop. Met de standaard 10 % BoP neemt 44 MW stack bij vollast 48,4 MW op.';
-const COLORS=['#0C2340','#00A6DE','#9A5B13','#4E7A3A'],DASHES=['','6 4','2 3','10 3 2 3'];
+const COLORS=['#0C2340','#00A6DE','#9A5B13','#4E7A3A','#B3261E','#6B4C9A'],DASHES=['','6 4','2 3','10 3 2 3','4 2','8 2 2 2 2 2'];
 const fmt=(n:number|null|undefined,d=1)=>typeof n==='number'&&Number.isFinite(n)?new Intl.NumberFormat('nl-NL',{maximumFractionDigits:d,minimumFractionDigits:0}).format(n):'—';
 const STATUS_CLASS:Record<string,string>={'bron':'bron','afgeleid':'afgeleid','standaard technologie':'standaard','eigen invoer':'eigen','open':'open','ontbreekt':'ontbreekt','niet-in-endpoint':'endpoint'};
 function load<T>(key:string,fallback:T,valid:(v:any)=>boolean):T{try{const v=JSON.parse(localStorage.getItem(key)||'null');return v!==null&&valid(v)?v:fallback;}catch{return fallback;}}
@@ -86,6 +86,8 @@ export default function ElectrolyserApp(){
  const [target,setTarget]=useState<number>(()=>load('elektrolyser-doelvermogen-v1',DEFAULT_TARGET_MW,v=>typeof v==='number'&&v>0&&v<=100000));
  const [limit,setLimit]=useState<Limit>(()=>load('elektrolyser-modulelimiet-v1',defaultLimit() as Limit,validLimit));
  const [reference,setReference]=useState(0);
+ const [atlasImport,setAtlasImport]=useState(()=>parseAtlasImport(location.search));
+ const [importNote,setImportNote]=useState('');
  useEffect(()=>save('elektrolyser-opstellingen-v1',setups),[setups]);
  useEffect(()=>save('elektrolyser-algemeen-v1',general),[general]);
  useEffect(()=>save('elektrolyser-doelvermogen-v1',target),[target]);
@@ -107,7 +109,19 @@ export default function ElectrolyserApp(){
   setSetups(l=>l.some(s=>s.id===id)?l.map(s=>s.id===id?newSetup(id,modelId,modules):s):[...l,newSetup(id,modelId,modules)]);
   setActive(id);go('samenstellen');
  };
- const catalogueState=<>{catalogue.loading&&<p role="status" className="wind-note">Waterstofatlas-catalogus laden…</p>}{catalogue.error&&<div className="live-error" role="alert"><p>{catalogue.error}</p><button type="button" className="download" onClick={()=>void loadCatalogue()}>Opnieuw proberen</button></div>}</>;
+ // The parameter is removed from the address in both cases, so a reload or a copied link does not repeat the question.
+ const clearImport=()=>{try{const u=new URL(location.href);u.searchParams.delete('atlas');history.replaceState(history.state,'',u.pathname+(u.search||'')+u.hash);}catch{/* address stays as it is */}setAtlasImport({present:false,ok:false,error:'',payload:null});};
+ const applyImport=()=>{
+  if(!atlasImport.ok||!atlasImport.payload)return;
+  const r=setupsFromImport(atlasImport.payload,interpreted.models,{target,limit,makeId});
+  if(r.setups.length){setSetups(r.setups);setActive(r.setups[0].id);setTarget(r.target);if(r.limitChanged)setLimit(r.limit);}
+  setImportNote(r.setups.length?`${r.setups.length} ${r.setups.length===1?'opstelling':'opstellingen'} geladen uit de Waterstofatlas, aangevuld tot ${fmt(r.target,2)} MW.`+(r.notFound.length?` ${r.notFound.length} ${r.notFound.length===1?'model is':'modellen zijn'} niet gevonden in de catalogus (onbekend of uitgeschakeld) en overgeslagen.`:''):'Geen enkel model uit de shortlist staat in de catalogus; je opstellingen zijn niet veranderd.');
+  clearImport();go('samenstellen');
+ };
+ const importBar=atlasImport.present&&(atlasImport.ok&&atlasImport.payload
+  ?<div className="import-bar" role="region" aria-label="Shortlist uit de Waterstofatlas"><p><strong>Shortlist uit de Waterstofatlas</strong> ({atlasImport.payload.ids.length} {atlasImport.payload.ids.length===1?'model':'modellen'}{atlasImport.payload.target?`, doel ${fmt(atlasImport.payload.target,2)} MW`:''}{atlasImport.payload.maxModules?`, maximaal ${atlasImport.payload.maxModules} modules`:''}) laden? Dit vervangt je huidige opstellingen.</p><div className="import-actions"><button type="button" className="download" disabled={!catalogue.data} onClick={applyImport}>{catalogue.data?'Laden':'Catalogus laden…'}</button><button type="button" className="download secondary" onClick={clearImport}>Negeren</button></div></div>
+  :<div className="live-error" role="alert"><p>{atlasImport.error}</p><button type="button" className="download" onClick={clearImport}>Sluiten</button></div>);
+ const catalogueState=<>{importBar}{importNote&&<p role="status" className="wind-note">{importNote}</p>}{catalogue.loading&&<p role="status" className="wind-note">Waterstofatlas-catalogus laden…</p>}{catalogue.error&&<div className="live-error" role="alert"><p>{catalogue.error}</p><button type="button" className="download" onClick={()=>void loadCatalogue()}>Opnieuw proberen</button></div>}</>;
  return <Shell tab={tab} go={go}>{catalogueState}
   {tab==='catalogus'&&<CatalogueTab catalogue={catalogue.data} interpreted={interpreted} onChoose={choose} onReload={()=>void loadCatalogue()} loading={catalogue.loading} limit={limit} setLimit={setLimit} target={target} setTarget={setTarget}/>}
   {tab==='samenstellen'&&<ComposeTab setups={setups} setSetups={setSetups} active={active} setActive={setActive} resolved={resolved} byId={byId} models={interpreted.models} update={update} target={target} setTarget={setTarget} go={go} general={general} limit={limit} setLimit={setLimit}/>}
@@ -293,7 +307,7 @@ function CompareTab({setups,resolved,byId,general,setGeneral,reference,setRefere
    <label>Referentieopstelling<select value={ref} onChange={e=>setReference(Number(e.target.value))}>{ready.map((x,i)=><option key={x.setup.id} value={i}>Opstelling {x.label} · {x.model!.name}</option>)}</select><small>Verschillen gelden ten opzichte van deze opstelling.</small></label>
    <label>Toon<select value={String(period)} onChange={e=>setPeriod(e.target.value==='mean'?'mean':Number(e.target.value))}><option value="mean">Gemiddelde {g.years.join(', ')}</option>{g.years.map(y=><option key={y} value={y}>Windjaar {y}</option>)}</select><small>De spreiding tussen jaren is geen betrouwbaarheidsinterval.</small></label></div>
   <details className="model-settings"><summary>Algemene aannames, gelijk voor alle opstellingen</summary><p>Standaard zijn dit de waarden van <code>Aannames()</code> in opsplitsing.py; de meeste zijn plaatshouders. Storingen zijn een vaste beschikbaarheidsafslag: elke module is (storingen × hersteltijd) / 8.760 uur minder beschikbaar, zonder toeval en voor elke opstelling hetzelfde.</p><ul className="field-list">{g.fields.map((f:any)=><li key={f.key} className="field-row"><div className="field-main"><span className="field-label">{f.label}<small> · {f.unit}</small></span><span className="field-value">{fmt(f.value*f.scale,3)}</span><StatusChip field={f}/></div><p className="field-rule">{f.rule}</p><div className="field-controls"><label className="inline-input">Eigen waarde<NumberInput label={`${f.label}, eigen waarde`} value={general.values[f.key]??null} scale={f.scale} onCommit={v=>setValue(f.key,v)}/></label>{general.values[f.key]!==undefined&&<button type="button" className="text-button" onClick={()=>setValue(f.key,null)}>Terug naar standaard</button>}</div></li>)}</ul></details>
-  {ready.length<2?<div className="live-error" role="status"><p>Vergelijken kan met 2 tot 4 opstellingen die klaar zijn om te rekenen. Nu klaar: {ready.length}.</p><ul>{setups.map((s,i)=>resolved[i].ready?null:<li key={s.id}>Opstelling {LETTERS[i]}: {resolved[i].problems[0]||'kies een model'} <button type="button" className="text-button" onClick={()=>{setActive(s.id);go('samenstellen');}}>Aanpassen</button></li>)}</ul></div>:<>
+  {ready.length<2?<div className="live-error" role="status"><p>Vergelijken kan met 2 tot 6 opstellingen die klaar zijn om te rekenen. Nu klaar: {ready.length}.</p><ul>{setups.map((s,i)=>resolved[i].ready?null:<li key={s.id}>Opstelling {LETTERS[i]}: {resolved[i].problems[0]||'kies een model'} <button type="button" className="text-button" onClick={()=>{setActive(s.id);go('samenstellen');}}>Aanpassen</button></li>)}</ul></div>:<>
    {setups.some((s,i)=>!resolved[i].ready)&&<p className="wind-note">Niet meegerekend: {setups.map((s,i)=>resolved[i].ready?null:`opstelling ${LETTERS[i]} (${notCounted(resolved[i])})`).filter(Boolean).join(', ')}.</p>}
    {warnings.length>0&&<div className="live-error capacity-warning" role="alert">{warnings.map(w=><p key={w.index}><strong>Opstelling {ready[w.index].label}</strong> {w.kind==='nominaal'?`heeft ${fmt(Math.abs(w.pct)*100,1)}% ${w.pct>0?'meer':'minder'} nominaal vermogen dan referentie ${ready[ref].label}`:`neemt bij vollast ${fmt(Math.abs(w.pct)*100,1)}% ${w.pct>0?'meer':'minder'} op dan referentie ${ready[ref].label}, door een andere vermogensgrens (stack of systeem)`} ({fmt(w.kind==='nominaal'?ready[w.index].resolved.nominalMW:ready[w.index].resolved.intakeMW,2)} tegen {fmt(w.kind==='nominaal'?ready[ref].resolved.nominalMW:ready[ref].resolved.intakeMW,2)} MW). Verschillen in opbrengst komen dan ook door de grootte.</p>)}<div className="model-actions"><label className="inline-input">Doelvermogen stack (MW)<NumberInput label="Doelvermogen als totaal stackvermogen in MW" value={target} onCommit={v=>{if(v!==null&&v>0&&v<=100000)setTarget(v);}}/></label><button type="button" className="download" onClick={fillAll}>Vul alle opstellingen aan tot {fmt(target,2)} MW stack</button></div></div>}
    <div className="model-actions compare-actions"><button type="button" className="primary-button" disabled={calc.state.running} onClick={()=>calc.run(jobs)}>{calc.state.running?'Rekenen…':complete?'Opnieuw rekenen':'Bereken vergelijking'}</button>{complete&&<button type="button" className="download" onClick={download}>CSV met waarden, statussen en catalogusversie</button>}</div>

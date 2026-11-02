@@ -35,3 +35,16 @@ test('Elektrolyser sub-tabs and the calculation worker stay behind the site logi
  // /elektrolyser/opsplitsen stays the alias of the opsplitsing page.
  assert.match(await (await get('/elektrolyser/opsplitsen')).text(), /bridge\.js/);
 });
+
+test('?atlas= overleeft het inloggen: de loginpagina bewaart het pad met query en de redirect brengt je erheen', async () => {
+ const worker = await raw();
+ const atlas = Buffer.from(JSON.stringify({type: 'atlas-shortlist', version: 1, target: 44, ids: ['0123456789ab'], maxModules: null, revision: 'r'})).toString('base64url');
+ const next = '/elektrolyser/samenstellen?atlas=' + atlas;
+ const gate = await worker.fetch(new Request('https://fixture.test' + next), env);
+ assert.equal(gate.status, 401);
+ const html = await gate.text();
+ assert.ok(html.includes(`name="next" value="${next}"`), 'loginformulier bewaart pad + query');
+ const login = await worker.fetch(new Request('https://fixture.test/auth/site', {method: 'POST', headers: {Origin: 'https://fixture.test', 'Content-Type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams({password: env.SITE_PASSWORD, next})}), env);
+ assert.equal(login.status, 303);
+ assert.equal(login.headers.get('Location'), next);
+});

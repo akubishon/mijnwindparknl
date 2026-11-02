@@ -120,3 +120,7 @@
  .brand-style .compare-table td,.brand-style .compare-table th{padding:9px 6px;font-size:14px}
  .compare-table thead th small{font-size:11px}
 }
+.import-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin:16px 0;padding:14px 16px;border:1px solid #0C2340;border-left:6px solid #00A6DE;background:#EAF5FA;color:#0C2340}
+.import-bar p{margin:0;flex:1 1 320px}
+.import-actions{display:flex;gap:10px;flex-wrap:wrap}
+.import-actions .download.secondary{background:#fff;color:#0C2340}

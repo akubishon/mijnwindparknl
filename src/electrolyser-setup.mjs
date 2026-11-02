@@ -7,7 +7,7 @@ import {formatFixed, formatSigned, sharedDecimals, shownDifference, energyUnit} 
 import {WIND_PROFILES, DEFAULT_WIND_PROFILE, windSeries} from './electrolyser-wind.mjs';
 
 export const WIND_YEARS = [2022, 2023, 2024, 2025];
-export const MAX_SETUPS = 4, MAX_MODULES = 200, DEFAULT_TARGET_MW = 44;
+export const MAX_SETUPS = 6, MAX_MODULES = 200, DEFAULT_TARGET_MW = 44;
 
 // [key, label, unit, shown-scale, low, high] in the shown unit, as AANNAMES_META in opsplitsing.py.
 const META = {
@@ -349,4 +349,45 @@ export function comparisonCSV({catalogue, entries, general}) {
   for (const [label, m] of rows) lines.push([...base, label, rust, ...RESULT_ROWS.map(([, k]) => PERCENT_KEYS.has(k) ? (finite(m[k]) ? m[k] * 100 : null) : m[k]), m.dekking_uur, result.keys.join(' '), KERNEL_VERSION]);
  }
  return '﻿' + lines.map(row => row.map(csvCell).join(';')).join('\r\n');
+}
+
+// ---- Import of a shortlist from the Waterstofatlas (?atlas=<base64url JSON>) ----
+// The Atlas links here with a query parameter because both password gates keep path + query and drop the #fragment.
+export const ATLAS_IMPORT_MAX_IDS = 6, ATLAS_IMPORT_MAX_CHARS = 4000, ATLAS_TARGET_RANGE = [1, 200];
+export function decodeBase64Url(text) {
+ const bin = atob(String(text).replace(/-/g, '+').replace(/_/g, '/')), bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+ return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
+}
+// Validate the payload strictly: only model ids, a target and an optional module limit are accepted. An invalid target
+// (outside 1–200 MW) is dropped, not fatal: the models are still useful at the target already set here.
+export function parseAtlasImport(search) {
+ const raw = new URLSearchParams(String(search || '')).get('atlas');
+ if (raw === null) return {present: false, ok: false, error: '', payload: null};
+ const fail = error => ({present: true, ok: false, error, payload: null});
+ if (!raw || raw.length > ATLAS_IMPORT_MAX_CHARS || !/^[A-Za-z0-9_-]+$/.test(raw)) return fail('De link uit de Waterstofatlas is onleesbaar.');
+ let data;
+ try { data = JSON.parse(decodeBase64Url(raw)); } catch { return fail('De link uit de Waterstofatlas is onleesbaar.'); }
+ if (!data || typeof data !== 'object' || data.type !== 'atlas-shortlist') return fail('Dit is geen shortlist uit de Waterstofatlas.');
+ if (data.version !== 1) return fail('Deze shortlist komt van een andere versie van de Waterstofatlas en wordt niet gelezen.');
+ const ids = data.ids;
+ if (!Array.isArray(ids) || ids.length < 1 || ids.length > ATLAS_IMPORT_MAX_IDS || ids.some(id => typeof id !== 'string' || !/^[a-f0-9]{12}$/.test(id)) || new Set(ids).size !== ids.length)
+  return fail(`De shortlist moet 1 tot ${ATLAS_IMPORT_MAX_IDS} unieke modellen bevatten.`);
+ const target = finite(data.target) && data.target >= ATLAS_TARGET_RANGE[0] && data.target <= ATLAS_TARGET_RANGE[1] ? data.target : null;
+ const maxModules = Number.isInteger(data.maxModules) && data.maxModules >= 1 && data.maxModules <= MAX_MODULES ? data.maxModules : null;
+ return {present: true, ok: true, error: '', payload: {ids: [...ids], target, maxModules, revision: typeof data.revision === 'string' ? data.revision.slice(0, 80) : ''}};
+}
+// One setup per known model, filled to the target as `choose` does it in the hub. `models` are interpreted catalogue
+// models; unknown or disabled ids (they are not in `models`) end up in `notFound`.
+export function setupsFromImport(payload, models, {target = DEFAULT_TARGET_MW, limit = defaultLimit(), makeId = (i => `import${i}`)} = {}) {
+ const byId = new Map(models.map(m => [m.id, m]));
+ const goal = payload.target ?? target;
+ const useLimit = payload.maxModules ? {...defaultLimit(), mode: 'waarschuwen', max: payload.maxModules} : limit;
+ const setups = [], notFound = [];
+ for (const id of payload.ids) {
+  const model = byId.get(id);
+  if (!model) { notFound.push(id); continue; }
+  const fill = model.power?.value ? fillWithinLimit(stackPowerMW(model.power.value, model.boundary.value), goal, useLimit) : null;
+  setups.push(newSetup(makeId(setups.length), id, fill?.modules || 1));
+ }
+ return {setups, notFound, target: goal, limit: useLimit, limitChanged: !!payload.maxModules};
 }
