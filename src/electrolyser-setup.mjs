@@ -5,6 +5,7 @@ import {TECHNOLOGIES, DEFAULTS, STRATEGIES, KERNEL_VERSION, hoursInYear} from '.
 import {STATUS, fitPartLoadGain, NM3_PER_KG} from './electrolyser-catalogue.mjs';
 import {formatFixed, formatSigned, sharedDecimals, shownDifference, energyUnit} from './number-format.mjs';
 import {WIND_PROFILES, DEFAULT_WIND_PROFILE, windSeries} from './electrolyser-wind.mjs';
+import {COST_KEYS, COST_SETUP_KEYS, generalCosts} from './electrolyser-economics.mjs';
 
 export const WIND_YEARS = [2022, 2023, 2024, 2025];
 export const MAX_SETUPS = 6, MAX_MODULES = 200, DEFAULT_TARGET_MW = 44;
@@ -272,6 +273,11 @@ export const RESULT_ROWS = [
  ['Werkelijk stroomverbruik', 'kwh_per_kg', 'kWh/kg', 'uitkomst', 'werkelijk_kWh_per_kg'], ['Nominaal systeemverbruik (rekenwaarde)', 'kwh_per_kg_nominaal', 'kWh/kg', 'invoer', 'nominaal_kWh_per_kg'],
  ['Draaiuren per module', 'draaiuren', 'uur per jaar', 'uitkomst', 'draaiuren_per_module'], ['Uren met productie', 'productie_uur', 'uur per jaar', 'uitkomst', 'uren_met_productie'], ['Starts per module', 'starts_per_module', 'per jaar', 'uitkomst', 'starts_per_module'],
  ['Datadekking', 'dekking', '%', 'procent', 'datadekking_pct'],
+ // Costs (electrolyser-economics.mjs): shown after the technical rows, never part of the simulation.
+ ['CAPEX (aangenomen prijs)', 'capex_meur', 'M€', 'uitkomst', 'CAPEX_MEUR'], ['Kapitaalkosten en vaste OPEX', 'kapitaal_meur_jaar', 'M€ per jaar', 'uitkomst', 'kapitaal_en_OPEX_MEUR_per_jaar'],
+ ['Stroomkosten', 'stroom_meur_jaar', 'M€ per jaar', 'uitkomst', 'stroom_MEUR_per_jaar'], ['Stackvervanging', 'stack_meur_jaar', 'M€ per jaar', 'uitkomst', 'stackvervanging_MEUR_per_jaar'],
+ ['Kosten per jaar', 'kosten_meur_jaar', 'M€ per jaar', 'uitkomst', 'kosten_MEUR_per_jaar'], ['LCOH', 'lcoh_eur_kg', '€/kg', 'uitkomst', 'LCOH_EUR_per_kg'],
+ ['Maximale meerprijs t.o.v. referentie (boven +, onder − de aangenomen prijs)', 'meerprijs_eur_kw', '€/kW', 'uitkomst', 'max_meerprijs_EUR_per_kW'],
 ];
 export const PERCENT_KEYS = new Set(['benut', 'belasting', 'dekking']);
 
@@ -333,7 +339,8 @@ export function comparisonCSV({catalogue, entries, general}) {
  const head = ['bron.catalogusversie', 'bron.catalogus_bijgewerkt', 'bron.aanvullingen_versie', 'bron.opstelling', 'bron.model_id', 'bron.model', 'bron.fabrikant', 'bron.technologie',
   'bron.leveringstype', 'bron.leveringstype.status', 'bron.tekst_vermogen', 'bron.tekst_systeemverbruik', 'bron.tekst_stackverbruik', 'bron.tekst_minimumlast', 'bron.bronvermelding',
   'aanname.aantal_modules', ...modelCols.flatMap(k => [`aanname.${k}`, `aanname.${k}.status`, `aanname.${k}.regel`]),
-  'aanname.besturing', 'aanname.besturing.status', ...GENERAL_KEYS.flatMap(k => [`aanname.${k}`, `aanname.${k}.status`]), 'aanname.windprofiel', 'aanname.windprofiel.status', 'aanname.windreeks', 'aanname.windjaren', 'aanname.storingen',
+  'aanname.besturing', 'aanname.besturing.status', ...GENERAL_KEYS.flatMap(k => [`aanname.${k}`, `aanname.${k}.status`]),
+  ...COST_SETUP_KEYS.flatMap(k => [`aanname.kosten.${k}`, `aanname.kosten.${k}.status`]), ...COST_KEYS.flatMap(k => [`aanname.kosten.${k}`, `aanname.kosten.${k}.status`]), 'aanname.windprofiel', 'aanname.windprofiel.status', 'aanname.windreeks', 'aanname.windjaren', 'aanname.storingen',
   'uitkomst.windjaar', 'uitkomst.rust_op', ...RESULT_ROWS.map(row => 'uitkomst.' + row[4]), 'uitkomst.uren_met_data', 'uitkomst.invoer_hash', 'uitkomst.rekenkern'];
  const lines = [head];
  for (const entry of entries) {
@@ -343,7 +350,9 @@ export function comparisonCSV({catalogue, entries, general}) {
   const base = [catalogue?.revision, catalogue?.sourceUpdatedAt, catalogue?.additionsVersion, setup.label, model.id, model.name, model.manufacturer, model.technology,
    model.delivery.label, model.delivery.status, model.power.raw, model.systemEnergy.raw, model.stackEnergy.raw, model.minimum.raw, model.source,
    resolved.modules, ...modelCols.flatMap(k => { const f = byKey[k]; return f ? [shown(f), statusText(f), f.rule || ''] : ['', '', '']; }),
-   g.strategy, g.strategyStatus, ...g.fields.flatMap(f => [f.value * f.scale, f.status]), g.windProfile, g.windStatus, windSeries(g.windProfile), g.years.join(', '), 'Vaste trekking per module en jaar (zaad jaar × 100 + modulenummer), gelijk voor elke opstelling'];
+   g.strategy, g.strategyStatus, ...g.fields.flatMap(f => [f.value * f.scale, f.status]),
+   ...COST_SETUP_KEYS.flatMap(k => { const f = entry.costs?.fields?.find(x => x.key === k); return f ? [f.value * f.scale, f.status] : ['', '']; }),
+   ...generalCosts(general).fields.flatMap(f => [f.value * f.scale, f.status]), g.windProfile, g.windStatus, windSeries(g.windProfile), g.years.join(', '), 'Vaste trekking per module en jaar (zaad jaar × 100 + modulenummer), gelijk voor elke opstelling'];
   const rust = `${resolved.counts.bron} bronwaarden en ${resolved.counts.aanname} aannames`;
   const rows = [...result.years.map((y, i) => [String(y), withCoverage(result.perYear[i])]), ['gemiddelde', result.mean]];
   for (const [label, m] of rows) lines.push([...base, label, rust, ...RESULT_ROWS.map(([, k]) => PERCENT_KEYS.has(k) ? (finite(m[k]) ? m[k] * 100 : null) : m[k]), m.dekking_uur, result.keys.join(' '), KERNEL_VERSION]);

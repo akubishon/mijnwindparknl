@@ -113,7 +113,27 @@ Deze wijziging is in GitHub gemaakt en moet nog naar Sites worden overgezet; `SI
 3. **Samenstellen** (`/elektrolyser/samenstellen`): tot zes opstellingen (A–F). Per opstelling een model en een geheel aantal modules, met totaalvermogen, opname bij vollast inclusief BoP en alle rekenwaarden met status, regel en brontekst. **Vul aan tot doelvermogen** (standaard 44 MW) kiest het aantal modules zoals `modules()` in `configurations.js`: exact als het past, anders het eerstvolgende aantal erboven, met het aantal eronder als alternatief. Het doelvermogen is het totale stackvermogen; de BoP komt daar in de berekening bovenop (zie *Aanbod, 44 MW en BoP*). Een systeemvermogen wordt eerst omgerekend naar stackvermogen (÷ (1 + BoP-vast + BoP-variabel), standaard ÷ 1,10): 10 modules van 4,4 MW systeem zijn 40 MW stack, dus vult de knop aan tot 11.
 4. **Vergelijken** (`/elektrolyser/vergelijken`): 2 tot 6 complete opstellingen naast elkaar bij dezelfde windreeks en dezelfde algemene aannames, met een tabel, verschillen ten opzichte van een gekozen referentieopstelling, waterstof per windjaar, één grafiek en een CSV.
 
-`/onderzoek` verwijst voor Atlas-modellen naar Samenstellen en Vergelijken; de handmatige capaciteitsvergelijking blijft. `/opsplitsing` blijft de uitgebreide weergave met kosten en LCOH, met de Python-kern. Opstellingen, algemene aannames, doelvermogen en modulelimiet worden als gemak in `localStorage` van de browser bewaard; zonder opslag werkt de pagina gewoon.
+`/onderzoek` verwijst voor Atlas-modellen naar Samenstellen en Vergelijken; de handmatige capaciteitsvergelijking blijft. `/opsplitsing` blijft de algemene studie *waarom opsplitsen*, met gevoeligheid, omslagkaart en de Python-kern, en verwijst voor een concreet model naar de Waterstofatlas en Vergelijken. Opstellingen, algemene aannames, doelvermogen en modulelimiet worden als gemak in `localStorage` van de browser bewaard; zonder opslag werkt de pagina gewoon.
+
+### De route in vijf stappen
+
+1. **Waterstofatlas, Eisen/Shortlist/Arena**: statische datasheetfilter tot 3–6 modellen.
+2. **Doorrekenen op windpark ↗**: Samenstellen staat klaar met elk model aangevuld tot het doelvermogen (zie hieronder).
+3. **Vergelijken met kosten**: waterstof, benutting, starts en LCOH per opstelling, en per model de *maximale meerprijs* ten opzichte van de referentie.
+4. **Resultaat naar Waterstofatlas ↗** (nog te bouwen, fase 3): de windprestatie wordt een Arena-criterium en het Dashboard toont het besluit met de open vragen.
+5. **`/opsplitsing`**: de algemene studie met gevoeligheid en omslagkaart.
+
+### Kosten en LCOH in Vergelijken
+
+`src/electrolyser-economics.mjs` is een letterlijke port van het kostendeel van `opsplitsing.py` (`per_kw_eur`, `capex_eur`, `crf`, `power_price`, `subsidy_eur`, `revenue_eur_kg`, `economics`; zelfde bewerkingsvolgorde, `pySum` voor de sommen). De invoer is de uitkomst van `simulate_with_replacements`. Kosten worden **na** de simulatie berekend en zitten niet in de cachesleutel (`jobFor`): een andere stroomprijs vraagt geen nieuwe berekening.
+
+- **Algemene kostenaannames** (stroomprijs, netkosten, belasting, rente, looptijd, vaste OPEX, stackvervanging, subsidie, premie, korting, zuurstofprijs) staan in `general.values` met status *standaard technologie* (bron: EU LCOH-tool) of *eigen invoer*.
+- **Per opstelling**: de prijs als €/kW stack of als totaal in M€, en de vaste kosten per module. Zonder invoer geldt de referentieofferte van `/opsplitsing` (60 M€ voor 50 MW in 10 units, 1 M€ vast per unit, dus 1.000 €/kW): status *standaard technologie* en een **eigen aanname**, geen offerte voor dit model.
+- **Nieuwe uitkomstregels**: CAPEX, kapitaalkosten en vaste OPEX, stroomkosten, stackvervanging, kosten per jaar en LCOH, per windjaar en gemiddeld.
+- **Maximale meerprijs t.o.v. referentie**: de CAPEX waarbij een opstelling dezelfde LCOH haalt als de referentie, uitgedrukt in €/kW boven (+) of onder (−) de aangenomen prijs. De jaarkosten zijn lineair in de CAPEX: `capex·(crf + opex + k_stack) − subsidie·crf + stroom`, met `k_stack = stack_aandeel·Σe/(n·L)`; daaruit volgt `capex_max = (LCOH_ref·kg − stroom + subsidie·crf) / (crf + opex + k_stack)`. Zo is bij leveranciers te onderhandelen zonder prijzen in de Atlas.
+- **Robuustheid**: dezelfde regel als `materiality()` in `src/opsplitsing/report-model.js`. Een opstelling is pas duidelijk goedkoper als dat in elk toetsgeval zo blijft: elke kostsleutel 25 % lager en hoger, en de vaste kosten per module op 0,3 en 2 M€. De kop zegt dan *"A en C zijn binnen de onzekerheid gelijkwaardig"* in plaats van een winnaar te kronen. Bedrijfsaannames (minimumlast, opstarttijden) vragen een nieuwe berekening en vallen buiten deze toets.
+- **CSV**: `aanname.kosten.*` (waarde en status) en `uitkomst.*` voor de kostenregels.
+- **Pariteit**: `tests/fixtures/elektrolyser-kosten-python.json` (gegenereerd met `python3 -I scripts/kernel-reference.py kosten`) bevat `economics()` van Python voor acht gevallen met afwijkende kostenaannames; `tests/electrolyser-economics.test.mjs` vergelijkt de port met tolerantie 1e-9 relatief en controleert dat de LCOH bij de maximale meerprijs gelijk is aan die van de referentie. De kernfixture `elektrolyser-kern-python.json` blijft ongewijzigd: de Python-bron staat op MODEL_VERSION 18, de JS-kern en die fixture op 16.
 
 ### Shortlist uit de Waterstofatlas laden
 
