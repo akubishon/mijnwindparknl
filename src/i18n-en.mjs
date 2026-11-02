@@ -747,6 +747,7 @@ export default {
   'Bij 44,25 MW kan het aantal vollasturen nul zijn: het afgeronde maximum ligt iets boven het exacte modelmaximum. Het apparaat kan dan wel op deellast stroom opnemen.': 'At 44.25 MW the number of full-load hours can be zero: the rounded maximum is slightly above the exact model maximum. The device can still take up electricity at part load.',
   'Verder: hoeveel waterstof levert dit op?': 'Next: how much hydrogen does this deliver?',
   'Download resultaten als CSV': 'Download results as CSV',
+  'Grafiek downloaden als PNG': 'Download chart as PNG',
   'Geen bruikbare gezamenlijke gegevens voor deze periode. Probeer een kleinere of andere periode.': 'No usable combined data for this period. Try a smaller or different period.',
   'Hoeveel kilo waterstof kan dit opleveren?': 'How many kilos of hydrogen can this deliver?',
   'Gebruik het stroomverbruik van je elektrolyser. Je hoeft de windgegevens niet opnieuw op te halen.': 'Use the electricity consumption of your electrolyser. You do not need to fetch the wind data again.',

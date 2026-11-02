@@ -9,7 +9,7 @@ const css = (readFileSync('src/styles.css', 'utf8').replace('@import "tailwindcs
 const html = `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Mijnwindpark.nl: bekijk windproductie van Fryslân en Beabuorren en verken elektrolyse, waterstof en onderzoek."><title>Mijnwindpark.nl · Windenergie &amp; waterstof</title><link rel="icon" href="/favicon.svg"><style>${css}</style></head><body class="brand-style"><a class="site-skip" href="#inhoud">Naar de inhoud</a><div id="root"><p style="padding:40px;font-family:sans-serif">Mijnwindpark.nl laden…</p></div><noscript>Schakel JavaScript in om Mijnwindpark.nl te bekijken.</noscript><script>${client}</script></body></html>`;
 const dataClient = readFileSync('src/wpf.mjs', 'utf8').replaceAll('export ', '');
 const scriptHash = createHash('sha256').update(client).digest('base64');
-const policy = `default-src 'none'; script-src 'sha256-${scriptHash}'; worker-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'`;
+const policy = `default-src 'none'; script-src 'sha256-${scriptHash}'; worker-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'`;
 const harmonieClient=readFileSync('src/harmonie.mjs','utf8').replaceAll('export ', '');
 const stationCatalog = readFileSync('src/stations.json', 'utf8');
 const electrolyserClient=readFileSync('src/electrolysis.mjs','utf8').replaceAll('export ', '');
