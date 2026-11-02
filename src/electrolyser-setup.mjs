@@ -400,3 +400,38 @@ export function setupsFromImport(payload, models, {target = DEFAULT_TARGET_MW, l
  }
  return {setups, notFound, target: goal, limit: useLimit, limitChanged: !!payload.maxModules};
 }
+
+// ---- Result back to the Waterstofatlas (?windresultaat=<base64url JSON>#arena) ----
+// Same reason as the import: the Atlas password gate keeps path + query and drops the #fragment, so the data travels in the query.
+export const ATLAS_RESULT_BASE = 'https://waterstofatlas.nl/';
+export const encodeBase64Url = text => {
+ let bin = '';
+ for (const b of new TextEncoder().encode(text)) bin += String.fromCharCode(b);
+ return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+const sig = (v, digits = 5) => finite(v) ? Number(v.toPrecision(digits)) : null;
+// A field still rests on an assumption when it is open, a technology standard or a derived assumption.
+const restsOnAssumption = f => f.value === null || f.status === STATUS.standaard || (f.status === STATUS.afgeleid && !!f.aanname);
+// entries: [{setup, model, resolved, result (the costed assembly), costs}] in the order of the comparison. Only setups with a
+// result and a catalogue id travel along. A model used in two setups is sent once, with its best result (lowest LCOH,
+// otherwise most hydrogen), because the Atlas knows models and not setups.
+export function windResultPayload({entries, reference = 0, general = defaultGeneral(), target = DEFAULT_TARGET_MW}) {
+ const g = generalValues(general);
+ const generalOpen = g.fields.filter(restsOnAssumption).map(f => f.key);
+ const best = new Map();
+ entries.forEach((e, index) => {
+  const mean = e?.result?.mean, id = e?.model?.id;
+  if (!mean || typeof id !== 'string' || !/^[a-f0-9]{12}$/.test(id)) return;
+  const keys = [...new Set([...e.resolved.fields.filter(restsOnAssumption).map(f => f.key), ...generalOpen, ...(e.costs?.fields || []).filter(restsOnAssumption).map(f => f.key)])].slice(0, 40);
+  const item = {modelId: id, modules: e.resolved.modules, waterstof_t: sig(mean.waterstof_kg / 1000), benutting: sig(mean.benut, 4), lcoh_eur_kg: sig(mean.lcoh_eur_kg, 4),
+   meerprijs_eur_kw: index === reference ? null : sig(mean.meerprijs_eur_kw, 4), koude_starts: sig(mean.starts_koud_per_module, 4), aannameVelden: keys, isReference: index === reference};
+  const old = best.get(id);
+  const better = !old || (finite(item.lcoh_eur_kg) && finite(old.lcoh_eur_kg) ? item.lcoh_eur_kg < old.lcoh_eur_kg : item.waterstof_t > old.waterstof_t);
+  if (better) best.set(id, item);
+ });
+ const setups = [...best.values()].slice(0, MAX_SETUPS).map(({isReference, ...rest}) => rest);
+ const referenceId = entries[reference]?.model?.id;
+ return {type: 'windpark-result', version: 1, kernel: KERNEL_VERSION, years: [...g.years], windprofiel: g.windProfile, target: sig(target, 6),
+  reference: typeof referenceId === 'string' && best.has(referenceId) ? referenceId : null, setups};
+}
+export const windResultLink = payload => payload?.setups?.length ? `${ATLAS_RESULT_BASE}?windresultaat=${encodeBase64Url(JSON.stringify(payload))}#arena` : null;

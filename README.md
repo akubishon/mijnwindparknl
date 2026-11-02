@@ -120,7 +120,7 @@ Deze wijziging is in GitHub gemaakt en moet nog naar Sites worden overgezet; `SI
 1. **Waterstofatlas, Eisen/Shortlist/Arena**: statische datasheetfilter tot 3–6 modellen.
 2. **Doorrekenen op windpark ↗**: Samenstellen staat klaar met elk model aangevuld tot het doelvermogen (zie hieronder).
 3. **Vergelijken met kosten**: waterstof, benutting, starts en LCOH per opstelling, en per model de *maximale meerprijs* ten opzichte van de referentie.
-4. **Resultaat naar Waterstofatlas ↗** (nog te bouwen, fase 3): de windprestatie wordt een Arena-criterium en het Dashboard toont het besluit met de open vragen.
+4. **Resultaat naar Waterstofatlas ↗** (knop in Vergelijken): de windprestatie wordt een Arena-criterium (LCOH, of waterstof als er geen kosten zijn) en het Dashboard toont het besluit met de open vragen.
 5. **`/opsplitsing`**: de algemene studie met gevoeligheid en omslagkaart.
 
 ### Kosten en LCOH in Vergelijken
@@ -138,6 +138,10 @@ Deze wijziging is in GitHub gemaakt en moet nog naar Sites worden overgezet; `SI
 ### Shortlist uit de Waterstofatlas laden
 
 De knop **Doorrekenen op windpark ↗** in de Waterstofatlas opent `/elektrolyser/samenstellen?atlas=<base64url-JSON>`. De parameter overleeft het inloggen (alleen pad en query worden bewaard). De hub toont een balk: *"Shortlist uit de Waterstofatlas (n modellen, doel X MW) laden? Dit vervangt je huidige opstellingen."* Bij **Laden** komt er per model een opstelling, aangevuld tot het doelvermogen met de modulegrootte uit de catalogus; een meegegeven `maxModules` zet de modulelimiet op *waarschuwen*. Bij **Negeren** of **Laden** wist `history.replaceState` de parameter uit het adres. Onbekende of uitgeschakelde model-ID's worden overgeslagen en gemeld. De payload wordt streng gevalideerd (`parseAtlasImport` in `src/electrolyser-setup.mjs`): type `atlas-shortlist`, versie 1, 1 tot 6 unieke ID's van 12 hex-tekens, doel 1 tot 200 MW. Het maximum is 6 opstellingen (A–F).
+
+### Resultaat naar de Waterstofatlas
+
+De knop **Resultaat naar Waterstofatlas ↗** (alleen na een volledige berekening) opent `https://waterstofatlas.nl/?windresultaat=<base64url-JSON>#arena`. De gegevens gaan in een queryparameter, omdat de wachtwoordpoort van de Atlas alleen pad en query bewaart. De payload (`windResultPayload()` in `src/electrolyser-setup.mjs`) is `{type:'windpark-result', version:1, kernel, years, windprofiel, target, reference, setups:[{modelId, modules, waterstof_t, benutting, lcoh_eur_kg, meerprijs_eur_kw, koude_starts, aannameVelden}]}`, met de gemiddelden over de gekozen windjaren. Een model in twee opstellingen gaat één keer mee, met het beste resultaat. `aannameVelden` zijn de sleutels van velden die nog op een technologiestandaard, aanname of open waarde rusten; de Atlas maakt daar vragen voor fabrikanten van. Er gaan geen ingevoerde prijzen of persoonsgegevens mee.
 
 ### Begrippen
 
