@@ -19,7 +19,6 @@ import csv
 import hashlib
 import json
 import os
-import random
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass, fields, replace
@@ -32,7 +31,7 @@ from . import windbron
 from .application import HYDROGEN_SHARE, PARKS, ROOT, load_curve, park_power_mw, parse_wind
 from .knmi import KNMIClient, KNMIError, load_env_file
 
-MODEL_VERSION = 15  # 15: omslagkaart en scenario's rond minimumlast 25–30 % per module. 14: degradatie als lineair meerverbruik per jaar; starts tellen niet meer als bedrijfsuren. 13: minimumlast PEM 25 %, alkaline 30 %. 12: gedigitaliseerde SWT-DD-130-curve als standaard; oude caches vervallen.
+MODEL_VERSION = 16  # 16: storingen als vaste beschikbaarheidsafslag in plaats van een willekeurige trekking. 15: omslagkaart en scenario's rond minimumlast 25–30 % per module. 14: degradatie als lineair meerverbruik per jaar; starts tellen niet meer als bedrijfsuren. 13: minimumlast PEM 25 %, alkaline 30 %. 12: gedigitaliseerde SWT-DD-130-curve als standaard; oude caches vervallen.
 STEP_H = 1 / 6
 FRYSLAN_SHARE = HYDROGEN_SHARE["fryslan"]
 CACHE = ROOT / ".cache" / "opsplitsing"
@@ -162,7 +161,7 @@ AANNAMES_META = [
     ("Beschikbaarheid", [
         ("onderhoud_dagen", "Gepland onderhoud", "dagen per module per jaar", 0, 60, 1,
          "Modules gaan na elkaar in onderhoud, in het windarme voorjaar en de zomer."),
-        ("storingen_per_jaar", "Storingen", "per module per jaar", 0, 20, 1, "Willekeurig maar herhaalbaar verdeeld over het jaar."),
+        ("storingen_per_jaar", "Storingen", "per module per jaar", 0, 20, 1, "Vaste afslag: elke module is (storingen × hersteltijd) / 8.760 uur minder beschikbaar, ongeacht wanneer het waait."),
         ("hersteltijd_uur", "Hersteltijd per storing", "uur", 0, 720, 1, "Zolang ligt een module stil na een storing."),
     ]),
     ("Slijtage", [
@@ -388,11 +387,23 @@ def sequential_loads(power: float, k: int, size: float, a: Aannames) -> list[flo
     return [max(0.0, min(size, (d - a.bop_vast * size) / (1 + a.bop_variabel))) for d in draws]
 
 
-def outages(times: list[int], n: int, year: int, a: Aannames) -> list[list[bool]]:
-    """Per module per tijdstap: True als de module in onderhoud of storing is.
+def storing_availability(a: Aannames) -> float:
+    """Deel van de tijd dat een module niet door een storing stilligt.
 
-    Onderhoud valt na elkaar vanaf half april, als het het minst waait. Storingen
-    volgen een vaste trekking per jaar en module, zodat elke configuratie dezelfde pech krijgt.
+    Storingen zijn geen losse gebeurtenissen in de tijd maar een vaste afslag: elke module is
+    altijd (storingen per jaar × hersteltijd) / 8.760 uur minder beschikbaar. Daarmee is er geen
+    toevalsruis meer, maar ook geen extra verlies als een storing in een winderige periode valt.
+    """
+    if a.storingen_per_jaar <= 0 or a.hersteltijd_uur <= 0:
+        return 1.0
+    return max(0.0, 1 - a.storingen_per_jaar * a.hersteltijd_uur / 8760)
+
+
+def outages(times: list[int], n: int, year: int, a: Aannames) -> list[list[bool]]:
+    """Per module per tijdstap: True als de module in gepland onderhoud is.
+
+    Onderhoud valt na elkaar vanaf half april, als het het minst waait. Storingen zitten hier
+    niet in: die werken als vaste beschikbaarheidsafslag (storing_availability).
     """
     year_start = datetime(year, 1, 1, tzinfo=LOCAL)
     blocks = []
@@ -401,14 +412,6 @@ def outages(times: list[int], n: int, year: int, a: Aannames) -> list[list[bool]
         if a.onderhoud_dagen > 0:
             begin = year_start + timedelta(days=105 + i * a.onderhoud_dagen % 150)
             spans.append((begin.timestamp(), (begin + timedelta(days=a.onderhoud_dagen)).timestamp()))
-        if a.storingen_per_jaar > 0 and a.hersteltijd_uur > 0:
-            draw = random.Random(year * 100 + i)
-            moment = year_start.timestamp()
-            while True:
-                moment += draw.expovariate(a.storingen_per_jaar / (365 * 86400))
-                if moment >= year_start.timestamp() + 365 * 86400:
-                    break
-                spans.append((moment, moment + a.hersteltijd_uur * 3600))
         blocks.append(spans)
     return [[any(lo <= t < hi for lo, hi in spans) for spans in blocks] for t in times]
 
@@ -420,6 +423,7 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
     minimum = draw_mw(a.minimumlast * size, size, a)
     want_h = 0.0    # hoe lang er al wind is voor meer modules dan er draaien
     down = outages(times, n, supply["jaar"], a)
+    avail_f = storing_availability(a)   # vaste afslag voor storingen op alle jaartotalen
     on = [False] * n
     on_h = [0.0] * n
     off_h = [a.koud_na_uur + min_off] * n   # het jaar begint koud
@@ -429,7 +433,7 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
     hours = [0.0] * n
     warm = [0] * n
     cold = [0] * n
-    kg = used = standby = lost_outage = producing = 0.0
+    kg = used = standby = producing = 0.0
     daily: dict[str, list[float]] = {}
     steps = []
     memo = {}
@@ -484,14 +488,14 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
             else:
                 if on[i]:
                     on[i], off_h[i] = False, 0.0
-                if down[step][i]:
-                    lost_outage += size * STEP_H
-                elif off_h[i] < a.koud_na_uur:
+                if not down[step][i] and off_h[i] < a.koud_na_uur:
                     standby += a.standby * size * STEP_H
                 off_h[i] += STEP_H
                 stack[i] = 0.0
         kg += step_kg
-        producing += STEP_H if step_kg > 0 else 0.0
+        # Verwachte productietijd: de stap valt pas weg als alle producerende modules tegelijk in storing zijn.
+        producers = sum(1 for v in module_kg if v > 0)
+        producing += STEP_H * (1 - (1 - avail_f) ** producers) if producers else 0.0
         day = datetime.fromtimestamp(stamp, LOCAL).date().isoformat()
         entry = daily.setdefault(day, [0.0, 0.0])
         entry[0] += step_kg
@@ -505,13 +509,18 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
             if len(must) > wanted and k > wanted:
                 reasons.append(f"{len(must)} houden minimale aan-tijd vast")
             if len(avail) < n:
-                reasons.append(f"{n - len(avail)} in onderhoud of storing")
+                reasons.append(f"{n - len(avail)} in onderhoud")
             steps.append({"t": stamp, "aanbod": power, "stack": [round(v, 3) for v in loads],
                           "verbruik": round(sum(draw_mw(v, size, a) for v in loads if v > 0), 3),
                           "uit": [down[step][i] for i in range(n)], "kg": [round(v, 3) for v in module_kg],
                           "opstart_min": starting, "gewenst": wanted, "passen": fits, "redenen": reasons})
     scale = 8760 / (len(mw) * STEP_H) if mw else 0   # meetgaten: herschalen naar een vol jaar
     supply_mwh = sum(mw) * STEP_H
+    # Storingen: elke module levert, verbruikt en slijt een vast deel minder. Tijdstappen en daggetallen
+    # hierboven blijven zonder deze afslag, zodat het dagbeeld na te rekenen blijft.
+    kg, used, standby = kg * avail_f, used * avail_f, standby * avail_f
+    hours, eq = [h * avail_f for h in hours], [e * avail_f for e in eq]
+    warm, cold = [w * avail_f for w in warm], [c * avail_f for c in cold]
     return {
         "modules": n, "module_mw": size, "strategie": strategy, "jaar": supply["jaar"],
         "waterstof_t": kg * scale / 1000, "verbruik_mwh": used * scale, "standby_mwh": standby * scale,
@@ -520,7 +529,7 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
         "bedrijfsuren_gem": sum(hours) / n * scale, "productie_uur": producing * scale,
         "starts_warm_per_module": sum(warm) / n * scale, "starts_koud_per_module": sum(cold) / n * scale,
         "eq_uren_per_module": [e * scale for e in eq],
-        "dekking_uur": len(mw) * STEP_H,
+        "dekking_uur": len(mw) * STEP_H, "beschikbaarheid_storing": avail_f,
         "dagen": {d: [round(v[0], 1), v[1]] for d, v in daily.items()},
         "stappen": steps,
     }
@@ -830,7 +839,7 @@ def example_day(results: list[dict], counts: list[int], years: list[int]) -> str
     """Een representatieve dag waarop opsplitsen (4 modules, of het dichtstbijzijnde aantal) helpt.
 
     Niet de uitschieter: die valt vaak op een stormdag waarop Fryslân rond cut-out aan en uit gaat.
-    Wel het 75e percentiel van de dagwinst, op dagen zonder onderhoud of storing.
+    Wel het 75e percentiel van de dagwinst, op dagen zonder onderhoud.
     """
     if len(counts) < 2:
         return None

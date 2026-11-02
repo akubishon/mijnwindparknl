@@ -673,7 +673,7 @@ function downloadResult(format) {
   const json = {...lastResult, export_toelichting: {
     stapformule: "verschil in jaarkosten (euro) / extra waterstof (kg per jaar); alleen bij positieve extra productie",
     aannames: "Originele rekeneenheden; zie veldmetadata voor schaal en getoonde eenheid.",
-    onzekerheid: "Eén vaste trekking van storingen per module en windjaar; geen betrouwbaarheidsinterval.",
+    onzekerheid: "Storingen als vaste beschikbaarheidsafslag per module, zonder toeval; geen betrouwbaarheidsinterval.",
     stapvelden_csv: {deltaKg: "kg/jaar", deltaCost: "euro/jaar", deltaHours: "productie-uren/jaar", deltaLcoh: "euro/kg tegenover vorige configuratie", vsLowest: "euro/kg boven laagste berekende kostprijs", marginal: "euro per extra kg"}},
     veldmetadata: meta.groepen};
   const content = format === "csv" ? resultCsv(lastResult) : JSON.stringify(json, null, 2);
@@ -692,10 +692,14 @@ function resultContext(result) {
     + `Totaal stackvermogen: ${nf(a.capaciteit_mw, 1)} MW in elke configuratie. Gekozen moduleaantallen: ${result.rijen.map(r => r.modules).join(", ")}. `
     + `Minimumlast: ${nf(a.minimumlast * 100, 1)} %. Onderhoud: ${nf(a.onderhoud_dagen, 1)} dagen per module per jaar, plus berekende stackwisselstilstand. `
     + `De kostprijs is de gemiddelde jaarkosten gedeeld door de gemiddelde jaarproductie over de gekozen windjaren.`;
-  $("result-uncertainty").textContent = `Storingsmodel: gemiddeld ${nf(a.storingen_per_jaar, 1)} storingen per module per jaar, met ${nf(a.hersteltijd_uur, 1)} uur herstel per storing. `
-    + `${a.storingen_per_jaar > 0 && a.hersteltijd_uur > 0 ? "Aantal en timing worden gesimuleerd met één vaste, herhaalbare trekking per module en windjaar." : "Storingsstilstand is met deze instellingen uitgeschakeld."} `
-    + `${result.jaren.length > 1 ? "De jaarstrepen tonen het minimum en maximum van de gekozen windjaren, met die trekkingen." : "Met één windjaar is geen spreiding tussen windjaren bepaald."} `
-    + `Er zijn geen herhaalde storingstrekkingen doorgerekend voor een onzekerheidsband. Wind, stilstand en start/stopregels werken samen; deze grafiek bewijst geen afzonderlijke oorzaak van een sprong.`;
+  const outageHours = a.storingen_per_jaar > 0 && a.hersteltijd_uur > 0 ? Math.min(8760, a.storingen_per_jaar * a.hersteltijd_uur) : 0;
+  // Losse zinnen in eigen spans, zodat de vertaling elke zin apart vindt.
+  $("result-uncertainty").replaceChildren(...[
+    `Storingsmodel: ${nf(a.storingen_per_jaar, 1)} storingen per module per jaar, met ${nf(a.hersteltijd_uur, 1)} uur herstel per storing.`,
+    outageHours ? `Dat is verwerkt als vaste afslag: elke module is altijd ${nf(outageHours / 8760 * 100, 1)} % minder beschikbaar (${nf(outageHours, 0)} uur per jaar), zonder toeval. Er is dus geen storingsruis, maar ook geen extra verlies als een storing in een winderige periode valt.` : "Storingsstilstand is met deze instellingen uitgeschakeld.",
+    result.jaren.length > 1 ? "De jaarstrepen tonen het minimum en maximum van de gekozen windjaren." : "Met één windjaar is geen spreiding tussen windjaren bepaald.",
+    "Wind, stilstand en start/stopregels werken samen; deze grafiek bewijst geen afzonderlijke oorzaak van een sprong.",
+  ].map((sentence, i) => Object.assign(document.createElement("span"), {textContent: (i ? " " : "") + sentence})));
   const target = $("result-assumptions"), tableNode = document.createElement("table");
   tableNode.innerHTML = '<thead><tr><th scope="col">Aanname</th><th scope="col">Waarde berekening</th><th scope="col">Herkomst standaardwaarde</th></tr></thead>';
   const body = document.createElement("tbody");
@@ -1187,8 +1191,8 @@ function dayChart(data, n, v) {
     const clock = new Date(a.t * 1000).toLocaleTimeString("nl-NL", {hour: "2-digit", minute: "2-digit", timeZone: "Europe/Amsterdam"});
     const active = s => s.stack.filter(x => x > 0).length, down = s => s.uit.filter(Boolean).length;
     showTip(event, `<b>${clock}</b> · aanbod ${nf(a.aanbod)} MW
-      <div class="row">${swatch(COLORS.one)} 1 module: ${nf(a.verbruik)} MW, ${active(a) ? "aan" : "uit"}${down(a) ? " (onderhoud of storing)" : ""}</div>
-      <div class="row">${swatch(COLORS.many)} ${n} modules: ${nf(b.verbruik)} MW, ${active(b)} aan${down(b) ? `, ${down(b)} in onderhoud of storing` : ""}</div>`);
+      <div class="row">${swatch(COLORS.one)} 1 module: ${nf(a.verbruik)} MW, ${active(a) ? "aan" : "uit"}${down(a) ? " (onderhoud)" : ""}</div>
+      <div class="row">${swatch(COLORS.many)} ${n} modules: ${nf(b.verbruik)} MW, ${active(b)} aan${down(b) ? `, ${down(b)} in onderhoud` : ""}</div>`);
   });
   hit.addEventListener("mouseleave", () => { hideTip(); cursor.setAttribute("visibility", "hidden"); });
   const dots = el("g", {class: "pick-dots"});
@@ -1481,7 +1485,7 @@ function updateStage() {
       tile.classList.toggle("starting", starting);
       tile.querySelector(".module-fill").style.height = `${Math.min(100, load * 100)}%`;
       tile.querySelector("span").textContent = down ? "onderhoud" : load > 0 ? (starting ? "opstart" : `${nf(load * 100, 0)} %`) : "uit";
-      tile.title = down ? "In onderhoud of storing" : load > 0 ? `${nf(load * 100, 0)} % last${starting ? ", aan het opstarten" : ""}` : "Uit";
+      tile.title = down ? "In onderhoud" : load > 0 ? `${nf(load * 100, 0)} % last${starting ? ", aan het opstarten" : ""}` : "Uit";
     });
   }
 }

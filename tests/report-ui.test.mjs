@@ -211,10 +211,10 @@ test('the result opens with the conclusion within the model uncertainty, scope n
  assert.match(shown,/<div class="report-robust"><h4>2 modules: duidelijk het goedkoopst<\/h4>/);
  assert.match(shown,/Regel: een aantal heet pas duidelijk goedkoper/);
  assert.match(shown,/Basis · 1 × 44 MW \(theoretische referentie\)/);
- assert.match(shown,/Met 2 modules: 120 ton waterstof per jaar meer dan met 1 module \(theoretische referentie\)\./,'3.100 t − 2.980 t');
- assert.match(shown,/1\.180 starts per jaar \(592 per module\)/);
+ assert.match(shown,/Met 2 modules: 100 ton waterstof per jaar meer dan met 1 module \(theoretische referentie\)\./,'3.082 t − 2.982 t');
+ assert.match(shown,/1\.200 starts per jaar \(601 per module\)/);
  assert.match(shown,/alleen mee als ze in de ingevoerde offerte zitten/);
  assert.match(shown,/Start\/stop-slijtage zit niet in de kosten/);
- assert.match(shown,/Verschil: −0,06 €\/kg/);
- assert.doesNotMatch(shown,/2\.980,8|3\.097,8/,'No full-precision tonnes');
+ assert.match(shown,/Verschil: −0,05 €\/kg/);
+ assert.doesNotMatch(shown,/2\.982,0|3\.081,6/,'No full-precision tonnes');
 });
