@@ -256,7 +256,7 @@
       'De controles rekenen de kosten na met de opgeslagen simulatie-uitkomsten; ze zijn geen onafhankelijke validatie van het wind- of elektrolysermodel.',
       windProfile === 'gemeten_dagproductie' ? 'Het windaanbod volgt voor Windpark Fryslân per dag de gemeten productie en binnen de dag de modelvorm; het is geen gemeten levering aan de elektrolyser.'
         : 'Het windaanbod is gemodelleerde mogelijke productie, geen gemeten levering aan de elektrolyser.',
-      'Storingen volgen één vaste, herhaalbare trekking per module en windjaar; spreiding tussen windjaren is geen betrouwbaarheidsinterval.',
+      'Storingen zijn een vaste beschikbaarheidsafslag per module (storingen × hersteltijd / 8.760 uur), zonder toeval; een storing in een winderige periode kost dus niet extra. Spreiding tussen windjaren is geen betrouwbaarheidsinterval.',
       'Stackvervanging is een continue jaarlijkse kostenbenadering op basis van bedrijfsuren. Het model rekent de stilstand voor stackwissels in een tweede simulatie mee.',
       START_NOTE,
       INVESTMENT_NOTE

@@ -1,11 +1,11 @@
-// JavaScript port of the per-module simulation in src/opsplitsing/python/opsplitsing.py (MODEL_VERSION 15; simulate() is unchanged
-// since 14, tests/fixtures/elektrolyser-kern-python.json is generated with 15).
+// JavaScript port of the per-module simulation in src/opsplitsing/python/opsplitsing.py (MODEL_VERSION 16: failures as a fixed
+// availability factor; tests/fixtures/elektrolyser-kern-python.json is generated with 16).
 // Function names and operation order follow the Python source so results stay within floating-point noise;
 // scripts/test-python-browser.mjs and tests/electrolyser-kernel.test.mjs compare both kernels.
 // Additions that the Python kernel does not report (remaining energy split, supply classes, start counts)
 // are computed alongside the unchanged decisions and never feed back into them.
 
-export const KERNEL_VERSION = 'opsplitsing.py MODEL_VERSION 15 · JS 1';
+export const KERNEL_VERSION = 'opsplitsing.py MODEL_VERSION 16 · JS 2';
 export const STEP_H = 1 / 6;
 export const STRATEGIES = {
  verdelen: 'Per tijdstap het aantal modules dat de meeste waterstof geeft, last gelijk verdeeld.',
@@ -153,24 +153,21 @@ function sequential_loads(power, k, size, a) {
  return draws.map(d => Math.max(0.0, Math.min(size, (d - a.bop_vast * size) / (1 + a.bop_variabel))));
 }
 
-// Per module: a Uint8Array over the time steps, 1 while in maintenance or outage.
+// Share of the time a module is not down for a failure: a fixed deduction of (failures × repair hours) / 8760, as storing_availability().
+export function storing_availability(a) {
+ if (a.storingen_per_jaar <= 0 || a.hersteltijd_uur <= 0) return 1.0;
+ return Math.max(0.0, 1 - a.storingen_per_jaar * a.hersteltijd_uur / 8760);
+}
+
+// Per module: a Uint8Array over the time steps, 1 while in planned maintenance. Failures are not in here (storing_availability).
 export function outages(times, n, year, a) {
- const startWall = localMidnightJan1(year), yearStart = wallToTimestamp(startWall);
+ const startWall = localMidnightJan1(year);
  const blocks = [];
  for (let i = 0; i < n; i++) {
   const spans = [];
   if (a.onderhoud_dagen > 0) {
    const beginWall = addDays(startWall, 105 + i * a.onderhoud_dagen % 150);
    spans.push([wallToTimestamp(beginWall), wallToTimestamp(addDays(beginWall, a.onderhoud_dagen))]);
-  }
-  if (a.storingen_per_jaar > 0 && a.hersteltijd_uur > 0) {
-   const draw = new PyRandom(year * 100 + i);
-   let moment = yearStart;
-   for (;;) {
-    moment += draw.expovariate(a.storingen_per_jaar / (365 * 86400));
-    if (moment >= yearStart + 365 * 86400) break;
-    spans.push([moment, moment + a.hersteltijd_uur * 3600]);
-   }
   }
   const down = new Uint8Array(times.length);
   for (const [lo, hi] of spans) for (let s = lowerBound(times, lo); s < times.length && times[s] < hi; s++) down[s] = 1;
@@ -191,6 +188,7 @@ export function simulate(supply, n, a, strategy) {
  const minimum = draw_mw(a.minimumlast * size, size, a), full = draw_mw(size, size, a);
  let want_h = 0.0;
  const down = outages(times, n, supply.jaar, a);
+ const avail_f = storing_availability(a);
  const on = Array(n).fill(false), on_h = Array(n).fill(0.0), off_h = Array(n).fill(a.koud_na_uur + min_off), startup = Array(n).fill(0.0);
  const stack = Array(n).fill(0.0), eq = Array(n).fill(0.0), hours = Array(n).fill(0.0), warm = Array(n).fill(0), cold = Array(n).fill(0);
  let kg = 0.0, used = 0.0, standby = 0.0, producing = 0.0;
@@ -227,7 +225,7 @@ export function simulate(supply, n, a, strategy) {
    const share = equal_share(power, chosen.length, size, a);
    for (const i of chosen) loads[i] = share;
   }
-  let step_kg = 0.0, step_draw = 0.0;
+  let step_kg = 0.0, step_draw = 0.0, producers = 0;
   for (let i = 0; i < n; i++) {
    const x = loads[i];
    if (x >= a.minimumlast * size - 1e-9 && x > 0) {
@@ -238,7 +236,9 @@ export function simulate(supply, n, a, strategy) {
     }
     const productive = Math.max(0.0, 10 - startup[i]) / 10;
     startup[i] = Math.max(0.0, startup[i] - 10);
-    step_kg += stack_kg_h(x, size, a) * STEP_H * productive;
+    const module_kg = stack_kg_h(x, size, a) * STEP_H * productive;
+    step_kg += module_kg;
+    if (module_kg > 0) producers++;
     const drawn = draw_mw(x, size, a);
     used += drawn * STEP_H;
     step_draw += drawn;
@@ -248,14 +248,13 @@ export function simulate(supply, n, a, strategy) {
     stack[i] = x;
    } else {
     if (on[i]) { on[i] = false; off_h[i] = 0.0; }
-    if (down[i][step]) { /* lost_outage in Python; not reported */ }
-    else if (off_h[i] < a.koud_na_uur) standby += a.standby * size * STEP_H;
+    if (!down[i][step] && off_h[i] < a.koud_na_uur) standby += a.standby * size * STEP_H;
     off_h[i] += STEP_H;
     stack[i] = 0.0;
    }
   }
   kg += step_kg;
-  producing += step_kg > 0 ? STEP_H : 0.0;
+  producing += producers ? STEP_H * (1 - (1 - avail_f) ** producers) : 0.0;
   const unused = Math.max(0, power - step_draw);
   const over = Math.min(unused, Math.max(0, power - installedFull));
   const under = step_draw === 0 && power < lowerLimit ? unused : 0;
@@ -265,6 +264,11 @@ export function simulate(supply, n, a, strategy) {
  }
  const scale = mw.length ? 8760 / (mw.length * STEP_H) : 0;
  const supply_mwh = pySum(mw) * STEP_H;
+ // Failures: every module produces, draws and wears a fixed share less. The energy it would have taken goes to 'overig'.
+ other += used * (1 - avail_f);
+ for (let c = 0; c < classUsed.length; c++) classUsed[c] *= avail_f;
+ kg *= avail_f; used *= avail_f; standby *= avail_f;
+ for (let i = 0; i < n; i++) { hours[i] *= avail_f; eq[i] *= avail_f; warm[i] *= avail_f; cold[i] *= avail_f; }
  return {
   modules: n, module_mw: size, strategie: strategy, jaar: supply.jaar,
   waterstof_t: kg * scale / 1000, verbruik_mwh: used * scale, standby_mwh: standby * scale,
@@ -273,7 +277,7 @@ export function simulate(supply, n, a, strategy) {
   bedrijfsuren_gem: pySum(hours) / n * scale, productie_uur: producing * scale,
   starts_warm_per_module: pySum(warm) / n * scale, starts_koud_per_module: pySum(cold) / n * scale,
   eq_uren_per_module: eq.map(e => e * scale),
-  dekking_uur: mw.length * STEP_H,
+  dekking_uur: mw.length * STEP_H, beschikbaarheid_storing: avail_f,
   extra: {
    schaal: scale, waterstof_kg_gemeten: kg, verbruik_mwh_gemeten: used, starts_totaal: pySum(warm) + pySum(cold),
    onder_minimum_mwh: below * scale, boven_maximum_mwh: above * scale, overig_mwh: other * scale,

@@ -19,9 +19,9 @@ test('cost explanation reproduces native Python totals and exact four-part diffe
  assert.ok(report.checks.every(c=>c.ok),JSON.stringify(report.checks.filter(c=>!c.ok)));
  close(report.economics.base.capex,45_000_000);
  close(report.economics.comparison.capex,46_000_000);
- close(report.economics.base.lcoh,8.02881956239917);
- close(report.economics.comparison.lcoh,7.965166072763748);
- close(report.delta,-0.0636534896354215);
+ close(report.economics.base.lcoh,8.027243507113111);
+ close(report.economics.comparison.lcoh,7.9734251444279245);
+ close(report.delta,-0.05381836268518647);
  for(const part of report.parts)close(part.value,fixture.rijen[1].uitsplitsing[part.key]);
  close(report.parts.reduce((s,p)=>s+p.value,0),report.delta);
  assert.equal(report.context.coverage[0].hours,8650.333333333332);
@@ -118,7 +118,7 @@ test('a clear winner stays cheapest in every test case and is reported with its 
  assert.ok(m.worstMargin>0&&m.worstMargin<m.margin);
  const v=describe(m);
  assert.equal(v.title,'2 modules: duidelijk het goedkoopst');
- assert.match(v.lines[0],/^7,97 €\/kg, 0,06 €\/kg goedkoper dan 1 module \(theoretische referentie\)\. In elk toetsgeval blijft het minstens 0,01 €\/kg goedkoper/);
+ assert.match(v.lines[0],/^7,97 €\/kg, 0,05 €\/kg goedkoper dan 1 module \(theoretische referentie\)\. In elk toetsgeval blijft het minstens <0,01 €\/kg goedkoper/);
  assert.ok(v.lines.some(line=>/^Regel: /.test(line)),'The rule is stated');
 });
 
