@@ -11,7 +11,7 @@ const securityHeaders = { 'Content-Security-Policy': /* __CSP__ */, 'X-Content-T
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 const answer = (value, status = 200) => Response.json(value, { status, headers: { ...securityHeaders, 'Cache-Control': 'no-store' } });
 const authAttempts=new Map();
-const atlasCatalogueKey='atlas/v1/catalogue.json',atlasDatasheetPrefix='atlas/v1/datasheets/',atlasDatasheetRoute='/api/atlas/datasheets/';
+const atlasLiveCatalogueUrl='https://waterstofatlas.nl/api/integrations/mijnwindpark/catalogue',atlasCatalogueKey='atlas/v1/catalogue.json',atlasDatasheetPrefix='atlas/v1/datasheets/',atlasDatasheetRoute='/api/atlas/datasheets/';
 const atlasDatasheetPath=/^(?:ProtonExchangeMembrane|AlkalineElectroLysis|PressurisedAlkalineElectroLysis|AnionExchangeMembrane|SolidOxideElectrolysisCell|Anders)\/[A-Za-z0-9][A-Za-z0-9._-]*\.(?:pdf|png)$/;
 const encoder=new TextEncoder();
 async function researchKey(secret){return crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign','verify']);}
@@ -156,11 +156,19 @@ export default {
       }
       // akubishon/datasheetextract uploads data.json and its datasheets to R2 (atlas/v1/...).
       if(url.pathname==='/api/atlas/catalogue'){
+        const valid=data=>data&&data.schemaVersion===1&&Array.isArray(data.models)&&data.models.length<=500;
+        // Preferred: the live Waterstofatlas (includes the Atlas additions). Any failure falls back to the R2 copy below.
+        if(env.WINDPARK_CATALOG_TOKEN){
+          try{
+            const live=await fetch(atlasLiveCatalogueUrl,{headers:{Authorization:'Bearer '+env.WINDPARK_CATALOG_TOKEN,Accept:'application/json'},signal:AbortSignal.timeout(5000)});
+            if(live.ok){const data=await live.json();if(valid(data))return answer(data);}
+          }catch{/* use the R2 copy */}
+        }
         if(!env.BUCKET)return answer({error:'De opslag voor de Waterstofatlas is niet gekoppeld.'},503);
         const object=await env.BUCKET.get(atlasCatalogueKey);
         if(!object)return answer({error:'De Waterstofatlas-catalogus is nog niet geüpload.'},503);
         const data=await object.json();
-        if(data.schemaVersion!==1||!Array.isArray(data.models)||data.models.length>500)return answer({error:'Onbekend catalogusformaat.'},502);
+        if(!valid(data))return answer({error:'Onbekend catalogusformaat.'},502);
         return answer(data);
       }
       if(url.pathname.startsWith(atlasDatasheetRoute)){
