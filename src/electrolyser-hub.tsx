@@ -114,7 +114,7 @@ export default function ElectrolyserApp(){
  const applyImport=()=>{
   if(!atlasImport.ok||!atlasImport.payload)return;
   const r=setupsFromImport(atlasImport.payload,interpreted.models,{target,limit,makeId});
-  if(r.setups.length){setSetups(r.setups);setActive(r.setups[0].id);setTarget(r.target);if(r.limitChanged)setLimit(r.limit);}
+  if(r.setups.length){setSetups(r.setups);setActive(r.setups[0].id);setTarget(r.target);if(r.limitChanged)setLimit(r.limit as Limit);}
   setImportNote(r.setups.length?`${r.setups.length} ${r.setups.length===1?'opstelling':'opstellingen'} geladen uit de Waterstofatlas, aangevuld tot ${fmt(r.target,2)} MW.`+(r.notFound.length?` ${r.notFound.length} ${r.notFound.length===1?'model is':'modellen zijn'} niet gevonden in de catalogus (onbekend of uitgeschakeld) en overgeslagen.`:''):'Geen enkel model uit de shortlist staat in de catalogus; je opstellingen zijn niet veranderd.');
   clearImport();go('samenstellen');
  };
