@@ -58,6 +58,13 @@ def probe(counts=(1, 2, 4, 10)):
                 SIM_MEMO.job((supply, n, logged(base), strategy))
                 per_run[f'{label} / {strategy} / {n}'] = sorted(LoggedAannames.reads)
                 union |= LoggedAannames.reads
+    # Ook het stand-by-beleid met voorspelling leest alleen velden uit SIMULATION_FIELDS.
+    for strategy in model.STRATEGIES:
+        for n in (1, 4):
+            LoggedAannames.reads = set()
+            SIM_MEMO.job((supply, n, logged(model.Aannames()), strategy, 'voorspelling'))
+            per_run[f'voorspelling / {strategy} / {n}'] = sorted(LoggedAannames.reads)
+            union |= LoggedAannames.reads
     # Eén volledig jaar, voor het geval een tak pas in het jaarverloop wordt bereikt.
     LoggedAannames.reads = set()
     SIM_MEMO.job((FULL_SUPPLY, 4, logged(model.Aannames()), 'verdelen'))
@@ -90,6 +97,7 @@ def key_sensitivity():
     other = {
         'n': SIM_MEMO.key((supply, 5, base, 'verdelen')) != reference,
         'besturing': SIM_MEMO.key((supply, 4, base, 'samen')) != reference,
+        'standby': SIM_MEMO.key((supply, 4, base, 'verdelen', 'voorspelling')) != reference,
         'jaar': SIM_MEMO.key(({**supply, 'jaar': 2024}, 4, base, 'verdelen')) != reference,
         'aanbod': SIM_MEMO.key((window_supply(1100, 2600), 4, base, 'verdelen')) != reference,
         'modelversie': None,

@@ -9,8 +9,8 @@ class SerialPool:
     def __exit__(self, *args): pass
     def map(self, fn, jobs): return tracked_map(fn, list(jobs))
 # capaciteit_mw is stackvermogen; de BoP (standaard 3 % vast + 7 % variabel) komt erbovenop, zoals in het Python-model.
-# 17: BoP weer bovenop het stackvermogen (13–16 rekenden in de browser met BoP 0).
-model.MODEL_VERSION = 17
+# 17: BoP weer bovenop het stackvermogen (13–16 rekenden in de browser met BoP 0). 18: stand-by-beleid met voorspelling.
+model.MODEL_VERSION = 18
 model.ProcessPoolExecutor = SerialPool
 os.cpu_count = lambda: 1
 model.available_years = lambda: [2022, 2023, 2024, 2025]
@@ -160,7 +160,7 @@ def trace_wind(data, profile, parks, day):
             raw = model.park_mw('fryslan', park['v10'], datetime.fromtimestamp(step['t'], timezone.utc), curve, pm)
             park.update(dagfactor=round(factor, 4), mw_aanbod=round(min(FRYSLAN_CAP_MW, raw * factor), 3))
     return data
-# Simulatiecache. Elke simulatie is één model._job((aanbod, n, aannames, besturing)); de kosten (stroomprijs, rente, offerte, ...)
+# Simulatiecache. Elke simulatie is één model._job((aanbod, n, aannames, besturing[, stand-by-beleid])); de kosten (stroomprijs, rente, offerte, ...)
 # worden pas daarna in summarise/break_even toegepast. De uitkomst van een job hangt dus alleen af van het aanbod, n, de besturing en
 # de aannames die simulate() leest. Verandert alleen een kostenaanname, dan is de simulatie een cachetreffer en kost Bereken vrijwel niets.
 # Ook de basisrun van de gevoeligheid en de omslagkaartrij met de huidige minimumlast zijn dezelfde jobs als in Bereken.
@@ -168,7 +168,7 @@ def trace_wind(data, profile, parks, day):
 # elke attribuuttoegang logt en faalt zodra simulate() een ander veld leest. Volgorde van Aannames.
 SIMULATION_FIELDS = ('capaciteit_mw', 'minimumlast', 'systeemverbruik_vol', 'deellastvoordeel', 'faradayverlies_10', 'bop_vast', 'bop_variabel',
                      'degradatie_jaar', 'degradatie_jaren', 'min_aan_min', 'min_uit_min', 'startvertraging_min', 'standby', 'koud_na_uur',
-                     'opstart_warm_min', 'opstart_koud_min', 'onderhoud_dagen', 'storingen_per_jaar', 'hersteltijd_uur',
+                     'opstart_warm_min', 'opstart_koud_min', 'voorspelfout', 'vooruitkijk_uur', 'onderhoud_dagen', 'storingen_per_jaar', 'hersteltijd_uur',
                      'stack_levensduur_uur', 'stackwissel_weken')
 # Eén uitkomst (incl. 'dagen', 365 dagen) is zo'n 70 kB (gemeten in CPython 64-bit); 1000 uitkomsten is dus ongeveer 70 MB, ver onder
 # de ~300 MB die een tabblad aankan naast de windreeksen. Op de standaardinstelling (4 jaren, 10 configuraties) is Bereken 40 jobs,
@@ -189,8 +189,9 @@ class SimulationMemo:
             known = self.signatures[id(supply)] = (supply, (supply['jaar'], *model.supply_key({supply['jaar']: supply})[0]))
         return known[1]
     def key(self, args):
-        supply, n, a, strategy = args
-        return (model.MODEL_VERSION, self.signature(supply), n, strategy, tuple(getattr(a, name) for name in SIMULATION_FIELDS))
+        supply, n, a, strategy, *rest = args
+        return (model.MODEL_VERSION, self.signature(supply), n, strategy, tuple(getattr(a, name) for name in SIMULATION_FIELDS),
+                rest[0] if rest else 'vast')
     def __call__(self, args):
         key = self.key(args)
         if key in self.entries:
@@ -247,6 +248,8 @@ def dispatch(path, body):
         return meta
     a = model.parse_aannames(body.get('aannames', {}))
     strategy = body.get('strategie', 'verdelen')
+    standby = body.get('standby', 'vast')
+    if standby not in model.STANDBY: raise ValueError('Ongeldig stand-by-beleid.')
     counts = body.get('modules', model.MODULE_COUNTS)
     years = sorted(set(body.get('jaren', model.available_years())))
     if strategy not in model.STRATEGIES or not counts or any(type(n) is not int or not 1 <= n <= model.MAX_MODULES for n in counts):
@@ -255,7 +258,9 @@ def dispatch(path, body):
     profile, WIND['parken'] = wind_choice(body)
     if path.endswith('/dag'):
         day = date.fromisoformat(body['datum'])
-        return trace_wind(model.day_trace(a, day, counts, strategy, method=profile), profile, WIND['parken'], day)
-    if path.endswith('/gevoeligheid'): return model.sensitivity(a, years, body['n'], strategy, workers=1, method=profile)
-    if path.endswith('/omslagkaart'): return model.omslagkaart(a, years, counts, strategy, workers=1, method=profile)
-    return run_wind(model.run(a, years, counts, strategy, workers=1, method=profile), profile, WIND['parken'])
+        return trace_wind(model.day_trace(a, day, counts, strategy, method=profile, standby_mode=standby), profile, WIND['parken'], day)
+    if path.endswith('/gevoeligheid'):
+        return model.sensitivity(a, years, body['n'], strategy, workers=1, method=profile, standby_mode=standby)
+    if path.endswith('/omslagkaart'):
+        return model.omslagkaart(a, years, counts, strategy, workers=1, method=profile, standby_mode=standby)
+    return run_wind(model.run(a, years, counts, strategy, workers=1, method=profile, standby_mode=standby), profile, WIND['parken'])
