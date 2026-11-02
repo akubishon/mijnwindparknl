@@ -121,7 +121,8 @@
       return item ? {value, cheapest: cheapest(item).modules} : null;
     }).filter(Boolean) : [];
     const flips = tested.filter(item => item.kind !== 'band' && cheapest(item) !== lowest).map(item => ({key: item.key, kind: item.kind, name: COST_NAMES[item.key], cheapest: cheapest(item).modules}));
-    return {tested: tested.length > 0, cases: tested.length, band, ownFixedCost, step: STEP,
+    // testCases: dezelfde toetsgevallen als in de conclusie, zodat het Excel-rapport ze met formules kan narekenen.
+    return {tested: tested.length > 0, cases: tested.length, testCases: tested.map(item => ({key: item.key, kind: item.kind, value: item.value, lcoh: item.lcoh})), testedModules: rows.map(row => row.modules), band, ownFixedCost, step: STEP,
       lowest: lowest.modules, lowestLcoh: lowest.lcoh_eur_kg, runnerUp: runnerUp.modules, margin: runnerUp.lcoh_eur_kg - lowest.lcoh_eur_kg, worstMargin,
       clear: tested.length > 0 && equivalent.length === 1,
       equivalent: equivalent.map(row => row.modules), dearer: rows.filter(row => !equivalent.includes(row)).map(row => row.modules),
@@ -187,7 +188,7 @@
       const known = standards && finite(standards[key]);
       const changed = known && !near(value, standards[key]);
       const source = changed ? 'eigen aanname' : known ? (field.bron || 'herkomst niet vastgelegd') : 'herkomst niet vastgelegd';
-      return {key, label: field.label || key, value, rawValue: number(a[key]), scale, unit: field.eenheid || '', source, originalSource: field.bron || 'onbekend',
+      return {key, label: field.label || key, value, rawValue: number(a[key]), scale, unit: field.eenheid || '', min: number(field.min), max: number(field.max), source, originalSource: field.bron || 'onbekend',
         explanation: [field.uitleg, changed ? 'Afwijkend van de standaard voor de gekozen technologie; de herkomst van deze invoer is niet afzonderlijk vastgelegd.' : !known ? 'Geen technologie-standaard vastgelegd in deze berekening; de oorspronkelijke veldbron is geen bevestiging van de herkomst van deze waarde.' : 'Standaardwaarde van de gekozen technologie.'].filter(Boolean).join(' '), group: field.group || 'Gebruikte invoer'};
     });
     const calculations = [];

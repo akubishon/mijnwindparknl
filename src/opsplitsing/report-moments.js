@@ -32,7 +32,7 @@
     const nearMinimum = active && Math.abs(stackMw - a.minimumlast * size) <= 0.000500001;
     const n = number;
     return {
-      module: index + 1, stackMw, load: x, productiveFraction: productive,
+      module: index + 1, stackMw, startMinutes, load: x, productiveFraction: productive,
       kg, traceKg: finite(traceKg) ? traceKg : null, powerMw: power, nearMinimum,
       rows: [
         row('stack', 'Stackvermogen', 'Gekozen door de besturing', `${n(stackMw)} MW uit het dagantwoord`, stackMw, 'MW'),
@@ -72,6 +72,18 @@
     const share = key => data.aandeel?.[key] ?? wind?.[key]?.aandeel ?? (key === 'fryslan' ? data.aandeel_fryslan : 1);
     rows.push(row('supply', 'Aanbod voor de elektrolyser', 'Σ parkvermogen × toegewezen aandeel', parks.map(key => `${n(wind[key].mw_aanbod ?? wind[key].mw)} × ${num(share(key))}`).join(' + '), step.aanbod, 'MW'));
     return rows;
+  }
+
+  // De ruwe invoer van dezelfde windstap, zodat het Excel-rapport de windregels als echte formules kan opbouwen.
+  function windInput(data, wind, step) {
+    const parks = Object.keys(data.parken || {}).filter(key => wind?.[key]);
+    if (!parks.length) parks.push(...['fryslan', 'beabuorren'].filter(key => wind?.[key]));
+    const share = key => data.aandeel?.[key] ?? wind?.[key]?.aandeel ?? (key === 'fryslan' ? data.aandeel_fryslan : 1);
+    return {
+      stations: Object.entries(wind?.knmi || {}).map(([key, value]) => ({key, label: data.stations?.[key] || key, value: finite(value) ? value : null})),
+      parks: parks.map(key => ({key, label: data.parken?.[key] || key, rule: data.regel_per_park?.[key] || 'Geselecteerde stationswind', share: share(key), ...wind[key]})),
+      supply: finite(step?.aanbod) ? step.aanbod : null
+    };
   }
 
   function configuration(data, step, count, a) {
@@ -137,7 +149,7 @@
       const index = choose(selection.candidates); used.add(index);
       result.moments.push({kind: selection.kind, title: selection.title, criterion: selection.criterion,
         index, timestamp: base[index].t, available: true,
-        wind: windRows(data, data.wind[index], base[index]),
+        wind: windRows(data, data.wind[index], base[index]), windInput: windInput(data, data.wind[index], base[index]),
         configurations: [configuration(data, base[index], baseN, a), configuration(data, comparison[index], compareN, a)]});
     }
     return result;
