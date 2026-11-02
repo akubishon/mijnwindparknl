@@ -7,7 +7,7 @@ export const ATLAS_URL = 'https://waterstofatlas.nl/#overzicht';
 const DATASHEET_PATH = /(?:ProtonExchangeMembrane|AlkalineElectroLysis|PressurisedAlkalineElectroLysis|AnionExchangeMembrane|SolidOxideElectrolysisCell|Anders)\/[A-Za-z0-9][A-Za-z0-9._-]*\.(?:pdf|png)/g;
 export const datasheetLinks = source => [...new Set([...text(source).matchAll(DATASHEET_PATH)].map(x => x[0]))].map(path => '/api/atlas/datasheets/' + path.split('/').map(encodeURIComponent).join('/'));
 export const NM3_PER_KG = 11.12;   // Nm³ H₂ per kg at 0 °C and 1,013 bar
-export const DISABLED_MANUFACTURERS = ['SANY', 'LONGi Hydrogen', 'Sungrow'];
+export const DISABLED_MANUFACTURERS = ['SANY', 'LONGi Hydrogen', 'Sungrow', 'Accelera by Cummins'];
 // Catalogue fields this page reads; scope, stacks and partload are optional until the Atlas endpoint provides them.
 export const USED_FIELDS = ['power', 'systemEnergy', 'stackEnergy', 'minimum', 'scope', 'stacks', 'partload', 'production', 'hotStart', 'coldStart', 'source'];
 export const OPTIONAL_FIELDS = {scope: 'leveringstype (Leveringsomvang)', stacks: 'aantal stacks', partload: 'deellastcurve'};

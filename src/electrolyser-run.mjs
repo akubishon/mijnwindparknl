@@ -17,7 +17,8 @@ export function assemble(resolved, general, raw) {
  if (keys.some(k => !raw.has(k))) return null;
  const results = keys.map(k => raw.get(k));
  const perYear = results.map((r, i) => withCoverage(metrics(resolved, r, g.years[i])));
- return {years: g.years, keys, perYear, mean: meanMetrics(resolved, perYear, summarise(results), g.years), dropped: results.reduce((s, r) => s + (r.dropped || 0), 0)};
+ const summary = summarise(results);
+ return {years: g.years, keys, perYear, mean: meanMetrics(resolved, perYear, summary, g.years), raw: results, summary, dropped: results.reduce((s, r) => s + (r.dropped || 0), 0)};
 }
 
 // Synchronous helper for tests and scripts: year series are passed in directly; `production` (productie_fryslan.csv as

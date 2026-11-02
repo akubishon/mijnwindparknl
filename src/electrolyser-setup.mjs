@@ -5,9 +5,10 @@ import {TECHNOLOGIES, DEFAULTS, STRATEGIES, KERNEL_VERSION, hoursInYear} from '.
 import {STATUS, fitPartLoadGain, NM3_PER_KG} from './electrolyser-catalogue.mjs';
 import {formatFixed, formatSigned, sharedDecimals, shownDifference, energyUnit} from './number-format.mjs';
 import {WIND_PROFILES, DEFAULT_WIND_PROFILE, windSeries} from './electrolyser-wind.mjs';
+import {COST_KEYS, COST_SETUP_KEYS, generalCosts} from './electrolyser-economics.mjs';
 
 export const WIND_YEARS = [2022, 2023, 2024, 2025];
-export const MAX_SETUPS = 4, MAX_MODULES = 200, DEFAULT_TARGET_MW = 44;
+export const MAX_SETUPS = 6, MAX_MODULES = 200, DEFAULT_TARGET_MW = 44;
 
 // [key, label, unit, shown-scale, low, high] in the shown unit, as AANNAMES_META in opsplitsing.py.
 const META = {
@@ -272,6 +273,11 @@ export const RESULT_ROWS = [
  ['Werkelijk stroomverbruik', 'kwh_per_kg', 'kWh/kg', 'uitkomst', 'werkelijk_kWh_per_kg'], ['Nominaal systeemverbruik (rekenwaarde)', 'kwh_per_kg_nominaal', 'kWh/kg', 'invoer', 'nominaal_kWh_per_kg'],
  ['Draaiuren per module', 'draaiuren', 'uur per jaar', 'uitkomst', 'draaiuren_per_module'], ['Uren met productie', 'productie_uur', 'uur per jaar', 'uitkomst', 'uren_met_productie'], ['Starts per module', 'starts_per_module', 'per jaar', 'uitkomst', 'starts_per_module'],
  ['Datadekking', 'dekking', '%', 'procent', 'datadekking_pct'],
+ // Costs (electrolyser-economics.mjs): shown after the technical rows, never part of the simulation.
+ ['CAPEX (aangenomen prijs)', 'capex_meur', 'M€', 'uitkomst', 'CAPEX_MEUR'], ['Kapitaalkosten en vaste OPEX', 'kapitaal_meur_jaar', 'M€ per jaar', 'uitkomst', 'kapitaal_en_OPEX_MEUR_per_jaar'],
+ ['Stroomkosten', 'stroom_meur_jaar', 'M€ per jaar', 'uitkomst', 'stroom_MEUR_per_jaar'], ['Stackvervanging', 'stack_meur_jaar', 'M€ per jaar', 'uitkomst', 'stackvervanging_MEUR_per_jaar'],
+ ['Kosten per jaar', 'kosten_meur_jaar', 'M€ per jaar', 'uitkomst', 'kosten_MEUR_per_jaar'], ['LCOH', 'lcoh_eur_kg', '€/kg', 'uitkomst', 'LCOH_EUR_per_kg'],
+ ['Maximale meerprijs t.o.v. referentie (boven +, onder − de aangenomen prijs)', 'meerprijs_eur_kw', '€/kW', 'uitkomst', 'max_meerprijs_EUR_per_kW'],
 ];
 export const PERCENT_KEYS = new Set(['benut', 'belasting', 'dekking']);
 
@@ -333,7 +339,8 @@ export function comparisonCSV({catalogue, entries, general}) {
  const head = ['bron.catalogusversie', 'bron.catalogus_bijgewerkt', 'bron.aanvullingen_versie', 'bron.opstelling', 'bron.model_id', 'bron.model', 'bron.fabrikant', 'bron.technologie',
   'bron.leveringstype', 'bron.leveringstype.status', 'bron.tekst_vermogen', 'bron.tekst_systeemverbruik', 'bron.tekst_stackverbruik', 'bron.tekst_minimumlast', 'bron.bronvermelding',
   'aanname.aantal_modules', ...modelCols.flatMap(k => [`aanname.${k}`, `aanname.${k}.status`, `aanname.${k}.regel`]),
-  'aanname.besturing', 'aanname.besturing.status', ...GENERAL_KEYS.flatMap(k => [`aanname.${k}`, `aanname.${k}.status`]), 'aanname.windprofiel', 'aanname.windprofiel.status', 'aanname.windreeks', 'aanname.windjaren', 'aanname.storingen',
+  'aanname.besturing', 'aanname.besturing.status', ...GENERAL_KEYS.flatMap(k => [`aanname.${k}`, `aanname.${k}.status`]),
+  ...COST_SETUP_KEYS.flatMap(k => [`aanname.kosten.${k}`, `aanname.kosten.${k}.status`]), ...COST_KEYS.flatMap(k => [`aanname.kosten.${k}`, `aanname.kosten.${k}.status`]), 'aanname.windprofiel', 'aanname.windprofiel.status', 'aanname.windreeks', 'aanname.windjaren', 'aanname.storingen',
   'uitkomst.windjaar', 'uitkomst.rust_op', ...RESULT_ROWS.map(row => 'uitkomst.' + row[4]), 'uitkomst.uren_met_data', 'uitkomst.invoer_hash', 'uitkomst.rekenkern'];
  const lines = [head];
  for (const entry of entries) {
@@ -343,10 +350,88 @@ export function comparisonCSV({catalogue, entries, general}) {
   const base = [catalogue?.revision, catalogue?.sourceUpdatedAt, catalogue?.additionsVersion, setup.label, model.id, model.name, model.manufacturer, model.technology,
    model.delivery.label, model.delivery.status, model.power.raw, model.systemEnergy.raw, model.stackEnergy.raw, model.minimum.raw, model.source,
    resolved.modules, ...modelCols.flatMap(k => { const f = byKey[k]; return f ? [shown(f), statusText(f), f.rule || ''] : ['', '', '']; }),
-   g.strategy, g.strategyStatus, ...g.fields.flatMap(f => [f.value * f.scale, f.status]), g.windProfile, g.windStatus, windSeries(g.windProfile), g.years.join(', '), 'Vaste trekking per module en jaar (zaad jaar × 100 + modulenummer), gelijk voor elke opstelling'];
+   g.strategy, g.strategyStatus, ...g.fields.flatMap(f => [f.value * f.scale, f.status]),
+   ...COST_SETUP_KEYS.flatMap(k => { const f = entry.costs?.fields?.find(x => x.key === k); return f ? [f.value * f.scale, f.status] : ['', '']; }),
+   ...generalCosts(general).fields.flatMap(f => [f.value * f.scale, f.status]), g.windProfile, g.windStatus, windSeries(g.windProfile), g.years.join(', '), 'Vaste trekking per module en jaar (zaad jaar × 100 + modulenummer), gelijk voor elke opstelling'];
   const rust = `${resolved.counts.bron} bronwaarden en ${resolved.counts.aanname} aannames`;
   const rows = [...result.years.map((y, i) => [String(y), withCoverage(result.perYear[i])]), ['gemiddelde', result.mean]];
   for (const [label, m] of rows) lines.push([...base, label, rust, ...RESULT_ROWS.map(([, k]) => PERCENT_KEYS.has(k) ? (finite(m[k]) ? m[k] * 100 : null) : m[k]), m.dekking_uur, result.keys.join(' '), KERNEL_VERSION]);
  }
  return '﻿' + lines.map(row => row.map(csvCell).join(';')).join('\r\n');
 }
+
+// ---- Import of a shortlist from the Waterstofatlas (?atlas=<base64url JSON>) ----
+// The Atlas links here with a query parameter because both password gates keep path + query and drop the #fragment.
+export const ATLAS_IMPORT_MAX_IDS = 6, ATLAS_IMPORT_MAX_CHARS = 4000, ATLAS_TARGET_RANGE = [1, 200];
+export function decodeBase64Url(text) {
+ const bin = atob(String(text).replace(/-/g, '+').replace(/_/g, '/')), bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+ return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
+}
+// Validate the payload strictly: only model ids, a target and an optional module limit are accepted. An invalid target
+// (outside 1–200 MW) is dropped, not fatal: the models are still useful at the target already set here.
+export function parseAtlasImport(search) {
+ const raw = new URLSearchParams(String(search || '')).get('atlas');
+ if (raw === null) return {present: false, ok: false, error: '', payload: null};
+ const fail = error => ({present: true, ok: false, error, payload: null});
+ if (!raw || raw.length > ATLAS_IMPORT_MAX_CHARS || !/^[A-Za-z0-9_-]+$/.test(raw)) return fail('De link uit de Waterstofatlas is onleesbaar.');
+ let data;
+ try { data = JSON.parse(decodeBase64Url(raw)); } catch { return fail('De link uit de Waterstofatlas is onleesbaar.'); }
+ if (!data || typeof data !== 'object' || data.type !== 'atlas-shortlist') return fail('Dit is geen shortlist uit de Waterstofatlas.');
+ if (data.version !== 1) return fail('Deze shortlist komt van een andere versie van de Waterstofatlas en wordt niet gelezen.');
+ const ids = data.ids;
+ if (!Array.isArray(ids) || ids.length < 1 || ids.length > ATLAS_IMPORT_MAX_IDS || ids.some(id => typeof id !== 'string' || !/^[a-f0-9]{12}$/.test(id)) || new Set(ids).size !== ids.length)
+  return fail(`De shortlist moet 1 tot ${ATLAS_IMPORT_MAX_IDS} unieke modellen bevatten.`);
+ const target = finite(data.target) && data.target >= ATLAS_TARGET_RANGE[0] && data.target <= ATLAS_TARGET_RANGE[1] ? data.target : null;
+ const maxModules = Number.isInteger(data.maxModules) && data.maxModules >= 1 && data.maxModules <= MAX_MODULES ? data.maxModules : null;
+ return {present: true, ok: true, error: '', payload: {ids: [...ids], target, maxModules, revision: typeof data.revision === 'string' ? data.revision.slice(0, 80) : ''}};
+}
+// One setup per known model, filled to the target as `choose` does it in the hub. `models` are interpreted catalogue
+// models; unknown or disabled ids (they are not in `models`) end up in `notFound`.
+export function setupsFromImport(payload, models, {target = DEFAULT_TARGET_MW, limit = defaultLimit(), makeId = (i => `import${i}`)} = {}) {
+ const byId = new Map(models.map(m => [m.id, m]));
+ const goal = payload.target ?? target;
+ const useLimit = payload.maxModules ? {...defaultLimit(), mode: 'waarschuwen', max: payload.maxModules} : limit;
+ const setups = [], notFound = [];
+ for (const id of payload.ids) {
+  const model = byId.get(id);
+  if (!model) { notFound.push(id); continue; }
+  const fill = model.power?.value ? fillWithinLimit(stackPowerMW(model.power.value, model.boundary.value), goal, useLimit) : null;
+  setups.push(newSetup(makeId(setups.length), id, fill?.modules || 1));
+ }
+ return {setups, notFound, target: goal, limit: useLimit, limitChanged: !!payload.maxModules};
+}
+
+// ---- Result back to the Waterstofatlas (?windresultaat=<base64url JSON>#arena) ----
+// Same reason as the import: the Atlas password gate keeps path + query and drops the #fragment, so the data travels in the query.
+export const ATLAS_RESULT_BASE = 'https://waterstofatlas.nl/';
+export const encodeBase64Url = text => {
+ let bin = '';
+ for (const b of new TextEncoder().encode(text)) bin += String.fromCharCode(b);
+ return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+const sig = (v, digits = 5) => finite(v) ? Number(v.toPrecision(digits)) : null;
+// A field still rests on an assumption when it is open, a technology standard or a derived assumption.
+const restsOnAssumption = f => f.value === null || f.status === STATUS.standaard || (f.status === STATUS.afgeleid && !!f.aanname);
+// entries: [{setup, model, resolved, result (the costed assembly), costs}] in the order of the comparison. Only setups with a
+// result and a catalogue id travel along. A model used in two setups is sent once, with its best result (lowest LCOH,
+// otherwise most hydrogen), because the Atlas knows models and not setups.
+export function windResultPayload({entries, reference = 0, general = defaultGeneral(), target = DEFAULT_TARGET_MW}) {
+ const g = generalValues(general);
+ const generalOpen = g.fields.filter(restsOnAssumption).map(f => f.key);
+ const best = new Map();
+ entries.forEach((e, index) => {
+  const mean = e?.result?.mean, id = e?.model?.id;
+  if (!mean || typeof id !== 'string' || !/^[a-f0-9]{12}$/.test(id)) return;
+  const keys = [...new Set([...e.resolved.fields.filter(restsOnAssumption).map(f => f.key), ...generalOpen, ...(e.costs?.fields || []).filter(restsOnAssumption).map(f => f.key)])].slice(0, 40);
+  const item = {modelId: id, modules: e.resolved.modules, waterstof_t: sig(mean.waterstof_kg / 1000), benutting: sig(mean.benut, 4), lcoh_eur_kg: sig(mean.lcoh_eur_kg, 4),
+   meerprijs_eur_kw: index === reference ? null : sig(mean.meerprijs_eur_kw, 4), koude_starts: sig(mean.starts_koud_per_module, 4), aannameVelden: keys, isReference: index === reference};
+  const old = best.get(id);
+  const better = !old || (finite(item.lcoh_eur_kg) && finite(old.lcoh_eur_kg) ? item.lcoh_eur_kg < old.lcoh_eur_kg : item.waterstof_t > old.waterstof_t);
+  if (better) best.set(id, item);
+ });
+ const setups = [...best.values()].slice(0, MAX_SETUPS).map(({isReference, ...rest}) => rest);
+ const referenceId = entries[reference]?.model?.id;
+ return {type: 'windpark-result', version: 1, kernel: KERNEL_VERSION, years: [...g.years], windprofiel: g.windProfile, target: sig(target, 6),
+  reference: typeof referenceId === 'string' && best.has(referenceId) ? referenceId : null, setups};
+}
+export const windResultLink = payload => payload?.setups?.length ? `${ATLAS_RESULT_BASE}?windresultaat=${encodeBase64Url(JSON.stringify(payload))}#arena` : null;

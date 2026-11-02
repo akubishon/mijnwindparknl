@@ -238,3 +238,10 @@ test('datasheet links come from the repository paths in the source text, not fro
  assert.deepEqual(datasheetLinks(''), []);
  assert.deepEqual(interpretModel({id: 'x', name: 'x', manufacturer: 'x', technology: 'PEM', values: {source: 'ProtonExchangeMembrane/nel_10MW.pdf; p. 1'}}).datasheets, ['/api/atlas/datasheets/ProtonExchangeMembrane/nel_10MW.pdf']);
 });
+
+test('Accelera by Cummins is disabled, as in the Waterstofatlas', () => {
+ const raw = catalogue.models[0];
+ const result = catalogueModels({...catalogue, models: [{...raw, id: 'accelera', manufacturer: 'Accelera by Cummins'}]});
+ assert.equal(result.models.length, 0);
+ assert.equal(result.excluded.length, 1);
+});

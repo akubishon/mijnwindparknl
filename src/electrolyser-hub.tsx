@@ -1,15 +1,16 @@
 import {useCallback,useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import {SiteHeader,SiteNavigation} from './site-navigation';
 import {formatFixed,formatSigned,shownDifference,sharedDecimals,decimalsFor,energyUnit} from './number-format.mjs';
-import {resultRow} from './electrolyser-setup.mjs';
+import {resultRow,parseAtlasImport,setupsFromImport,windResultPayload,windResultLink} from './electrolyser-setup.mjs';
 import {catalogueModels,missingEndpointFields,DISABLED_MANUFACTURERS,NM3_PER_KG} from './electrolyser-catalogue.mjs';
 import {resolveSetup,generalValues,defaultGeneral,newSetup,fillWithinLimit,stackPowerMW,defaultLimit,validLimit,modelFit,limitFloorMW,RESULT_ROWS,PERCENT_KEYS,differences,capacityWarnings,comparisonCSV,fieldMeta,GENERAL_KEYS,WIND_YEARS,MAX_SETUPS,MAX_MODULES,DEFAULT_TARGET_MW,MODEL_KEYS,jobFor} from './electrolyser-setup.mjs';
 import {assemble} from './electrolyser-run.mjs';
+import {COST_KEYS,generalCosts,setupCosts,withCosts,robustness,DEFAULT_PRICE_EUR_KW} from './electrolyser-economics.mjs';
 import {STRATEGIES,TECHNOLOGIES,SUPPLY_EDGES,KERNEL_VERSION} from './electrolyser-kernel.mjs';
 import {WIND_PROFILES,windSeries} from './electrolyser-wind.mjs';
 
 type Tab='catalogus'|'samenstellen'|'vergelijken';
-type Choices={power?:number;powerNote?:string;boundary?:'systeem'|'stack';energy?:number;energyNote?:string;energySource?:'tech';minimum?:number;minimumNote?:string;minimumSource?:'tech';profile?:string;bopConfirmed?:boolean;usePartLoad?:boolean;values?:Record<string,number>};
+type Choices={power?:number;powerNote?:string;boundary?:'systeem'|'stack';energy?:number;energyNote?:string;energySource?:'tech';minimum?:number;minimumNote?:string;minimumSource?:'tech';profile?:string;bopConfirmed?:boolean;usePartLoad?:boolean;values?:Record<string,number>;cost?:{eurKw?:number;totalMeur?:number;fixedMeur?:number}};
 type Setup={id:string;modelId:string;modules:number;choices:Choices};
 type General={strategy:string;years:number[];values:Record<string,number>;wind:string};
 type Field={key:string;label:string;value:any;unit:string;status:string;aanname?:boolean;rule?:string;raw?:string;candidates?:number[];scale?:number;basis?:string;fit?:{rms:number}};
@@ -19,13 +20,13 @@ type Value={status:string;value?:number;raw:string;rule?:string;reason?:string;c
 type Model={id:string;name:string;manufacturer:string;technology:string;power:Value&{platformLimitMW?:number};systemEnergy:Value;stackEnergy:Value;minimum:Value;boundary:{value:string;status:string;rule:string;aanname?:boolean};acdc:{value:string|null;status:string;rule:string};delivery:{kind:string|null;label:string;status:string;raw:string;note?:string};stacks:{raw:string;status:string};partload?:{raw:string;usable:boolean;unit?:string;bands:{van:number;tot:number;waarde:number;kWhPerKg:number}[]};production:string;hotStart:string;coldStart:string;source:string;datasheets:string[];url:string;profile:{key:string|null}};
 type Catalogue={schemaVersion:number;revision:string;sourceUpdatedAt?:string|null;additionsVersion?:string|null;models:any[]};
 type Metrics=Record<string,any>;
-type Assembled={years:number[];keys:string[];perYear:Metrics[];mean:Metrics;dropped:number};
+type Assembled={years:number[];keys:string[];perYear:Metrics[];mean:Metrics;dropped:number;raw:any[];summary:any};
 
 const TABS:[Tab,string,string][]=[['catalogus','Catalogus','/elektrolyser/catalogus'],['samenstellen','Samenstellen','/elektrolyser/samenstellen'],['vergelijken','Vergelijken','/elektrolyser/vergelijken']];
 const tabFromPath=(path:string):Tab=>(TABS.find(t=>t[2]===path.replace(/\/$/,''))?.[0])||'catalogus';
-const LETTERS='ABCD';
+const LETTERS='ABCDEF';
 const TARGET_NOTE='Het doelvermogen is het totale stackvermogen; de BoP komt daar in de berekening bovenop. Met de standaard 10 % BoP neemt 44 MW stack bij vollast 48,4 MW op.';
-const COLORS=['#0C2340','#00A6DE','#9A5B13','#4E7A3A'],DASHES=['','6 4','2 3','10 3 2 3'];
+const COLORS=['#0C2340','#00A6DE','#9A5B13','#4E7A3A','#B3261E','#6B4C9A'],DASHES=['','6 4','2 3','10 3 2 3','4 2','8 2 2 2 2 2'];
 const fmt=(n:number|null|undefined,d=1)=>typeof n==='number'&&Number.isFinite(n)?new Intl.NumberFormat('nl-NL',{maximumFractionDigits:d,minimumFractionDigits:0}).format(n):'—';
 const STATUS_CLASS:Record<string,string>={'bron':'bron','afgeleid':'afgeleid','standaard technologie':'standaard','eigen invoer':'eigen','open':'open','ontbreekt':'ontbreekt','niet-in-endpoint':'endpoint'};
 function load<T>(key:string,fallback:T,valid:(v:any)=>boolean):T{try{const v=JSON.parse(localStorage.getItem(key)||'null');return v!==null&&valid(v)?v:fallback;}catch{return fallback;}}
@@ -86,6 +87,8 @@ export default function ElectrolyserApp(){
  const [target,setTarget]=useState<number>(()=>load('elektrolyser-doelvermogen-v1',DEFAULT_TARGET_MW,v=>typeof v==='number'&&v>0&&v<=100000));
  const [limit,setLimit]=useState<Limit>(()=>load('elektrolyser-modulelimiet-v1',defaultLimit() as Limit,validLimit));
  const [reference,setReference]=useState(0);
+ const [atlasImport,setAtlasImport]=useState(()=>parseAtlasImport(location.search));
+ const [importNote,setImportNote]=useState('');
  useEffect(()=>save('elektrolyser-opstellingen-v1',setups),[setups]);
  useEffect(()=>save('elektrolyser-algemeen-v1',general),[general]);
  useEffect(()=>save('elektrolyser-doelvermogen-v1',target),[target]);
@@ -107,7 +110,19 @@ export default function ElectrolyserApp(){
   setSetups(l=>l.some(s=>s.id===id)?l.map(s=>s.id===id?newSetup(id,modelId,modules):s):[...l,newSetup(id,modelId,modules)]);
   setActive(id);go('samenstellen');
  };
- const catalogueState=<>{catalogue.loading&&<p role="status" className="wind-note">Waterstofatlas-catalogus laden…</p>}{catalogue.error&&<div className="live-error" role="alert"><p>{catalogue.error}</p><button type="button" className="download" onClick={()=>void loadCatalogue()}>Opnieuw proberen</button></div>}</>;
+ // The parameter is removed from the address in both cases, so a reload or a copied link does not repeat the question.
+ const clearImport=()=>{try{const u=new URL(location.href);u.searchParams.delete('atlas');history.replaceState(history.state,'',u.pathname+(u.search||'')+u.hash);}catch{/* address stays as it is */}setAtlasImport({present:false,ok:false,error:'',payload:null});};
+ const applyImport=()=>{
+  if(!atlasImport.ok||!atlasImport.payload)return;
+  const r=setupsFromImport(atlasImport.payload,interpreted.models,{target,limit,makeId});
+  if(r.setups.length){setSetups(r.setups);setActive(r.setups[0].id);setTarget(r.target);if(r.limitChanged)setLimit(r.limit as Limit);}
+  setImportNote(r.setups.length?`${r.setups.length} ${r.setups.length===1?'opstelling':'opstellingen'} geladen uit de Waterstofatlas, aangevuld tot ${fmt(r.target,2)} MW.`+(r.notFound.length?` ${r.notFound.length} ${r.notFound.length===1?'model is':'modellen zijn'} niet gevonden in de catalogus (onbekend of uitgeschakeld) en overgeslagen.`:''):'Geen enkel model uit de shortlist staat in de catalogus; je opstellingen zijn niet veranderd.');
+  clearImport();go('samenstellen');
+ };
+ const importBar=atlasImport.present&&(atlasImport.ok&&atlasImport.payload
+  ?<div className="import-bar" role="region" aria-label="Shortlist uit de Waterstofatlas"><p><strong>Shortlist uit de Waterstofatlas</strong> ({atlasImport.payload.ids.length} {atlasImport.payload.ids.length===1?'model':'modellen'}{atlasImport.payload.target?`, doel ${fmt(atlasImport.payload.target,2)} MW`:''}{atlasImport.payload.maxModules?`, maximaal ${atlasImport.payload.maxModules} modules`:''}) laden? Dit vervangt je huidige opstellingen.</p><div className="import-actions"><button type="button" className="download" disabled={!catalogue.data} onClick={applyImport}>{catalogue.data?'Laden':'Catalogus laden…'}</button><button type="button" className="download secondary" onClick={clearImport}>Negeren</button></div></div>
+  :<div className="live-error" role="alert"><p>{atlasImport.error}</p><button type="button" className="download" onClick={clearImport}>Sluiten</button></div>);
+ const catalogueState=<>{importBar}{importNote&&<p role="status" className="wind-note">{importNote}</p>}{catalogue.loading&&<p role="status" className="wind-note">Waterstofatlas-catalogus laden…</p>}{catalogue.error&&<div className="live-error" role="alert"><p>{catalogue.error}</p><button type="button" className="download" onClick={()=>void loadCatalogue()}>Opnieuw proberen</button></div>}</>;
  return <Shell tab={tab} go={go}>{catalogueState}
   {tab==='catalogus'&&<CatalogueTab catalogue={catalogue.data} interpreted={interpreted} onChoose={choose} onReload={()=>void loadCatalogue()} loading={catalogue.loading} limit={limit} setLimit={setLimit} target={target} setTarget={setTarget}/>}
   {tab==='samenstellen'&&<ComposeTab setups={setups} setSetups={setSetups} active={active} setActive={setActive} resolved={resolved} byId={byId} models={interpreted.models} update={update} target={target} setTarget={setTarget} go={go} general={general} limit={limit} setLimit={setLimit}/>}
@@ -266,19 +281,25 @@ function CompareTab({setups,resolved,byId,general,setGeneral,reference,setRefere
  const signature=jobs.map(j=>j.key).join(',');
  const results:(Assembled|null)[]=useMemo(()=>ready.map(x=>assemble(x.resolved,general,calc.cache) as Assembled|null),[signature,calc.state.version]);
  const complete=ready.length>=2&&results.every(Boolean);
+ // Costs follow the simulation and are not part of the cache key: another price or rate needs no new run.
+ const gc=generalCosts(general),costsOf=ready.map(x=>setupCosts(x.resolved,x.setup,general));
+ const costed:(Assembled|null)[]=complete?withCosts(results.map((r,i)=>({assembled:r,a:costsOf[i].a})),ref):results;
+ const verdict=complete?robustness(ready.map((x,i)=>({result:results[i]!.summary,a:costsOf[i].a,fixedOwn:Number.isFinite(x.setup.choices.cost?.fixedMeur)}))):null;
  // Start once per new input; a newer request replaces a running one in the worker.
  const autoRun=useRef('');
  useEffect(()=>{if(ready.length>=2&&!complete&&autoRun.current!==signature){autoRun.current=signature;calc.run(jobs);}},[signature,complete]);
  const [chosenPeriod,setPeriod]=useState<'mean'|number>('mean');
  const period=chosenPeriod!=='mean'&&!g.years.includes(chosenPeriod)?'mean':chosenPeriod;
- const rows=results.map(r=>r?(period==='mean'?r.mean:r.perYear[r.years.indexOf(period)]||null):null);
+ const rows=costed.map(r=>r?(period==='mean'?r.mean:r.perYear[r.years.indexOf(period)]||null):null);
  const diffs=complete?differences(rows,ref):[];
  const warnings=capacityWarnings(ready.map(x=>x.resolved),ref);
+ const setCost=(id:string,change:(c:NonNullable<Choices['cost']>)=>NonNullable<Choices['cost']>)=>update(id,st=>({...st,choices:{...st.choices,cost:change({...(st.choices.cost||{})})}}));
  const setValue=(key:string,v:number|null)=>setGeneral(x=>{const values={...x.values};if(v===null)delete values[key];else values[key]=v;return {...x,values};});
  function download(){
-  const csv=comparisonCSV({catalogue,general,entries:ready.map((x,i)=>({setup:{label:x.label},model:x.model,resolved:x.resolved,result:results[i]}))});
+  const csv=comparisonCSV({catalogue,general,entries:ready.map((x,i)=>({setup:{label:x.label},model:x.model,resolved:x.resolved,result:costed[i],costs:costsOf[i]}))});
   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`elektrolyser-vergelijking-${catalogue?.revision||'catalogus'}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
+ const atlasLink=complete?windResultLink(windResultPayload({entries:ready.map((x,i)=>({setup:x.setup,model:x.model,resolved:x.resolved,result:costed[i],costs:costsOf[i]})),reference:ref,general,target})):null;
  const fillAll=()=>ready.forEach(x=>{const f=x.resolved.stackModuleMW?fillWithinLimit(x.resolved.stackModuleMW,target,limit):null;if(f)update(x.setup.id,s=>({...s,modules:f.modules}));});
  // With a warning limit the setups stay in the comparison; each one outside the limit is listed.
  const outside=setups.map((s,i)=>({label:LETTERS[i],limit:resolved[i].limit})).filter(x=>x.limit?.mode==='waarschuwen'&&!x.limit.ok);
@@ -293,17 +314,35 @@ function CompareTab({setups,resolved,byId,general,setGeneral,reference,setRefere
    <label>Referentieopstelling<select value={ref} onChange={e=>setReference(Number(e.target.value))}>{ready.map((x,i)=><option key={x.setup.id} value={i}>Opstelling {x.label} · {x.model!.name}</option>)}</select><small>Verschillen gelden ten opzichte van deze opstelling.</small></label>
    <label>Toon<select value={String(period)} onChange={e=>setPeriod(e.target.value==='mean'?'mean':Number(e.target.value))}><option value="mean">Gemiddelde {g.years.join(', ')}</option>{g.years.map(y=><option key={y} value={y}>Windjaar {y}</option>)}</select><small>De spreiding tussen jaren is geen betrouwbaarheidsinterval.</small></label></div>
   <details className="model-settings"><summary>Algemene aannames, gelijk voor alle opstellingen</summary><p>Standaard zijn dit de waarden van <code>Aannames()</code> in opsplitsing.py; de meeste zijn plaatshouders. Storingen zijn een vaste beschikbaarheidsafslag: elke module is (storingen × hersteltijd) / 8.760 uur minder beschikbaar, zonder toeval en voor elke opstelling hetzelfde.</p><ul className="field-list">{g.fields.map((f:any)=><li key={f.key} className="field-row"><div className="field-main"><span className="field-label">{f.label}<small> · {f.unit}</small></span><span className="field-value">{fmt(f.value*f.scale,3)}</span><StatusChip field={f}/></div><p className="field-rule">{f.rule}</p><div className="field-controls"><label className="inline-input">Eigen waarde<NumberInput label={`${f.label}, eigen waarde`} value={general.values[f.key]??null} scale={f.scale} onCommit={v=>setValue(f.key,v)}/></label>{general.values[f.key]!==undefined&&<button type="button" className="text-button" onClick={()=>setValue(f.key,null)}>Terug naar standaard</button>}</div></li>)}</ul></details>
-  {ready.length<2?<div className="live-error" role="status"><p>Vergelijken kan met 2 tot 4 opstellingen die klaar zijn om te rekenen. Nu klaar: {ready.length}.</p><ul>{setups.map((s,i)=>resolved[i].ready?null:<li key={s.id}>Opstelling {LETTERS[i]}: {resolved[i].problems[0]||'kies een model'} <button type="button" className="text-button" onClick={()=>{setActive(s.id);go('samenstellen');}}>Aanpassen</button></li>)}</ul></div>:<>
+  <details className="model-settings"><summary>Kostenaannames: algemeen en per opstelling</summary><p>Kosten volgen uit de simulatie en veranderen die niet: een andere prijs vraagt geen nieuwe berekening. De prijs per kW is een <strong>eigen aanname</strong> (referentieofferte van /opsplitsing: 60 M€ voor 50 MW in 10 units) zolang u geen offerte heeft; de vaste kosten per module zijn een onzekere aanname. Dat de uitkomst vooral de investering volgt, is precies waarom de maximale meerprijs hieronder het getal is om mee te onderhandelen.</p>
+   <h3>Gelijk voor alle opstellingen</h3><ul className="field-list">{gc.fields.map((f:any)=><li key={f.key} className="field-row"><div className="field-main"><span className="field-label">{f.label}<small> · {f.unit}</small></span><span className="field-value">{fmt(f.value*f.scale,3)}</span><StatusChip field={f}/></div><p className="field-rule">{f.rule}</p><div className="field-controls"><label className="inline-input">Eigen waarde<NumberInput label={`${f.label}, eigen waarde`} value={general.values[f.key]??null} scale={f.scale} onCommit={v=>setValue(f.key,v)}/></label>{general.values[f.key]!==undefined&&<button type="button" className="text-button" onClick={()=>setValue(f.key,null)}>Terug naar standaard</button>}</div></li>)}</ul>
+   <h3>Per opstelling</h3><ul className="field-list">{ready.map((x,i)=>{const c=x.setup.choices.cost||{},sc=costsOf[i];return <li key={x.setup.id} className="field-row"><div className="field-main"><span className="field-label">Opstelling {x.label}<small> · {x.model!.name}</small></span><span className="field-value">{fmt(sc.price,0)} €/kW · {fmt(sc.fields[1].value,2)} M€ vast per module</span><StatusChip field={sc.fields[0]}/></div><p className="field-rule">{sc.fields[0].rule}{sc.problem?` ${sc.problem}`:''}</p><div className="field-controls">
+    <label className="inline-input">Eigen prijs (€/kW stack)<NumberInput label={`Opstelling ${x.label}, prijs in euro per kW`} value={c.eurKw??null} onCommit={v=>setCost(x.setup.id,k=>{const n={...k};delete n.totalMeur;if(v===null||!(v>0))delete n.eurKw;else n.eurKw=v;return n;})}/></label>
+    <label className="inline-input">of totaalprijs (M€)<NumberInput label={`Opstelling ${x.label}, totaalprijs in miljoen euro`} value={c.totalMeur??null} onCommit={v=>setCost(x.setup.id,k=>{const n={...k};delete n.eurKw;if(v===null||!(v>0))delete n.totalMeur;else n.totalMeur=v;return n;})}/></label>
+    <label className="inline-input">Vaste kosten per module (M€)<NumberInput label={`Opstelling ${x.label}, vaste kosten per module in miljoen euro`} value={c.fixedMeur??null} onCommit={v=>setCost(x.setup.id,k=>{const n={...k};if(v===null||!(v>=0&&v<=50))delete n.fixedMeur;else n.fixedMeur=v;return n;})}/></label>
+    {x.setup.choices.cost&&Object.keys(x.setup.choices.cost).length>0&&<button type="button" className="text-button" onClick={()=>setCost(x.setup.id,()=>({}))}>Terug naar standaard ({fmt(DEFAULT_PRICE_EUR_KW,0)} €/kW)</button>}</div></li>;})}</ul></details>
+  {ready.length<2?<div className="live-error" role="status"><p>Vergelijken kan met 2 tot 6 opstellingen die klaar zijn om te rekenen. Nu klaar: {ready.length}.</p><ul>{setups.map((s,i)=>resolved[i].ready?null:<li key={s.id}>Opstelling {LETTERS[i]}: {resolved[i].problems[0]||'kies een model'} <button type="button" className="text-button" onClick={()=>{setActive(s.id);go('samenstellen');}}>Aanpassen</button></li>)}</ul></div>:<>
    {setups.some((s,i)=>!resolved[i].ready)&&<p className="wind-note">Niet meegerekend: {setups.map((s,i)=>resolved[i].ready?null:`opstelling ${LETTERS[i]} (${notCounted(resolved[i])})`).filter(Boolean).join(', ')}.</p>}
    {warnings.length>0&&<div className="live-error capacity-warning" role="alert">{warnings.map(w=><p key={w.index}><strong>Opstelling {ready[w.index].label}</strong> {w.kind==='nominaal'?`heeft ${fmt(Math.abs(w.pct)*100,1)}% ${w.pct>0?'meer':'minder'} nominaal vermogen dan referentie ${ready[ref].label}`:`neemt bij vollast ${fmt(Math.abs(w.pct)*100,1)}% ${w.pct>0?'meer':'minder'} op dan referentie ${ready[ref].label}, door een andere vermogensgrens (stack of systeem)`} ({fmt(w.kind==='nominaal'?ready[w.index].resolved.nominalMW:ready[w.index].resolved.intakeMW,2)} tegen {fmt(w.kind==='nominaal'?ready[ref].resolved.nominalMW:ready[ref].resolved.intakeMW,2)} MW). Verschillen in opbrengst komen dan ook door de grootte.</p>)}<div className="model-actions"><label className="inline-input">Doelvermogen stack (MW)<NumberInput label="Doelvermogen als totaal stackvermogen in MW" value={target} onCommit={v=>{if(v!==null&&v>0&&v<=100000)setTarget(v);}}/></label><button type="button" className="download" onClick={fillAll}>Vul alle opstellingen aan tot {fmt(target,2)} MW stack</button></div></div>}
-   <div className="model-actions compare-actions"><button type="button" className="primary-button" disabled={calc.state.running} onClick={()=>calc.run(jobs)}>{calc.state.running?'Rekenen…':complete?'Opnieuw rekenen':'Bereken vergelijking'}</button>{complete&&<button type="button" className="download" onClick={download}>CSV met waarden, statussen en catalogusversie</button>}</div>
+   <div className="model-actions compare-actions"><button type="button" className="primary-button" disabled={calc.state.running} onClick={()=>calc.run(jobs)}>{calc.state.running?'Rekenen…':complete?'Opnieuw rekenen':'Bereken vergelijking'}</button>{complete&&<button type="button" className="download" onClick={download}>CSV met waarden, statussen en catalogusversie</button>}{atlasLink&&<a className="primary-button" href={atlasLink} target="_blank" rel="noopener">Resultaat naar Waterstofatlas ↗</a>}</div>
+   {atlasLink&&<p className="wind-note">Stuurt per model de modules, waterstof, LCOH en maximale meerprijs naar de Arena van de Waterstofatlas, met de gegevens die nog op aannames rusten als open vragen voor fabrikanten. Er gaan geen ingevoerde prijzen of persoonsgegevens mee; de Atlas vraagt eerst om bevestiging.</p>}
    {(calc.state.running||calc.state.error)&&<div className="research-progress" role="status">{calc.state.running&&<><p>{calc.state.done} van {calc.state.total} berekeningen klaar{calc.state.label?` · ${calc.state.label}`:''}{calc.state.fromCache?` · ${calc.state.fromCache} uit de cache`:''}.</p><progress value={calc.state.done} max={calc.state.total||1} aria-label="Berekeningen klaar"/></>}{calc.state.error&&<p className="live-error">{calc.state.error}</p>}</div>}
+   {complete&&verdict&&<CostVerdict verdict={verdict} ready={ready}/>}
    {complete&&<><ResultTable ready={ready} rows={rows} diffs={diffs} reference={ref} results={results as Assembled[]}/><YearTable ready={ready} results={results as Assembled[]} reference={ref}/><ClassChart ready={ready} rows={rows} reference={ref}/>
-    <p className="wind-note">Dit is een technische vergelijking zonder oordeel over de beste opstelling en zonder financieel advies. Kosten en LCOH staan in <a href="/opsplitsing">Elektrolyser opsplitsen</a>, met dezelfde rekenkern. Rekenkern: {KERNEL_VERSION}.</p></>}
+    <p className="wind-note">Kosten en LCOH zijn indicatief: de prijs per kW is een eigen aanname tot er offertes zijn, en start/stop-slijtage zit er niet in. Dit is geen financieel advies. De algemene studie naar het nut van opsplitsen, met gevoeligheid en omslagkaart, staat in <a href="/opsplitsing">Elektrolyser opsplitsen</a>. Rekenkern: {KERNEL_VERSION}.</p></>}
   </>}
  </section>;
 }
 
+const joinNames=(list:string[])=>list.length<2?list.join(''):list.slice(0,-1).join(', ')+' en '+list[list.length-1];
+function CostVerdict({verdict,ready}:{verdict:NonNullable<ReturnType<typeof robustness>>;ready:ReadyEntry[]}){
+ const name=(i:number)=>ready[i].label,names=(l:number[])=>joinNames(l.map(name)),eur=(v:number)=>fmt(v,2);
+ const same=verdict.equivalent.length>1;
+ return <div className="research-explainer cost-verdict" role="status" aria-label="Conclusie over kosten">
+  <p><strong>{same?`Opstelling ${names(verdict.equivalent)} zijn binnen de onzekerheid gelijkwaardig: LCOH ${eur(verdict.range[0])} tot ${eur(verdict.range[1])} €/kg.`:`Opstelling ${name(verdict.lowest)} heeft de laagste LCOH (${eur(verdict.lowestLcoh)} €/kg) en blijft dat in alle ${verdict.cases} toetsgevallen.`}</strong>{verdict.dearer.length>0&&` Opstelling ${names(verdict.dearer)} ${verdict.dearer.length>1?'zijn':'is'} in elk toetsgeval duurder.`}</p>
+  <p>{same?'Er is geen winnaar aan te wijzen. ':`Marge op opstelling ${name(verdict.runnerUp)}: ${eur(verdict.margin)} €/kg. `}Toetsgevallen zijn de investering, vaste kosten per module (0,3 en 2 M€), stroomprijs, netkosten, rente, looptijd, stackvervanging en vaste OPEX, elk 25 % lager en hoger.{verdict.drivers.length>0&&` Het meest bepalend: ${joinNames(verdict.drivers.map(d=>d.name))}.`} Bedrijfsaannames (minimumlast, opstarttijd) vragen een nieuwe berekening en staan niet in deze toets.</p>
+ </div>;
+}
 type ReadyEntry={setup:Setup;label:string;resolved:Resolved;model?:Model};
 function ResultTable({ready,rows,diffs,reference,results}:{ready:ReadyEntry[];rows:(Metrics|null)[];diffs:any[];reference:number;results:Assembled[]}){
  return <div className="table-scroll compare-table-scroll"><table className="compare-table"><caption>Uitkomst per opstelling · verschil ten opzichte van opstelling {ready[reference].label}</caption><thead><tr><th scope="col">Uitkomst</th>{ready.map((x,i)=><th key={x.setup.id} scope="col"><span className="setup-swatch" style={{background:COLORS[i]}}/>Opstelling {x.label}{i===reference?' (referentie)':''}<small>{x.model!.name} · {x.resolved.modules} × {fmt(x.resolved.moduleMW,3)} MW</small></th>)}</tr></thead><tbody>

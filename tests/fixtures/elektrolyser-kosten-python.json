@@ -1,0 +1,377 @@
+{
+ "python": "3.13.18",
+ "model_version": 18,
+ "cases": [
+  {
+   "naam": "10 x 4,4 MW verdelen",
+   "invoer": {
+    "modules": 10,
+    "waterstof_t": 3103.3187145087654,
+    "verbruik_mwh": 173296.85400233493,
+    "standby_mwh": 464.5661438868164,
+    "eq_uren_per_module": [
+     4957.486647913438,
+     4956.985857963146,
+     4957.486647913438,
+     4957.319717930008,
+     4957.486647913438,
+     4957.319717930008,
+     4957.486647913438,
+     4956.485068012855,
+     4957.319717930008,
+     4956.818927979716
+    ]
+   },
+   "capaciteit_mw": 44.0,
+   "stack_levensduur_uur": 60000.0,
+   "aannames": {
+    "offerte_meur": 60.0,
+    "offerte_mw": 50.0,
+    "offerte_modules": 10.0,
+    "vaste_kosten_module_meur": 1.0,
+    "stack_aandeel": 0.14,
+    "opex_aandeel": 0.02,
+    "stroomprijs_eur_mwh": 88.91,
+    "netkosten_eur_mwh": 18.2,
+    "belasting_eur_mwh": 3.8,
+    "rente": 0.06,
+    "looptijd_jaar": 20.0,
+    "capex_subsidie_eur_kw": 0.0,
+    "waterstofpremie_eur_kg": 0.0,
+    "korting_net_belasting_eur_mwh": 0.0,
+    "zuurstofprijs_eur_t": 0.0
+   },
+   "uitkomst": {
+    "capex_meur": 54.0,
+    "stack_meur_jaar": 0.6246096645524336,
+    "kosten_meur_jaar": 25.684454849719863,
+    "stroom_meur_jaar": 19.271879108417455,
+    "kapitaal_meur_jaar": 5.787966076749976,
+    "lcoh_eur_kg": 8.27644763963135,
+    "netto_eur_kg": 8.27644763963135,
+    "jaren_tot_stackwissel": 12.102907029563754,
+    "prijs_per_kw": 1000.0
+   }
+  },
+  {
+   "naam": "2 x 22 MW verdelen",
+   "invoer": {
+    "modules": 2,
+    "waterstof_t": 3025.3136015545488,
+    "verbruik_mwh": 168423.59635126838,
+    "standby_mwh": 375.4722731301818,
+    "eq_uren_per_module": [
+     5076.841586066327,
+     5085.021155254427
+    ]
+   },
+   "capaciteit_mw": 44.0,
+   "stack_levensduur_uur": 60000.0,
+   "aannames": {
+    "offerte_meur": 60.0,
+    "offerte_mw": 50.0,
+    "offerte_modules": 10.0,
+    "vaste_kosten_module_meur": 0.3,
+    "stack_aandeel": 0.14,
+    "opex_aandeel": 0.02,
+    "stroomprijs_eur_mwh": 88.91,
+    "netkosten_eur_mwh": 18.2,
+    "belasting_eur_mwh": 3.8,
+    "rente": 0.06,
+    "looptijd_jaar": 20.0,
+    "capex_subsidie_eur_kw": 0.0,
+    "waterstofpremie_eur_kg": 0.0,
+    "korting_net_belasting_eur_mwh": 0.0,
+    "zuurstofprijs_eur_t": 0.0
+   },
+   "uitkomst": {
+    "capex_meur": 50.76,
+    "stack_meur_jaar": 0.6017855115410152,
+    "kosten_meur_jaar": 24.763978324818037,
+    "stroom_meur_jaar": 18.721504701132044,
+    "kapitaal_meur_jaar": 5.440688112144977,
+    "lcoh_eur_kg": 8.185590516002419,
+    "netto_eur_kg": 8.185590516002419,
+    "jaren_tot_stackwissel": 11.79936094031804,
+    "prijs_per_kw": 1140.0
+   }
+  },
+  {
+   "naam": "10 x 4,4 MW samen",
+   "invoer": {
+    "modules": 10,
+    "waterstof_t": 2857.746917899495,
+    "verbruik_mwh": 159093.52967539406,
+    "standby_mwh": 351.579250741796,
+    "eq_uren_per_module": [
+     5193.191784517466,
+     5193.358714500896,
+     5134.43243034989,
+     5106.888983083838,
+     5116.403992139383,
+     5086.857385072164,
+     5185.346075296227,
+     5133.764710416167,
+     5150.123848792367,
+     5179.002735925864
+    ]
+   },
+   "capaciteit_mw": 44.0,
+   "stack_levensduur_uur": 60000.0,
+   "aannames": {
+    "offerte_meur": 45.0,
+    "offerte_mw": 50.0,
+    "offerte_modules": 10.0,
+    "vaste_kosten_module_meur": 1.0,
+    "stack_aandeel": 0.14,
+    "opex_aandeel": 0.02,
+    "stroomprijs_eur_mwh": 88.91,
+    "netkosten_eur_mwh": 18.2,
+    "belasting_eur_mwh": 3.8,
+    "rente": 0.06,
+    "looptijd_jaar": 20.0,
+    "capex_subsidie_eur_kw": 150.0,
+    "waterstofpremie_eur_kg": 0.0,
+    "korting_net_belasting_eur_mwh": 0.0,
+    "zuurstofprijs_eur_t": 0.0
+   },
+   "uitkomst": {
+    "capex_meur": 40.8,
+    "stack_meur_jaar": 0.49008360868409734,
+    "kosten_meur_jaar": 21.971852488290146,
+    "stroom_meur_jaar": 17.68405703099773,
+    "kapitaal_meur_jaar": 3.797711848608318,
+    "lcoh_eur_kg": 7.688522853675205,
+    "netto_eur_kg": 7.688522853675205,
+    "jaren_tot_stackwissel": 11.553216963901994,
+    "prijs_per_kw": 700.0
+   }
+  },
+  {
+   "naam": "2 x 22 MW samen",
+   "invoer": {
+    "modules": 2,
+    "waterstof_t": 2854.142788314803,
+    "verbruik_mwh": 158862.49882873724,
+    "standby_mwh": 363.16953335136003,
+    "eq_uren_per_module": [
+     5180.50510577674,
+     5180.338175793308
+    ]
+   },
+   "capaciteit_mw": 44.0,
+   "stack_levensduur_uur": 60000.0,
+   "aannames": {
+    "offerte_meur": 60.0,
+    "offerte_mw": 50.0,
+    "offerte_modules": 10.0,
+    "vaste_kosten_module_meur": 1.0,
+    "stack_aandeel": 0.14,
+    "opex_aandeel": 0.02,
+    "stroomprijs_eur_mwh": 88.91,
+    "netkosten_eur_mwh": 18.2,
+    "belasting_eur_mwh": 3.8,
+    "rente": 0.0,
+    "looptijd_jaar": 15.0,
+    "capex_subsidie_eur_kw": 0.0,
+    "waterstofpremie_eur_kg": 0.0,
+    "korting_net_belasting_eur_mwh": 0.0,
+    "zuurstofprijs_eur_t": 0.0
+   },
+   "uitkomst": {
+    "capex_meur": 46.0,
+    "stack_meur_jaar": 0.5560319227775927,
+    "kosten_meur_jaar": 22.202417467483507,
+    "stroom_meur_jaar": 17.659718878039243,
+    "kapitaal_meur_jaar": 3.9866666666666664,
+    "lcoh_eur_kg": 7.779014265993565,
+    "netto_eur_kg": 7.779014265993565,
+    "jaren_tot_stackwissel": 11.581882224784314,
+    "prijs_per_kw": 1000.0
+   }
+  },
+  {
+   "naam": "4 modules bijschakelen",
+   "invoer": {
+    "modules": 4,
+    "waterstof_t": 3036.4826799160023,
+    "verbruik_mwh": 170661.68386258575,
+    "standby_mwh": 432.63410735608096,
+    "eq_uren_per_module": [
+     4209.473392160854,
+     4208.1379522934085,
+     4209.807252127715,
+     4208.1379522934085
+    ]
+   },
+   "capaciteit_mw": 44.0,
+   "stack_levensduur_uur": 60000.0,
+   "aannames": {
+    "offerte_meur": 60.0,
+    "offerte_mw": 50.0,
+    "offerte_modules": 10.0,
+    "vaste_kosten_module_meur": 1.0,
+    "stack_aandeel": 0.14,
+    "opex_aandeel": 0.02,
+    "stroomprijs_eur_mwh": 55.0,
+    "netkosten_eur_mwh": 18.2,
+    "belasting_eur_mwh": 3.8,
+    "rente": 0.06,
+    "looptijd_jaar": 20.0,
+    "capex_subsidie_eur_kw": 0.0,
+    "waterstofpremie_eur_kg": 0.0,
+    "korting_net_belasting_eur_mwh": 40.0,
+    "zuurstofprijs_eur_t": 0.0
+   },
+   "uitkomst": {
+    "capex_meur": 48.0,
+    "stack_meur_jaar": 0.4713955833685109,
+    "kosten_meur_jaar": 15.02644180660418,
+    "stroom_meur_jaar": 9.4101874883468,
+    "kapitaal_meur_jaar": 5.144858734888867,
+    "lcoh_eur_kg": 4.94863412394628,
+    "netto_eur_kg": 4.94863412394628,
+    "jaren_tot_stackwissel": 14.252433996752435,
+    "prijs_per_kw": 1000.0
+   }
+  },
+  {
+   "naam": "alkaline schrikkeljaar",
+   "invoer": {
+    "modules": 3,
+    "waterstof_t": 2772.0485638189507,
+    "verbruik_mwh": 154284.9851651059,
+    "standby_mwh": 402.1011944918183,
+    "eq_uren_per_module": [
+     5740.815429184919,
+     5740.815429184919,
+     5742.018810271472
+    ]
+   },
+   "capaciteit_mw": 30.0,
+   "stack_levensduur_uur": 80000.0,
+   "aannames": {
+    "offerte_meur": 60.0,
+    "offerte_mw": 50.0,
+    "offerte_modules": 10.0,
+    "vaste_kosten_module_meur": 1.0,
+    "stack_aandeel": 0.14,
+    "opex_aandeel": 0.035,
+    "stroomprijs_eur_mwh": 88.91,
+    "netkosten_eur_mwh": 18.2,
+    "belasting_eur_mwh": 3.8,
+    "rente": 0.06,
+    "looptijd_jaar": 20.0,
+    "capex_subsidie_eur_kw": 0.0,
+    "waterstofpremie_eur_kg": 1.5,
+    "korting_net_belasting_eur_mwh": 0.0,
+    "zuurstofprijs_eur_t": 60.0
+   },
+   "uitkomst": {
+    "capex_meur": 33.0,
+    "stack_meur_jaar": 0.3315552561213453,
+    "kosten_meur_jaar": 21.51999038450042,
+    "stroom_meur_jaar": 17.15634474814298,
+    "kapitaal_meur_jaar": 4.032090380236096,
+    "lcoh_eur_kg": 7.7632082876835,
+    "netto_eur_kg": 5.7832082876835,
+    "jaren_tot_stackwissel": 13.932382084310474,
+    "prijs_per_kw": 1000.0
+   }
+  },
+  {
+   "naam": "veel uitval",
+   "invoer": {
+    "modules": 5,
+    "waterstof_t": 1319.6252885371623,
+    "verbruik_mwh": 74069.86899681906,
+    "standby_mwh": 98.10296522273084,
+    "eq_uren_per_module": [
+     5878.846857842494,
+     5880.713849910831,
+     5879.935936549024,
+     5878.691275170132,
+     5879.780353876663
+    ]
+   },
+   "capaciteit_mw": 12.0,
+   "stack_levensduur_uur": 60000.0,
+   "aannames": {
+    "offerte_meur": 60.0,
+    "offerte_mw": 50.0,
+    "offerte_modules": 10.0,
+    "vaste_kosten_module_meur": 1.0,
+    "stack_aandeel": 0.25,
+    "opex_aandeel": 0.02,
+    "stroomprijs_eur_mwh": 88.91,
+    "netkosten_eur_mwh": 0.0,
+    "belasting_eur_mwh": 3.8,
+    "rente": 0.06,
+    "looptijd_jaar": 20.0,
+    "capex_subsidie_eur_kw": 0.0,
+    "waterstofpremie_eur_kg": 0.0,
+    "korting_net_belasting_eur_mwh": 0.0,
+    "zuurstofprijs_eur_t": 0.0
+   },
+   "uitkomst": {
+    "capex_meur": 17.0,
+    "stack_meur_jaar": 0.41647121720577956,
+    "kosten_meur_jaar": 9.114721366413146,
+    "stroom_meur_jaar": 6.876112680600894,
+    "kapitaal_meur_jaar": 1.822137468606474,
+    "lcoh_eur_kg": 6.9070526653191395,
+    "netto_eur_kg": 6.9070526653191395,
+    "jaren_tot_stackwissel": 10.202842976437251,
+    "prijs_per_kw": 1000.0
+   }
+  },
+  {
+   "naam": "geen minimumlast",
+   "invoer": {
+    "modules": 7,
+    "waterstof_t": 3429.1589108244843,
+    "verbruik_mwh": 188383.3505687334,
+    "standby_mwh": 257.275180036603,
+    "eq_uren_per_module": [
+     7170.398122470425,
+     7170.734216502274,
+     7169.5578873908025,
+     7170.2300754545,
+     7170.398122470425,
+     7170.398122470425,
+     7170.2300754545
+    ]
+   },
+   "capaciteit_mw": 40.0,
+   "stack_levensduur_uur": 60000.0,
+   "aannames": {
+    "offerte_meur": 60.0,
+    "offerte_mw": 40.0,
+    "offerte_modules": 4.0,
+    "vaste_kosten_module_meur": 2.0,
+    "stack_aandeel": 0.14,
+    "opex_aandeel": 0.02,
+    "stroomprijs_eur_mwh": 88.91,
+    "netkosten_eur_mwh": 18.2,
+    "belasting_eur_mwh": 3.8,
+    "rente": 0.06,
+    "looptijd_jaar": 20.0,
+    "capex_subsidie_eur_kw": 0.0,
+    "waterstofpremie_eur_kg": 0.0,
+    "korting_net_belasting_eur_mwh": 0.0,
+    "zuurstofprijs_eur_t": 0.0
+   },
+   "uitkomst": {
+    "capex_meur": 66.0,
+    "stack_meur_jaar": 1.104222825688694,
+    "kosten_meur_jaar": 29.10053538795697,
+    "stroom_meur_jaar": 20.922131801796084,
+    "kapitaal_meur_jaar": 7.074180760472192,
+    "lcoh_eur_kg": 8.486202052666096,
+    "netto_eur_kg": 8.486202052666096,
+    "jaren_tot_stackwissel": 8.367344010871271,
+    "prijs_per_kw": 1300.0
+   }
+  }
+ ]
+}

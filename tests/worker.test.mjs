@@ -401,6 +401,21 @@ test('atlas catalogue stays behind site login and is read from R2',async()=>{
  }finally{global.fetch=prior;}
 });
 
+test('atlas catalogue prefers the live Waterstofatlas and falls back to R2',async()=>{
+ const worker=await fresh(),prior=global.fetch,settings={...env,WINDPARK_CATALOG_TOKEN:'fixture-token',BUCKET:bucket({'atlas/v1/catalogue.json':JSON.stringify({schemaVersion:1,revision:'r2',models:[]})})};
+ const calls=[];
+ try{
+  global.fetch=async(url,init)=>{calls.push([String(url),init.headers.Authorization]);return Response.json({schemaVersion:1,revision:'live',models:[]});};
+  let r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),settings);
+  assert.equal((await r.json()).revision,'live');
+  assert.deepEqual(calls,[['https://waterstofatlas.nl/api/integrations/mijnwindpark/catalogue','Bearer fixture-token']]);
+  for(const failing of [async()=>new Response('nope',{status:401}),async()=>{throw Error('down');},async()=>Response.json({schemaVersion:2,models:[]})]){
+   global.fetch=failing;r=await worker.fetch(new Request('https://fixture.test/api/atlas/catalogue'),settings);
+   assert.equal(r.status,200);assert.equal((await r.json()).revision,'r2');
+  }
+ }finally{global.fetch=prior;}
+});
+
 test('atlas datasheets are served from R2 behind the site login and only for known datasheet paths',async()=>{
  const objects={'atlas/v1/datasheets/ProtonExchangeMembrane/Siemens_17.5MW.pdf':'%PDF-fixture','atlas/v1/datasheets/ProtonExchangeMembrane/OortEnergy_0.25_0.5_1.5_20MW.png':'png-fixture','atlas/v1/catalogue.json':'{}'};
  const raw=await rawFresh();assert.equal((await raw.fetch(new Request('https://fixture.test/api/atlas/datasheets/ProtonExchangeMembrane/Siemens_17.5MW.pdf'),{...env,BUCKET:bucket(objects)})).status,401);
