@@ -30,6 +30,11 @@ function change(after, before, {kind = "sig", unit = "", factor = 1, sign = true
 // 1 module is een rekenreferentie: één unit van het totale vermogen die als geheel aan- en uitschakelt, bouwt niemand.
 const label = n => n === 1 ? "1 module (theoretische referentie)" : `${n} modules`;
 const tick = n => n === 1 ? "1 (ref.)" : String(n);
+const STANDBY_NAMES = {vast: "Vast", voorspelling: "Met voorspelling"};
+// Eén zin over het stand-by-beleid van een uitkomst, met de voorspelling als die meedoet.
+const standbyText = result => (result.standbybeleid || "vast") === "voorspelling"
+  ? `Stand-by met voorspelling: ${nf(result.aannames.voorspelfout * 100, 0)} % voorspelfout, ${nf(result.aannames.vooruitkijk_uur, 0)} uur vooruit.`
+  : "Stand-by vast.";
 const startsOf = row => finite(row.starts_warm_per_module) && finite(row.starts_koud_per_module)
   ? {perModule: row.starts_warm_per_module + row.starts_koud_per_module, total: (row.starts_warm_per_module + row.starts_koud_per_module) * row.modules} : null;
 
@@ -129,6 +134,7 @@ function values() {
 function selection() {
   return {
     strategie: document.querySelector("input[name=strategie]:checked")?.value || "verdelen",
+    standby: document.querySelector("input[name=standby]:checked")?.value || "vast",
     jaren: [...document.querySelectorAll("input[name=jaar]:checked")].map(i => Number(i.value)),
     modules: [...document.querySelectorAll("input[name=modules]:checked")].map(i => Number(i.value)),
     windprofiel: document.querySelector("input[name=windprofiel]:checked")?.value || "onafhankelijk",
@@ -286,6 +292,14 @@ function buildForm(state) {
     const labelNode = document.createElement("label");
     labelNode.innerHTML = `<input type="radio" name="strategie" value="${key}"><span><b>${key[0].toUpperCase() + key.slice(1)}</b><small>${description}</small></span>`;
     labelNode.querySelector("input").checked = key === (state.strategie || "verdelen");
+    return labelNode;
+  }));
+  // Oudere rekenmodellen kennen geen stand-by-keuze; dan blijft het vaste gedrag.
+  const policies = meta.standbybeleid || {vast: ""};
+  $("standby-policies").replaceChildren(...Object.entries(policies).map(([key, description]) => {
+    const labelNode = document.createElement("label");
+    labelNode.innerHTML = `<input type="radio" name="standby" value="${key}"><span><b>${STANDBY_NAMES[key] || key}</b><small>${description}</small></span>`;
+    labelNode.querySelector("input").checked = key === (policies[state.standby] !== undefined ? state.standby : "vast");
     return labelNode;
   }));
   const checks = (target, name, list, chosen, format) => $(target).replaceChildren(...list.map(value => {
@@ -632,7 +646,7 @@ function snapshotRequest(result) {
     if (finite(result.aannames[entry.key])) aannames[entry.key] = result.aannames[entry.key] * entry.schaal;
   }
   // Uitkomsten van vóór de wind- en parkkeuze rekenden met de standaard.
-  return {aannames, strategie: result.strategie, jaren: [...result.jaren], modules: result.rijen.map(r => r.modules),
+  return {aannames, strategie: result.strategie, standby: result.standbybeleid || "vast", jaren: [...result.jaren], modules: result.rijen.map(r => r.modules),
     windprofiel: result.windprofiel || "onafhankelijk", parken: knownParks(result.parken)};
 }
 
@@ -640,7 +654,7 @@ function refreshResultStatus() {
   if (!lastResult) return;
   const snapshot = snapshotRequest(lastResult), current = selection(), currentValues = values();
   const sameList = (a, b) => [...a].sort((x, y) => x - y).join(",") === [...b].sort((x, y) => x - y).join(",");
-  const same = snapshot.strategie === current.strategie && sameList(snapshot.jaren, current.jaren)
+  const same = snapshot.strategie === current.strategie && snapshot.standby === current.standby && sameList(snapshot.jaren, current.jaren)
     && sameList(snapshot.modules, current.modules)
     && snapshot.windprofiel === current.windprofiel && snapshot.parken.join(",") === current.parken.join(",")
     && Object.entries(snapshot.aannames).every(([key, value]) => finite(currentValues[key]) && Math.abs(currentValues[key] - value) < 1e-6);
@@ -652,7 +666,7 @@ function resultCsv(result) {
   const rowKeys = [...new Set(result.rijen.flatMap(Object.keys))];
   const assumptionKeys = Object.keys(result.aannames);
   const stepKeys = ["deltaKg", "deltaCost", "deltaHours", "deltaLcoh", "vsLowest", "marginal"];
-  const headers = ["berekening.windjaren", "berekening.strategie", "berekening.technologie", "berekening.windmethode", "berekening.windparken", ...rowKeys, "stap.van_modules", ...stepKeys.map(k => "stap." + k), ...assumptionKeys.map(k => "aanname." + k)];
+  const headers = ["berekening.windjaren", "berekening.strategie", "berekening.standby", "berekening.technologie", "berekening.windmethode", "berekening.windparken", ...rowKeys, "stap.van_modules", ...stepKeys.map(k => "stap." + k), ...assumptionKeys.map(k => "aanname." + k)];
   const cell = value => {
     if (value == null) return "";
     if (typeof value === "number") return Number.isFinite(value) ? String(value).replace(".", ",") : "";
@@ -662,7 +676,7 @@ function resultCsv(result) {
   };
   const rows = result.rijen.map((row, i) => {
     const s = i ? steps[i - 1] : {vsLowest: difference(row.lcoh_eur_kg, lowestCost(result.rijen))};
-    return [result.jaren.join(", "), result.strategie, result.technologie ?? "", result.windmethode ?? "", knownParks(result.parken).join(", "), ...rowKeys.map(k => row[k]),
+    return [result.jaren.join(", "), result.strategie, result.standbybeleid || "vast", result.technologie ?? "", result.windmethode ?? "", knownParks(result.parken).join(", "), ...rowKeys.map(k => row[k]),
       s.before?.modules, ...stepKeys.map(k => s[k]), ...assumptionKeys.map(k => result.aannames[k])];
   });
   return "\ufeff" + [headers, ...rows].map(row => row.map(cell).join(";")).join("\r\n");
@@ -692,6 +706,10 @@ function resultContext(result) {
     + `Totaal stackvermogen: ${nf(a.capaciteit_mw, 1)} MW in elke configuratie. Gekozen moduleaantallen: ${result.rijen.map(r => r.modules).join(", ")}. `
     + `Minimumlast: ${nf(a.minimumlast * 100, 1)} %. Onderhoud: ${nf(a.onderhoud_dagen, 1)} dagen per module per jaar, plus berekende stackwisselstilstand. `
     + `De kostprijs is de gemiddelde jaarkosten gedeeld door de gemiddelde jaarproductie over de gekozen windjaren.`;
+  // Eigen span, zodat de vertaling de zin hierboven als geheel blijft vinden.
+  const standbyNode = document.createElement("span");
+  standbyNode.textContent = standbyText(result);
+  $("result-basis").append(" ", standbyNode);
   const outageHours = a.storingen_per_jaar > 0 && a.hersteltijd_uur > 0 ? Math.min(8760, a.storingen_per_jaar * a.hersteltijd_uur) : 0;
   // Losse zinnen in eigen spans, zodat de vertaling elke zin apart vindt.
   $("result-uncertainty").replaceChildren(...[
@@ -716,6 +734,7 @@ function resultContext(result) {
 }
 
 function table(rows, net) {
+  const predicted = rows.some(r => r.standbybeleid === "voorspelling");
   const columns = [
     ["Modules", r => `${r.modules} × ${nf(r.module_mw)} MW${r.modules === 1 ? '<span class="best-label">theoretische referentie</span>' : ""}`],
     ["Waterstof (t/jaar)", r => sig(r.waterstof_t)],
@@ -724,6 +743,8 @@ function table(rows, net) {
     ["Uren met waterstof", r => sig(r.productie_uur)],
     ["Starts per module (warm / koud)", r => `${sig(r.starts_warm_per_module)} / ${sig(r.starts_koud_per_module)}`],
     ["Starts per jaar, totaal", r => sig(startsOf(r)?.total)],
+    ...(predicted ? [["Uren warme stand-by per module", r => sig(r.standby_uur_per_module)],
+      ["Vermeden starts per module", r => sig(r.starts_vermeden_per_module)]] : []),
     ["Stackwissel na (jaar)", r => sig(r.jaren_tot_stackwissel)],
     ["CAPEX (M€)", r => sig(r.capex_meur)],
     ["Maximale CAPEX (M€)", r => sig(r.capex_break_even_meur)],
@@ -1046,7 +1067,7 @@ async function showSaved(id) {
     const oldBoP = key => key.startsWith("bop_") && (result.model_versie ?? 0) < 17;
     const aannames = Object.fromEntries(Object.entries(result.aannames).filter(([key]) => key in scales && !oldBoP(key))
       .map(([key, value]) => [key, Math.round(value * scales[key] * 1e6) / 1e6]));
-    buildForm({technologie: stored.technologie, strategie: result.strategie, jaren: result.jaren, aannames,
+    buildForm({technologie: stored.technologie, strategie: result.strategie, standby: result.standbybeleid || "vast", jaren: result.jaren, aannames,
       modules: result.rijen.map(r => r.modules).filter(n => meta.modules.includes(n)), windprofiel: result.windprofiel, parken: result.parken});
     remember();
     drawExplainers();
@@ -1094,6 +1115,11 @@ function headline(rows, result) {
   $("result-sub").textContent = `Besturing ‘${result.strategie}’, windjaren ${years}. Gemodelleerd aanbod gemiddeld `
     + `${sig(supply.reduce((s, a) => s + a.mwh, 0) / result.jaren.length / 1000)} GWh per jaar${parts}. `
     + (result.windmethode_uitleg ? `Wind: ${result.windmethode_uitleg}.` : "Wind: oude methode (vóór modelversie 11).");
+  if ((result.standbybeleid || "vast") !== "vast") {
+    const node = document.createElement("span");
+    node.textContent = standbyText(result);
+    $("result-sub").append(" ", node);
+  }
   // Eén regel: heel Fryslân in dit windprofiel tegenover de gemeten productie (beide omgerekend naar 8.760 uur).
   const model = mean("fryslan", "park_mwh"), measured = mean("fryslan", "gemeten_mwh");
   if (Number.isFinite(model) && Number.isFinite(measured)) $("result-sub").append(document.createElement("br"),
@@ -1304,7 +1330,7 @@ async function runDay() {
   setPlaying(false);
   const progress = progressView($("day-status"), "Dag berekenen…");
   try {
-    const data = await post("/api/opsplitsing/dag", {aannames: v, strategie: request.strategie, windprofiel: request.windprofiel, parken: request.parken,
+    const data = await post("/api/opsplitsing/dag", {aannames: v, strategie: request.strategie, standby: request.standby, windprofiel: request.windprofiel, parken: request.parken,
       datum: requestedDate, modules: [1, n]}, progress);
     if (result !== lastResult || n !== Number($("day-count").value) || requestedDate !== $("day").value) return;
     dayChart(data, n, v);
@@ -1498,7 +1524,9 @@ function moduleBars(step, size, color) {
     svg.append(el("rect", {x: left, y: 0, width: w, height: H, fill: step.uit[i] ? "#EFECE6" : "#fff", stroke: "#bcc8d2"}));
     if (step.uit[i]) svg.append(el("line", {x1: left, y1: H, x2: left + w, y2: 0, stroke: COLORS.muted}));
     if (fill > 0) svg.append(el("rect", {x: left + 1, y: H - fill * (H - 2) - 1, width: w - 2, height: fill * (H - 2), fill: color, "fill-opacity": step.opstart_min[i] ? .45 : 1}));
-    if (n <= 16) svg.append(text(left + w / 2, H + 12, step.uit[i] ? "uit" : nf(fill * 100, 0) + "%", {"text-anchor": "middle", "font-size": 9}));
+    // Bij stand-by met voorspelling: een stilstaande module is warm gehouden of koelt af.
+    const idle = step.toestand && !step.uit[i] && fill <= 0 ? (step.toestand[i] === "warm" ? "warm" : "koel") : null;
+    if (n <= 16) svg.append(text(left + w / 2, H + 12, step.uit[i] ? "uit" : idle || nf(fill * 100, 0) + "%", {"text-anchor": "middle", "font-size": 9}));
   });
   return svg;
 }
@@ -1570,11 +1598,14 @@ function renderWalk() {
     const size = config.module_mw;
     const active = step.stack.filter(x => x > 0).length;
     const reason = step.redenen.length ? `<br><span class="why">${step.redenen.join("; ")}</span>` : "";
+    const idle = (step.toestand || []).map((state, i) => ({state, heat: step.warmte[i]})).filter(m => m.state === "warm" || m.state === "koelt af");
+    const forecastLine = step.toestand ? `<br>Voorspeld aanbod dit uur ${nf(step.voorspelling)} MW: de besturing verwacht ${step.voorspeld_gewenst} ${step.voorspeld_gewenst === 1 ? "module" : "modules"} nodig te hebben.`
+      + (idle.length ? ` Stilstaand: ${idle.map(m => m.state === "warm" ? `warm gehouden (${nf(m.heat * 100, 0)} %)` : m.heat < 0.05 ? "koud" : `koelt af (${nf(m.heat * 100, 0)} % warm)`).join(", ")}.` : "") : "";
     const verdict = active ? `${active} van ${count} ${active === 1 ? "draait" : "draaien"} op ${nf(step.stack.find(x => x > 0) / size * 100, 0)} % last` : "Staat stil";
     const box = document.createElement("div");
     box.className = "deploy";
     box.innerHTML = `<p class="calc"><b>${label(count)} van ${nf(size)} MW</b><br>Startdrempel ${nf(config.drempel_mw)} MW per module
-      (${nf(v.minimumlast, 0)} % last, inclusief BoP). Er passen er ${step.passen}; de besturing kiest ${step.gewenst}${step.gewenst < step.passen && day.strategie === "verdelen" ? ", omdat dat de meeste waterstof geeft" : ""}. ${verdict}.${reason}</p>`;
+      (${nf(v.minimumlast, 0)} % last, inclusief BoP). Er passen er ${step.passen}; de besturing kiest ${step.gewenst}${step.gewenst < step.passen && day.strategie === "verdelen" ? ", omdat dat de meeste waterstof geeft" : ""}. ${verdict}.${forecastLine}${reason}</p>`;
     box.append(moduleBars(step, size, color));
     return box;
   };

@@ -128,7 +128,7 @@ test('request snapshots use saved assumptions and own their mutable collections'
   assert.deepEqual(plain(request), {
     aannames: {capaciteit_mw: 44, minimumlast: 40, bop_vast: 3,
       storingen_per_jaar: 2, waterstofpremie_eur_kg: 0},
-    strategie: 'verdelen', jaren: [2022, 2025], modules: [4, 6],
+    strategie: 'verdelen', standby: 'vast', jaren: [2022, 2025], modules: [4, 6],
     // A result from before the wind and park choice was calculated with the defaults.
     windprofiel: 'onafhankelijk', parken: ['fryslan', 'beabuorren'],
   });

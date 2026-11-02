@@ -21,8 +21,8 @@ test('the simulation reads exactly the assumptions in SIMULATION_FIELDS', () => 
     + '(and the cost-only list in this test) after checking which fields simulate() really uses.';
   assert.deepEqual(probe.gelezen, [...simulation].sort(), hint);
   assert.deepEqual([...probe.velden].filter(name => !simulation.includes(name)).sort(), [...COST_ONLY].sort(), hint);
-  assert.equal(probe.velden.length, 36);
-  assert.equal(simulation.length, 21);
+  assert.equal(probe.velden.length, 38);
+  assert.equal(simulation.length, 23);
   // The full-year run reads the same fields as the short window, so no branch is only reached later in the year.
   assert.deepEqual(probe.jaar, [...simulation].sort());
   // Every strategy, module count and starting point reads all of them: nothing relies on a rarely reached branch.
@@ -39,7 +39,7 @@ test('the cache key changes with simulation inputs and ignores cost inputs', () 
   const {velden, overig} = json('key_sensitivity()');
   const simulation = json('list(SIMULATION_FIELDS)');
   for (const [name, changed] of Object.entries(velden)) assert.equal(changed, simulation.includes(name), name);
-  assert.deepEqual(overig, {n: true, besturing: true, jaar: true, aanbod: true, modelversie: true});
+  assert.deepEqual(overig, {n: true, besturing: true, standby: true, jaar: true, aanbod: true, modelversie: true});
 });
 
 test('cache hits return the same outcome without simulating again', () => {

@@ -19,11 +19,12 @@ import csv
 import hashlib
 import json
 import os
+import random
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass, fields, replace
 from datetime import date, datetime, timedelta, timezone
-from math import ceil, floor
+from math import ceil, exp, floor
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -31,7 +32,7 @@ from . import windbron
 from .application import HYDROGEN_SHARE, PARKS, ROOT, load_curve, park_power_mw, parse_wind
 from .knmi import KNMIClient, KNMIError, load_env_file
 
-MODEL_VERSION = 16  # 16: storingen als vaste beschikbaarheidsafslag in plaats van een willekeurige trekking. 15: omslagkaart en scenario's rond minimumlast 25–30 % per module. 14: degradatie als lineair meerverbruik per jaar; starts tellen niet meer als bedrijfsuren. 13: minimumlast PEM 25 %, alkaline 30 %. 12: gedigitaliseerde SWT-DD-130-curve als standaard; oude caches vervallen.
+MODEL_VERSION = 18  # 18: stand-by-beleid "voorspelling" (warme/koude stand-by en startbesluit op een windvoorspelling); voorspelfout en vooruitkijktijd (17 was de BoP-correctie van het browsermodel). 16: 16: storingen als vaste beschikbaarheidsafslag in plaats van een willekeurige trekking. 15: omslagkaart en scenario's rond minimumlast 25–30 % per module. 14: degradatie als lineair meerverbruik per jaar; starts tellen niet meer als bedrijfsuren. 13: minimumlast PEM 25 %, alkaline 30 %. 12: gedigitaliseerde SWT-DD-130-curve als standaard; oude caches vervallen.
 STEP_H = 1 / 6
 FRYSLAN_SHARE = HYDROGEN_SHARE["fryslan"]
 CACHE = ROOT / ".cache" / "opsplitsing"
@@ -44,6 +45,13 @@ STRATEGIES = {
     "verdelen": "Per tijdstap het aantal modules dat de meeste waterstof geeft, last gelijk verdeeld.",
     "bijschakelen": "Modules één voor één bijschakelen; hooguit één module in deellast.",
     "samen": "Alle modules tegelijk aan of uit, alsof het één grote installatie is.",
+}
+# Wat een gestopte module doet. Naar het meertoestandenmodel van Li e.a. (Entropy 2026, 28, 194): een module in warme
+# stand-by wordt met externe warmte op temperatuur gehouden en start meteen; zonder die warmte koelt ze af en duurt opwarmen lang.
+STANDBY = {
+    "vast": "Een gestopte module blijft altijd ‘koud na’ uur warm en is daarna in één keer koud. Starten na de startvertraging.",
+    "voorspelling": "Op de windvoorspelling: een module start alleen als er lang genoeg wind voor wordt verwacht, en blijft "
+                    "alleen warm als warmhouden minder stroom kost dan het opstartverlies na afkoelen. Afkoelen gaat geleidelijk.",
 }
 
 
@@ -66,6 +74,8 @@ class Aannames:
     koud_na_uur: float = 2.0
     opstart_warm_min: float = 1.0
     opstart_koud_min: float = 10.0
+    voorspelfout: float = 0.20
+    vooruitkijk_uur: float = 24.0
     onderhoud_dagen: float = 7.0
     storingen_per_jaar: float = 2.0
     hersteltijd_uur: float = 48.0
@@ -157,6 +167,11 @@ AANNAMES_META = [
         ("koud_na_uur", "Koud na", "uur", 0, 48, 1, "Na zoveel uur stilstand is een start een koude start."),
         ("opstart_warm_min", "Opstarttijd warm", "min", 0, 120, 1, "Tijd zonder productie na een warme start."),
         ("opstart_koud_min", "Opstarttijd koud", "min", 0, 240, 1, "Tijd zonder productie na een koude start."),
+        ("voorspelfout", "Voorspelfout wind", "%", 0, 100, 100,
+         "Alleen bij stand-by ‘met voorspelling’. Typische fout van het voorspelde windvermogen per uur, als deel van het werkelijke. "
+         "Deels per dag (de hele dag te hoog of te laag), deels per uur; vast per uur, dus elke berekening geeft hetzelfde. 0 % is een perfecte voorspelling."),
+        ("vooruitkijk_uur", "Vooruitkijken", "uur", 1, 48, 1,
+         "Alleen bij stand-by ‘met voorspelling’. Zo ver kijkt de besturing vooruit bij het besluit om te starten of warm te houden."),
     ]),
     ("Beschikbaarheid", [
         ("onderhoud_dagen", "Gepland onderhoud", "dagen per module per jaar", 0, 60, 1,
@@ -238,7 +253,7 @@ def meta_json() -> dict:
         for key, label, unit, low, high, scale, hint in items]} for name, items in AANNAMES_META],
         "technologieen": {key: {"naam": name, "waarden": shown(a), "toelichting": TOELICHTING.get(key, "")}
                           for key, (name, a) in TECHNOLOGIES.items()},
-        "strategieen": STRATEGIES, "modules": MODULE_COUNTS, "jaren": available_years(),
+        "strategieen": STRATEGIES, "standbybeleid": STANDBY, "modules": MODULE_COUNTS, "jaren": available_years(),
         "windmethode": {"standaard": windbron.DEFAULT, "uitleg": windbron.LABELS, "aandeel": HYDROGEN_SHARE}}
 
 
@@ -416,7 +431,47 @@ def outages(times: list[int], n: int, year: int, a: Aannames) -> list[list[bool]
     return [[any(lo <= t < hi for lo, hi in spans) for spans in blocks] for t in times]
 
 
-def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | None = None) -> dict:
+def forecast(supply: dict, a: Aannames) -> list[float]:
+    """Voorspeld aanbod per tijdstap: het gemeten uurgemiddelde × (1 + fout · z), nooit onder nul.
+
+    z = (z_dag + z_uur) / √2, standaardnormaal: een voorspelling zit vaak een hele dag te hoog of te laag, en daarbovenop per uur.
+    De trekkingen hangen alleen af van jaar, dag en uur, dus dezelfde invoer geeft altijd dezelfde voorspelling. Bij fout 0 is
+    de voorspelling het werkelijke uurgemiddelde: binnen het uur ziet ze geen vlagen, net als een echte uurvoorspelling.
+    """
+    times, mw = supply["t"], supply["mw"]
+    hours: dict[int, list[float]] = {}
+    for stamp, power in zip(times, mw):
+        hours.setdefault(stamp // 3600, []).append(power)
+    year = supply["jaar"]
+    factor = {}
+    for hour, values in hours.items():
+        z = 0.0
+        if a.voorspelfout:
+            z = (random.Random(f"{year}-dag-{hour // 24}").gauss(0, 1) + random.Random(f"{year}-uur-{hour}").gauss(0, 1)) / 2 ** 0.5
+        factor[hour] = max(0.0, sum(values) / len(values) * (1 + a.voorspelfout * z))
+    return [factor[stamp // 3600] for stamp in times]
+
+
+def startup_min(heat: float, a: Aannames) -> float:
+    """Opstarttijd bij warmtegraad `heat` (1 = op bedrijfstemperatuur, 0 = koud): geleidelijk van warm naar koud."""
+    return a.opstart_warm_min + (a.opstart_koud_min - a.opstart_warm_min) * (1 - heat)
+
+
+def need_tables(kf: list[int], times: list[int], n: int) -> tuple[list[list[int]], list[list[int]]]:
+    """Per rang r (1..n) en tijdstap: de eerste stap vanaf hier waarop de voorspelling ≥ r modules wil (nodig), en de eerste
+    stap vanaf hier waarop ze < r wil (einde). len(times) betekent: niet meer binnen de reeks."""
+    size = len(kf)
+    need, end = [[size] * (size + 1) for _ in range(n + 1)], [[size] * (size + 1) for _ in range(n + 1)]
+    for r in range(1, n + 1):
+        nr, er = need[r], end[r]
+        for j in range(size - 1, -1, -1):
+            hit = kf[j] >= r
+            nr[j] = j if hit else nr[j + 1]
+            er[j] = er[j + 1] if hit else j
+    return need, end
+
+
+def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | None = None, standby_mode: str = "vast") -> dict:
     times, mw = supply["t"], supply["mw"]
     size = a.capaciteit_mw / n
     min_on, min_off, delay = a.min_aan_min / 60, a.min_uit_min / 60, a.startvertraging_min / 60
@@ -437,6 +492,23 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
     daily: dict[str, list[float]] = {}
     steps = []
     memo = {}
+    # Stand-by met voorspelling. De velden worden altijd gelezen, zodat de simulatiecache ze in elke stand meeneemt.
+    error, horizon_s = a.voorspelfout, a.vooruitkijk_uur * 3600
+    predict = standby_mode == "voorspelling"
+    heat = [0.0] * n        # warmtegraad per module; het jaar begint koud
+    hot_h = [0.0] * n       # uren in warme stand-by
+    avoided = 0             # starts die de voorspelling tegenhield
+    blocked_before = 0
+    if predict:
+        tau = a.koud_na_uur / 3   # na ‘koud na’ uur is nog 5 % van de warmte over
+        cool_step = exp(-STEP_H / tau) if tau > 0 else 0.0
+        fc = forecast(supply, a)
+        kf = [desired_count(p, sum(not d for d in down[j]), size, a, strategy, memo) for j, p in enumerate(fc)]
+        need_at, end_at = need_tables(kf, times, n)
+        count = len(times)
+
+        def seconds_until(j: int, stamp: int) -> float:
+            return (times[j] - stamp) if j < count else float("inf")
     for step, (stamp, power) in enumerate(zip(times, mw)):
         avail = [i for i in range(n) if not down[step][i]]
         running = [i for i in avail if on[i]]
@@ -447,14 +519,33 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
         wanted = k
         resting = [i for i in avail if not on[i] and off_h[i] < min_off]
         want_h = want_h + STEP_H if k > len(running) else 0.0
-        waiting = bool(starters) and want_h < delay - 1e-9
+        blocked = []
+        if predict:
+            # Geen startvertraging: een extra module (rang r) start als er vanaf nu (na deze stap volgens de voorspelling) minstens de
+            # minimale aan-tijd plus de opstarttijd genoeg wind voor r modules is. Warme modules gaan voor.
+            waiting = False
+            starters.sort(key=lambda i: (-heat[i], eq[i]))
+            allowed = len(running)
+            for r, i in zip(range(len(running) + 1, min(k, len(running) + len(starters)) + 1), starters):
+                needed = (min_on + startup_min(heat[i], a) / 60) * 3600
+                ahead = seconds_until(end_at[r][step + 1], stamp) if step + 1 < count else 0.0
+                if ahead < needed - 1e-6:
+                    blocked.append((r, ahead, needed))
+                    break
+                allowed = r
+            blocked_count = max(0, min(k, len(running) + len(starters)) - allowed)
+            avoided += max(0, blocked_count - blocked_before)
+            blocked_before = blocked_count
+            starters = starters[:allowed - len(running)]
+        else:
+            waiting = bool(starters) and want_h < delay - 1e-9
         if waiting:
             starters = []
         k = max(min(k, len(running) + len(starters)), min(len(must), fits))
         k = min(k, fits, len(running) + len(starters))
         # Lopende modules eerst (verplichte vooraan), bij starten de minst versleten.
         keep = sorted(running, key=lambda i: (i not in must, eq[i]))[:k]
-        chosen = keep + sorted(starters, key=lambda i: eq[i])[:k - len(keep)]
+        chosen = keep + (starters if predict else sorted(starters, key=lambda i: eq[i]))[:k - len(keep)]
         loads = [0.0] * n
         if strategy == "bijschakelen":
             for i, x in zip(chosen, sequential_loads(power, len(chosen), size, a)):
@@ -466,15 +557,30 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
         step_kg = 0.0
         module_kg = [0.0] * n
         starting = [0.0] * n
+        state = [""] * n
+        if predict:
+            # Welke rang krijgt een gestopte module bij de volgende start? Na de draaiende, de warmste eerst.
+            producing_now = sum(1 for x in loads if x >= a.minimumlast * size - 1e-9 and x > 0)
+            idle = sorted((i for i in range(n) if not (loads[i] >= a.minimumlast * size - 1e-9 and loads[i] > 0) and not down[step][i]),
+                          key=lambda i: (-heat[i], eq[i]))
+            rank = {i: producing_now + 1 + p for p, i in enumerate(idle)}
         for i in range(n):
             x = loads[i]
             if x >= a.minimumlast * size - 1e-9 and x > 0:
                 if not on[i]:
-                    if off_h[i] >= a.koud_na_uur:
+                    if predict:
+                        startup[i] = startup_min(heat[i], a)
+                        if heat[i] >= 0.5:
+                            warm[i] += 1
+                        else:
+                            cold[i] += 1
+                    elif off_h[i] >= a.koud_na_uur:
                         cold[i] += 1; startup[i] = a.opstart_koud_min
                     else:
                         warm[i] += 1; startup[i] = a.opstart_warm_min
                     on[i], on_h[i] = True, 0.0
+                heat[i] = 1.0
+                state[i] = "draait"
                 productive = max(0.0, 10 - startup[i]) / 10
                 starting[i] = min(10.0, startup[i])
                 startup[i] = max(0.0, startup[i] - 10)
@@ -488,7 +594,27 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
             else:
                 if on[i]:
                     on[i], off_h[i] = False, 0.0
-                if not down[step][i] and off_h[i] < a.koud_na_uur:
+                if predict:
+                    keep_warm = False
+                    if not down[step][i] and heat[i] > 0.01 and step + 1 < count:
+                        j = need_at[rank[i]][step + 1]
+                        gap = seconds_until(j, stamp)
+                        if gap <= horizon_s:
+                            # Warmhouden tot de volgende start tegen het extra opstartverlies als de module tot dan afkoelt.
+                            gap_h = gap / 3600
+                            hold = a.standby * size * gap_h
+                            cooled = heat[i] * (exp(-gap_h / tau) if tau > 0 else 0.0)
+                            lost_h = (startup_min(cooled, a) - startup_min(heat[i], a)) / 60
+                            draw = min(draw_mw(size, size, a), fc[j] / max(kf[j], 1))
+                            keep_warm = hold < lost_h * draw
+                    if keep_warm:
+                        standby += a.standby * size * STEP_H
+                        hot_h[i] += STEP_H
+                        state[i] = "warm"
+                    else:
+                        heat[i] *= cool_step
+                        state[i] = "onderhoud" if down[step][i] else "koelt af"
+                elif not down[step][i] and off_h[i] < a.koud_na_uur:
                     standby += a.standby * size * STEP_H
                 off_h[i] += STEP_H
                 stack[i] = 0.0
@@ -510,7 +636,17 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
                 reasons.append(f"{len(must)} houden minimale aan-tijd vast")
             if len(avail) < n:
                 reasons.append(f"{n - len(avail)} in onderhoud")
-            steps.append({"t": stamp, "aanbod": power, "stack": [round(v, 3) for v in loads],
+            extra = {}
+            if predict:
+                for r, ahead, needed in blocked:
+                    reasons.append(f"module {r} niet gestart: voorspelling geeft nog {round(ahead / 60)} min wind voor "
+                                   f"{r} modules, nodig {round(needed / 60)} min (minimale aan-tijd + opstarten)")
+                warm_now = sum(1 for v in state if v == "warm")
+                if warm_now:
+                    reasons.append(f"{warm_now} warm gehouden: volgens de voorspelling binnenkort weer nodig")
+                extra = {"warmte": [round(h, 2) for h in heat], "toestand": state,
+                         "voorspelling": round(fc[step], 3), "voorspeld_gewenst": kf[step]}
+            steps.append({**extra, "t": stamp, "aanbod": power, "stack": [round(v, 3) for v in loads],
                           "verbruik": round(sum(draw_mw(v, size, a) for v in loads if v > 0), 3),
                           "uit": [down[step][i] for i in range(n)], "kg": [round(v, 3) for v in module_kg],
                           "opstart_min": starting, "gewenst": wanted, "passen": fits, "redenen": reasons})
@@ -528,6 +664,8 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
         "benutting": used / supply_mwh if supply_mwh else 0.0,
         "bedrijfsuren_gem": sum(hours) / n * scale, "productie_uur": producing * scale,
         "starts_warm_per_module": sum(warm) / n * scale, "starts_koud_per_module": sum(cold) / n * scale,
+        "standbybeleid": standby_mode, "standby_uur_per_module": sum(hot_h) * avail_f / n * scale,
+        "starts_vermeden_per_module": avoided * avail_f / n * scale,
         "eq_uren_per_module": [e * scale for e in eq],
         "dekking_uur": len(mw) * STEP_H, "beschikbaarheid_storing": avail_f,
         "dagen": {d: [round(v[0], 1), v[1]] for d, v in daily.items()},
@@ -656,19 +794,26 @@ def replacement_days(result: dict, a: Aannames) -> float:
     return a.stackwissel_weken * 7 * wear / a.stack_levensduur_uur
 
 
-def simulate_with_replacements(supply: dict, n: int, a: Aannames, strategy: str, trace: range | None = None) -> dict:
+def simulate_with_replacements(supply: dict, n: int, a: Aannames, strategy: str, trace: range | None = None,
+                               standby_mode: str = "vast") -> dict:
     """Eerst de slijtage meten, dan opnieuw rekenen met de bijbehorende stilstand voor stackwissels."""
-    first = simulate(supply, n, a, strategy)
+    first = simulate(supply, n, a, strategy, standby_mode=standby_mode)
     days = replacement_days(first, a) if a.stackwissel_weken else 0.0
     if not days and trace is None:
         return {**first, "stackwissel_dagen": 0.0}
-    result = simulate(supply, n, replace(a, onderhoud_dagen=a.onderhoud_dagen + days), strategy, trace)
+    result = simulate(supply, n, replace(a, onderhoud_dagen=a.onderhoud_dagen + days), strategy, trace, standby_mode)
     return {**result, "stackwissel_dagen": days}
 
 
 def _job(args):
-    supply, n, a, strategy = args
-    return simulate_with_replacements(supply, n, a, strategy)
+    """Eén simulatie: (aanbod, n, aannames, besturing[, stand-by-beleid]); zonder beleid is het ‘vast’."""
+    supply, n, a, strategy, *rest = args
+    return simulate_with_replacements(supply, n, a, strategy, standby_mode=rest[0] if rest else "vast")
+
+
+def check_standby(standby_mode: str) -> None:
+    if standby_mode not in STANDBY:
+        raise ValueError("Kies een stand-by-beleid uit de lijst.")
 
 
 def supply_key(supplies: dict) -> list:
@@ -692,13 +837,14 @@ def supply_summary(supplies: dict) -> dict:
 
 
 def run(a: Aannames, years: list[int], counts: list[int], strategy: str, workers: int | None = None,
-        method: str = windbron.DEFAULT) -> dict:
+        method: str = windbron.DEFAULT, standby_mode: str = "vast") -> dict:
     """Alle configuraties over alle windjaren; uitkomst bewaard per set invoer."""
     if strategy not in STRATEGIES or not years or not counts:
         raise ValueError("Kies een besturing, minstens één windjaar en minstens één moduleaantal.")
+    check_standby(standby_mode)
     counts = sorted(set(counts))
     supplies = {year: supply_year(year, method=method) for year in years}
-    key = hashlib.sha256(json.dumps([MODEL_VERSION, asdict(a), years, counts, strategy,
+    key = hashlib.sha256(json.dumps([MODEL_VERSION, asdict(a), years, counts, strategy, standby_mode,
                                      supply_key(supplies)]).encode()).hexdigest()[:20]
     path = CACHE / f"uitkomst-{key}.json"
     began = time.perf_counter()
@@ -706,7 +852,7 @@ def run(a: Aannames, years: list[int], counts: list[int], strategy: str, workers
     if path.exists():
         data = json.loads(path.read_text())
         return {**data, "uit_cache": True, "rekentijd_s": time.perf_counter() - began}
-    jobs = [(supplies[y], n, a, strategy) for n in counts for y in years]
+    jobs = [(supplies[y], n, a, strategy, standby_mode) for n in counts for y in years]
     with ProcessPoolExecutor(workers) as pool:
         results = list(pool.map(_job, jobs))
     rows = []
@@ -714,7 +860,7 @@ def run(a: Aannames, years: list[int], counts: list[int], strategy: str, workers
         rows.append(summarise(results[index * len(years):(index + 1) * len(years)], a))
     break_even(rows, a)
     example = example_day(results, counts, years)
-    data = {"sleutel": key, "aannames": asdict(a), "strategie": strategy, "jaren": years, "rijen": rows,
+    data = {"sleutel": key, "aannames": asdict(a), "strategie": strategy, "standbybeleid": standby_mode, "jaren": years, "rijen": rows,
             "voorbeelddag": example, "windmethode": method, "windmethode_uitleg": windbron.LABELS[method],
             "model_versie": MODEL_VERSION, "aanbod": supply_summary(supplies),
             "omvang": {"tijdstappen": steps, "configuraties": len(counts), "modules": sum(counts),
@@ -730,6 +876,14 @@ SENSITIVE_COSTS = ["offerte_meur", "vaste_kosten_module_meur", "stroomprijs_eur_
                    "looptijd_jaar", "stack_aandeel", "opex_aandeel"]
 SENSITIVE_OPERATION = ["minimumlast", "bop_vast", "deellastvoordeel", "standby", "opstart_koud_min", "startvertraging_min",
                        "onderhoud_dagen", "stackwissel_weken"]
+# Alleen bij stand-by ‘met voorspelling’ van invloed; daar komt de voorspelfout erbij en valt de startvertraging weg.
+SENSITIVE_PREDICTION = ["voorspelfout"]
+
+
+def sensitive_operation(standby_mode: str) -> list[str]:
+    if standby_mode == "voorspelling":
+        return [k for k in SENSITIVE_OPERATION if k != "startvertraging_min"] + SENSITIVE_PREDICTION
+    return SENSITIVE_OPERATION
 SENSITIVITY_STEP = 0.25
 
 
@@ -748,18 +902,20 @@ def variants(a: Aannames, key: str) -> list[tuple[float, Aannames]]:
 
 
 def sensitivity(a: Aannames, years: list[int], n: int, strategy: str, workers: int | None = None,
-                method: str = windbron.DEFAULT) -> dict:
+                method: str = windbron.DEFAULT, standby_mode: str = "vast") -> dict:
     """Hoe het voordeel van n modules boven één module (€/kg) verschuift als elke aanname 25 % verandert."""
     if not 1 < n <= MAX_MODULES or strategy not in STRATEGIES or not years:
         raise ValueError("Kies een aantal modules groter dan 1, een besturing en minstens één windjaar.")
+    check_standby(standby_mode)
+    operation = sensitive_operation(standby_mode)
     supplies = {year: supply_year(year, method=method) for year in years}
     key = hashlib.sha256(json.dumps([MODEL_VERSION, "gevoeligheid", asdict(a), years, n, strategy, SENSITIVITY_STEP,
-                                     supply_key(supplies)]).encode()).hexdigest()[:20]
+                                     supply_key(supplies)] + ([standby_mode] if standby_mode != "vast" else [])).encode()).hexdigest()[:20]
     path = CACHE / f"gevoeligheid-{key}.json"
     if path.exists():
         return json.loads(path.read_text())
-    cases = [("basis", a)] + [(f"{k}:{i}", v) for k in SENSITIVE_OPERATION for i, (_, v) in enumerate(variants(a, k))]
-    jobs = [(supplies[y], count, case, strategy) for _, case in cases for count in (1, n) for y in years]
+    cases = [("basis", a)] + [(f"{k}:{i}", v) for k in operation for i, (_, v) in enumerate(variants(a, k))]
+    jobs = [(supplies[y], count, case, strategy, standby_mode) for _, case in cases for count in (1, n) for y in years]
     with ProcessPoolExecutor(workers) as pool:
         results = list(pool.map(_job, jobs))
     size = len(years)
@@ -773,7 +929,7 @@ def sensitivity(a: Aannames, years: list[int], n: int, strategy: str, workers: i
     base = advantage("basis", a)
     labels = {k: (label, unit, scale) for _, items in AANNAMES_META for k, label, unit, _, _, scale, _ in items}
     items = []
-    for k in SENSITIVE_COSTS + SENSITIVE_OPERATION:
+    for k in SENSITIVE_COSTS + operation:
         label, unit, scale = labels[k]
         ends = [{"waarde": shown_value, "voordeel": advantage("basis" if k in SENSITIVE_COSTS else f"{k}:{i}", variant)}
                 for i, (shown_value, variant) in enumerate(variants(a, k))]
@@ -793,7 +949,7 @@ OMSLAG_VASTE_KOSTEN = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 
 
 def omslagkaart(a: Aannames, years: list[int], counts: list[int], strategy: str, workers: int | None = None,
-                method: str = windbron.DEFAULT) -> dict:
+                method: str = windbron.DEFAULT, standby_mode: str = "vast") -> dict:
     """Het goedkoopste aantal modules per combinatie van minimumlast en vaste kosten per module.
 
     De minimumlast vraagt een nieuwe simulatie; de vaste kosten alleen een nieuwe kostenberekening.
@@ -801,14 +957,16 @@ def omslagkaart(a: Aannames, years: list[int], counts: list[int], strategy: str,
     counts = sorted(set(counts))
     if len(counts) < 2 or strategy not in STRATEGIES or not years:
         raise ValueError("Kies minstens twee moduleaantallen, een besturing en minstens één windjaar.")
+    check_standby(standby_mode)
     supplies = {year: supply_year(year, method=method) for year in years}
     key = hashlib.sha256(json.dumps([MODEL_VERSION, "omslag", asdict(a), years, counts, strategy, OMSLAG_MINIMUMLAST,
-                                     OMSLAG_VASTE_KOSTEN, supply_key(supplies)]).encode()).hexdigest()[:20]
+                                     OMSLAG_VASTE_KOSTEN, supply_key(supplies)]
+                                    + ([standby_mode] if standby_mode != "vast" else [])).encode()).hexdigest()[:20]
     path = CACHE / f"omslag-{key}.json"
     if path.exists():
         return json.loads(path.read_text())
     cases = [replace(a, minimumlast=m) for m in OMSLAG_MINIMUMLAST]
-    jobs = [(supplies[y], n, case, strategy) for case in cases for n in counts for y in years]
+    jobs = [(supplies[y], n, case, strategy, standby_mode) for case in cases for n in counts for y in years]
     with ProcessPoolExecutor(workers) as pool:
         results = list(pool.map(_job, jobs))
     size = len(years)
@@ -854,23 +1012,31 @@ def example_day(results: list[dict], counts: list[int], years: list[int]) -> str
     return sorted(gains)[int(len(gains) * .75)][1] if gains else None
 
 
-def day_trace(a: Aannames, day: date, counts: list[int], strategy: str, method: str = windbron.DEFAULT) -> dict:
-    """Tijdstappen van één dag per configuratie; de simulatie start twee dagen eerder om warm te lopen."""
+def day_trace(a: Aannames, day: date, counts: list[int], strategy: str, method: str = windbron.DEFAULT,
+              standby_mode: str = "vast") -> dict:
+    """Tijdstappen van één dag per configuratie; de simulatie start twee dagen eerder om warm te lopen.
+
+    Bij ‘voorspelling’ kijkt de voorspelling over het eind van het venster heen: het venster loopt daarom door tot
+    `vooruitkijk_uur` na de dag, al toont de trace alleen de dag zelf."""
+    check_standby(standby_mode)
     supply = supply_year(day.year, method=method)
     methods = windbron.method(method)
     start = datetime.combine(day, datetime.min.time(), LOCAL)
     lo = (start - timedelta(days=2)).timestamp()
     first, end = start.timestamp(), (start + timedelta(days=1)).timestamp()
-    picked = [i for i, t in enumerate(supply["t"]) if lo <= t < end]
+    reach = end + (a.vooruitkijk_uur * 3600 if standby_mode == "voorspelling" else 0)
+    picked = [i for i, t in enumerate(supply["t"]) if lo <= t < reach]
     if not picked:
         raise ValueError("Geen windgegevens voor deze dag.")
     window = {"jaar": supply["jaar"], "t": [supply["t"][i] for i in picked], "mw": [supply["mw"][i] for i in picked]}
-    visible = range(next(i for i, t in enumerate(window["t"]) if t >= first), len(picked))
+    visible = range(next(i for i, t in enumerate(window["t"]) if t >= first),
+                    next((i for i, t in enumerate(window["t"]) if t >= end), len(picked)))
     out = {}
     for n in sorted(set(counts)):
         # Stilstand voor stackwissels volgt uit de slijtage over het hele jaar, niet uit dit venster.
-        extra = replacement_days(simulate(supply, n, a, strategy), a) if a.stackwissel_weken else 0.0
-        result = simulate(window, n, replace(a, onderhoud_dagen=a.onderhoud_dagen + extra), strategy, trace=visible)
+        extra = replacement_days(simulate(supply, n, a, strategy, standby_mode=standby_mode), a) if a.stackwissel_weken else 0.0
+        result = simulate(window, n, replace(a, onderhoud_dagen=a.onderhoud_dagen + extra), strategy, trace=visible,
+                          standby_mode=standby_mode)
         out[n] = {"module_mw": result["module_mw"], "stappen": result["stappen"],
                   "waterstof_kg": result["dagen"].get(day.isoformat(), [0])[0],
                   "drempel_mw": draw_mw(a.minimumlast * result["module_mw"], result["module_mw"], a)}
@@ -879,7 +1045,7 @@ def day_trace(a: Aannames, day: date, counts: list[int], strategy: str, method: 
                 for park_id in PARKS},
              "knmi": {key: supply["stations"][key][picked[i]] for key in supply["stations"]}, "gekozen": supply["bron"][picked[i]]}
             for i in visible]
-    return {"datum": day.isoformat(), "configuraties": out, "wind": wind, "aandeel_fryslan": FRYSLAN_SHARE,
+    return {"datum": day.isoformat(), "standbybeleid": standby_mode, "configuraties": out, "wind": wind, "aandeel_fryslan": FRYSLAN_SHARE,
             "aandeel": HYDROGEN_SHARE, "windmethode": method, "windmethode_uitleg": windbron.LABELS[method],
             "stations": {key: STATIONS[key][0] for key in supply["stations"]},
             "station_per_park": {park_id: [STATIONS[k][0] for k in pm.stations] for park_id, pm in methods.items()},

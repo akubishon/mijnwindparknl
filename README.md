@@ -255,6 +255,19 @@ Vaste kanttekeningen bij de uitkomst en in het rekenrapport:
 - **Starts**: de tabel toont starts per module (warm/koud) en starts per jaar in totaal; de vergelijkingstegels en het rekenrapport ook. Start/stop-slijtage zit sinds de feedback van 28 oktober bewust niet in de kosten (`docs/degradatie-re-feedback-over-tools.md`). Meer modules starten in totaal vaker; daardoor lijken meer modules iets gunstiger dan ze zijn.
 - **1 module** blijft de rekenreferentie, maar heet overal ‘theoretische referentie’ (in grafieken ‘1 (ref.)’): één unit van het totale vermogen die als geheel aan- en uitschakelt, bouwt niemand.
 
+### Stand-by: vast of met voorspelling
+
+Opsplitsen heeft naast **Besturing** een keuze **Stand-by** (`standby` in de aanvraag, `standbybeleid` in de uitkomst, `STANDBY` in `opsplitsing.py`). De standaard **vast** is het bestaande gedrag: een gestopte module blijft `koud_na_uur` warm (en kost zolang `standby` × modulevermogen) en is daarna in één keer koud; een extra module start na de startvertraging. Deze stand geeft dezelfde uitkomsten als modelversie 16/17.
+
+**Met voorspelling** volgt het meertoestandenmodel uit Li e.a., *An Interactive Optimal Scheduling Method for Hydrogen Production System with Heat Recovery*, Entropy 2026, 28, 194 (productie, warme stand-by met externe warmte, en uit met afkoelen):
+
+- **Voorspelling** (`forecast`): het gemeten uurgemiddelde × (1 + `voorspelfout` · z), met z deels per dag en deels per uur, vast per jaar/dag/uur, dus herhaalbaar. 0 % is een perfecte uurvoorspelling. `vooruitkijk_uur` (standaard 24) is de horizon.
+- **Starten**: geen startvertraging. Een extra module start alleen als de voorspelling na deze stap nog minstens de minimale aan-tijd plus de opstarttijd genoeg wind voor die module geeft; anders telt de start als *vermeden*. Warme modules starten eerst.
+- **Warm of koud**: per gestopte module en per stap vergelijkt de besturing de stroom voor warmhouden tot de volgende verwachte start (`standby` × modulevermogen × wachttijd) met de extra opstarttijd na afkoelen × het verwachte verbruik. Wordt de module binnen de horizon niet verwacht, dan koelt ze af. Warmhouden houdt de temperatuur vast; opwarmen vanuit stand-by kan niet.
+- **Afkoelen** is geleidelijk: warmtegraad w = e^(−t/τ) met τ = `koud_na_uur` / 3; opstarttijd = warm + (koud − warm) · (1 − w). Een start telt als warm bij w ≥ 0,5.
+
+De tabel toont dan ook uren warme stand-by en vermeden starts per module; de dagweergave toont per stilstaande module ‘warm’ of ‘koel’, het voorspelde aanbod en de redenen. Tests: `tests/opsplitsing-standby.test.mjs`.
+
 ### Significante cijfers
 
 Getoonde uitkomsten op de pagina en in het rekenrapport hebben drie significante cijfers: waterstof in ton per jaar (3.130 t), energie in MWh of GWh, bedragen in M€ (24,7 M€), uren en starts. €/kg heeft hooguit twee decimalen en hooguit drie significante cijfers (7,95; 13,2; 132). Percentages hebben nul of één decimaal. Een verschil krijgt de resolutie van de grofste van de twee waarden die het vergelijkt (3.130 t − 2.870 t = +260 t; €/kg-verschillen in hele centen). Invoer, ook de stroomprijzen, staat zoals ingevoerd. CSV, JSON en Excel houden de volle precisie.

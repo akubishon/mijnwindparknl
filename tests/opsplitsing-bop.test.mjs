@@ -16,11 +16,11 @@ test('the assumptions form offers the model BoP fields with their source and def
   assert.doesNotMatch(JSON.stringify(meta), /systeemvermogen/);
 });
 
-test('a calculation applies BoP on top of the stack power and is marked with model version 17', () => {
-  assert.equal(json('model.MODEL_VERSION'), 17);
+test('a calculation applies BoP on top of the stack power and is marked with model version 18 (17 introduced the BoP fix)', () => {
+  assert.equal(json('model.MODEL_VERSION'), 18);
   assert.ok(json('model.SENSITIVE_OPERATION').includes('bop_vast'), 'BoP belongs in the sensitivity analysis again');
   const result = json("dispatch('/api/opsplitsing', {'jaren': [2025], 'modules': [1], 'strategie': 'verdelen'})");
-  assert.equal(result.model_versie, 17);
+  assert.equal(result.model_versie, 18);
   assert.deepEqual([result.aannames.capaciteit_mw, result.aannames.bop_vast, result.aannames.bop_variabel], [44, 0.03, 0.07]);
   assert.ok(Math.abs(json('model.draw_mw(44, 44, model.Aannames())') - 48.4) < 1e-9);
   // Own BoP values are used as given.

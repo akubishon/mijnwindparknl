@@ -90,7 +90,7 @@
   function render(){
     const r=report,b=r.economics.base,c=r.economics.comparison,ctx=r.context;
     $('report-title').textContent=`Rekenrapport · ${cfg(r.base)} tegenover ${cfg(r.comparison)}`;
-    $('report-meta').textContent=`${ctx.technology} · ${ctx.strategy} · windjaren ${ctx.years.join(', ')} · model ${ctx.modelVersion}${ctx.windProfile==='onafhankelijk'?'':' · '+ctx.windProfileName}${ctx.parks.length===2?'':' · '+ctx.parksText}`;
+    $('report-meta').textContent=`${ctx.technology} · ${ctx.strategy}${ctx.standby==='voorspelling'?' · stand-by met voorspelling':''} · windjaren ${ctx.years.join(', ')} · model ${ctx.modelVersion}${ctx.windProfile==='onafhankelijk'?'':' · '+ctx.windProfileName}${ctx.parks.length===2?'':' · '+ctx.parksText}`;
     $('report-stamp').textContent=`Vastgelegd op ${dateText(r.generatedAt)} (Nederlandse tijd). Berekening: ${ctx.key}.`;
     const choose=$('report-count');choose.replaceChildren(...snapshot.rijen.map(row=>new Option(cfg(row),row.modules,false,row.modules===r.comparison.modules)));
     const signs=v=>finite(v)?(v>0?'+':v<0?'−':'')+price(Math.abs(v)):'Niet beschikbaar';
@@ -130,7 +130,7 @@
     if(!date||!current.context.years.includes(Number(date.slice(0,4)))){ $('report-day-status').textContent='Kies een geldige dag uit de gebruikte windjaren.';return; }
     loading=true;enableExports();$('report-load-day').disabled=true;$('report-day').disabled=true;$('report-day-status').textContent='De voorbeeldmomenten worden berekend…';$('report-moments').replaceChildren();delete current.moments;delete current.momentError;
     try{
-      const response=await fetch('/api/opsplitsing/dag',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({aannames:Object.fromEntries(current.assumptions.map(a=>[a.key,a.value])),strategie:current.context.strategy,windprofiel:current.context.windProfile,parken:current.context.parks,datum:date,modules:[...new Set([current.base.modules,current.comparison.modules])]})});
+      const response=await fetch('/api/opsplitsing/dag',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({aannames:Object.fromEntries(current.assumptions.map(a=>[a.key,a.value])),strategie:current.context.strategy,standby:current.context.standby||'vast',windprofiel:current.context.windProfile,parken:current.context.parks,datum:date,modules:[...new Set([current.base.modules,current.comparison.modules])]})});
       const data=await response.json();if(!response.ok||data.error)throw Error(data.error||'Voorbeeldmomenten konden niet worden berekend.');
       if(token!==revision||report!==current)return;
       current.moments=root.OpsReportMoments.build(data,current.result.aannames,current.base.modules,current.comparison.modules);

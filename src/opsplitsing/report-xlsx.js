@@ -42,6 +42,7 @@
       ['Vergelijking', base.modules + ' module(s) tegenover ' + comparison.modules + ' module(s), met gelijk totaalvermogen.'],
       ['Windjaren', (ctx.years || report.result.jaren || []).join(', ')],
       ['Besturing', ctx.strategy || report.result.strategie || ''],
+      ['Stand-by', (ctx.standby || report.result.standbybeleid || 'vast') === 'voorspelling' ? 'Met voorspelling' : 'Vast'],
       ['Technologie', ctx.technology || report.result.technologie || 'Niet vastgelegd'],
       ['Modelversie', ctx.modelVersion ?? report.result.model_versie ?? 'Niet vastgelegd'],
       ['Berekeningssleutel', ctx.key || report.result.sleutel || 'Niet vastgelegd'],

@@ -262,12 +262,13 @@
       INVESTMENT_NOTE
     ];
     if (result.rijen.some(row => row.modules === 1)) limitations.push(REFERENCE_NOTE);
+    if (result.standbybeleid === 'voorspelling') limitations.push('Stand-by met voorspelling: de voorspelling is het gemeten uurgemiddelde met een vaste, herhaalbare fout per dag en per uur, geen archief van echte weersverwachtingen. Warmhouden en afkoelen volgen een eenvoudig model: de warmte neemt exponentieel af en de opstarttijd loopt mee op van warm naar koud.');
     if (assumptions.some(item=>item.source==='plaatshouder')) limitations.push('Er zijn voorlopige plaatshouders gebruikt. Vervang deze door onderbouwde installatiegegevens voordat je een investeringsconclusie trekt.');
     if (assumptions.some(item=>item.source==='onzekere aanname')) limitations.push('De vaste kosten per extra module zijn een onzekere aanname, geen gevalideerde prijs. Toets de conclusie aan het omslagpunt en de gevoeligheidsanalyse.');
     if (assumptions.some(item=>item.source==='herkomst niet vastgelegd')) limitations.push('Voor een deel van de invoer is de herkomst niet vastgelegd; zie de invoertabel.');
     const robust = materiality(result, metadata);
     return {result,base,comparison,assumptions,calculations,checks,parts,economics:{base:b,comparison:c},delta,materiality:robust,verdict:describe(robust),
-      context:{years:result.jaren || [],strategy:result.strategie || '',technology:metadata.technologieen?.[result.technologie]?.naam || result.technologie || 'Niet vastgelegd',modelVersion:result.model_versie ?? 'Niet vastgelegd',windMethod:result.windmethode || 'Niet vastgelegd',windExplanation:result.windmethode_uitleg || '',windProfile,windProfileName:metadata.windkeuze?.profielen?.[windProfile]?.naam || windProfile,parks,parksText,key:result.sleutel || 'Niet vastgelegd',
+      context:{years:result.jaren || [],strategy:result.strategie || '',standby:result.standbybeleid || 'vast',technology:metadata.technologieen?.[result.technologie]?.naam || result.technologie || 'Niet vastgelegd',modelVersion:result.model_versie ?? 'Niet vastgelegd',windMethod:result.windmethode || 'Niet vastgelegd',windExplanation:result.windmethode_uitleg || '',windProfile,windProfileName:metadata.windkeuze?.profielen?.[windProfile]?.naam || windProfile,parks,parksText,key:result.sleutel || 'Niet vastgelegd',
         annualisation:'Elke geldige tijdstap duurt 10 minuten (1/6 uur). Per windjaar worden kilo’s, energie en equivalente uren vermenigvuldigd met 8.760 / geldige uren. Meetgaten tellen niet als nul. Ook een schrikkeljaar wordt naar 8.760 uur omgerekend. Bij meerdere jaren worden de jaarlijkse fysieke uitkomsten eerst gemiddeld; de kostprijs wordt daarna uit deze gemiddelden berekend, niet door de kostprijzen per jaar te middelen.',coverage,limitations}};
   }
   const api={makeReport,costs,materiality,describe,moduleLabel,notes:{starts:START_NOTE,investment:INVESTMENT_NOTE,reference:REFERENCE_NOTE},format:{sig,price,num,diff}};
