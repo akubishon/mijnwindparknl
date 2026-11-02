@@ -435,3 +435,73 @@ export function windResultPayload({entries, reference = 0, general = defaultGene
   reference: typeof referenceId === 'string' && best.has(referenceId) ? referenceId : null, setups};
 }
 export const windResultLink = payload => payload?.setups?.length ? `${ATLAS_RESULT_BASE}?windresultaat=${encodeBase64Url(JSON.stringify(payload))}#arena` : null;
+
+// ---- Open punten in één keer invullen ----
+// After an Atlas import most setups are not calculable yet: a range in the datasheet, a minimum load in hydrogen terms,
+// a stack without BoP or a technology without a standard. autoResolve fills each open point with a cautious, visible
+// assumption, so a comparison is possible; every filled value is labelled (eigen invoer / standaard technologie) and listed.
+// Cautious = the unfavourable side of a range: the highest consumption and the highest minimum load.
+export const AUTO_PROFILE = {AEM: 'pem', SOEC: 'alkaline_hoog', Waterdamp: 'alkaline_hoog', Membraanvrij: 'alkaline'};
+const autoProfileFor = technology => AUTO_PROFILE[technology] || 'pem';
+export function autoResolve(model, setup, general = defaultGeneral(), rules = {}) {
+ if (!model) return {setup, notes: [], ready: false};
+ let s = {...setup, choices: {...(setup.choices || {})}};
+ const notes = [];
+ for (let round = 0; round < 6; round++) {
+  const r = resolveSetup(model, s, general, rules);
+  if (r.ready) return {setup: s, notes, ready: true};
+  const f = Object.fromEntries(r.fields.map(x => [x.key, x])), c = {...s.choices};
+  let changed = false;
+  if (f.rekenprofiel && f.rekenprofiel.value === null) {
+   const key = autoProfileFor(model.technology);
+   c.profile = key; changed = true;
+   notes.push(`Rekenprofiel ${TECHNOLOGIES[key].naam} voor ${model.technology || 'deze technologie'} (aanname, geen eigen standaard in opsplitsing.py).`);
+  } else if (f.modulevermogen && f.modulevermogen.value === null && f.modulevermogen.candidates?.length) {
+   const v = Math.max(...f.modulevermogen.candidates.filter(x => x > 0 && x <= 1000));
+   if (Number.isFinite(v)) { c.power = v; c.powerNote = `Automatisch ingevuld: hoogste waarde uit de brontekst “${model.power.raw}” (aanname).`; changed = true; notes.push(`Modulevermogen ${fmt(v, 3)} MW (hoogste waarde uit de bron).`); }
+  } else if (r.needsBoP && !c.bopConfirmed) {
+   c.bopConfirmed = true; changed = true;
+   notes.push('BoP-aanname 3 % vast + 7 % variabel (losse stack of alleen stackverbruik bekend).');
+  } else if (f.systeemverbruik_vol && f.systeemverbruik_vol.value === null) {
+   const cands = (f.systeemverbruik_vol.candidates || []).filter(x => x >= 20 && x <= 90);
+   if (cands.length) { const v = Math.max(...cands); c.energy = v; c.energyNote = `Automatisch ingevuld: ongunstigste (hoogste) waarde uit de brontekst “${model.systemEnergy.raw || model.stackEnergy.raw}” (aanname).`; delete c.energySource; notes.push(`Systeemverbruik ${fmt(v, 2)} kWh/kg (ongunstigste waarde uit de bron).`); }
+   else { c.energySource = 'tech'; notes.push('Systeemverbruik volgens de technologiestandaard (geen bruikbare waarde in de bron).'); }
+   changed = true;
+  } else if (f.minimumlast && f.minimumlast.value === null) {
+   const cands = (f.minimumlast.candidates || []).filter(x => x >= 0 && x <= 80);
+   if (cands.length) { const v = Math.max(...cands); c.minimum = v / 100; c.minimumNote = `Automatisch ingevuld: ${fmt(v, 2)} % uit de brontekst “${model.minimum.raw}”, gelezen als percentage van het elektrisch vermogen (ongunstigste waarde, aanname).`; delete c.minimumSource; notes.push(`Minimumlast ${fmt(v, 2)} % (uit de bron, gelezen als elektrisch percentage).`); }
+   else { c.minimumSource = 'tech'; notes.push('Minimumlast volgens de technologiestandaard (geen bruikbare waarde in de bron).'); }
+   changed = true;
+  }
+  if (!changed) return {setup: s, notes, ready: false};
+  s = {...s, choices: c};
+  // A module power that was open could not fill the setup to the target yet: do that now.
+  if (c.power !== setup.choices?.power && finite(c.power) && finite(rules.target)) {
+   const fill = fillWithinLimit(stackPowerMW(c.power, resolveSetup(model, s, general, rules).boundary), rules.target, validLimit(rules.limit) ? rules.limit : defaultLimit());
+   if (fill?.modules) s = {...s, modules: fill.modules};
+  }
+ }
+ return {setup: s, notes, ready: resolveSetup(model, s, general, rules).ready};
+}
+
+// ---- Conclusie van de vergelijking ----
+// entries: [{mean: {waterstof_kg, lcoh_eur_kg}}] in comparison order; verdict: robustness() or null (no costs).
+// Returns the recommended setup and why: lowest LCOH when that is robust, otherwise the most hydrogen within the
+// group that is equivalent on cost, otherwise (no costs) the most hydrogen. Within 2 % hydrogen counts as equal.
+export const HYDROGEN_TIE = 0.02;
+/** @param {any[]} entries @param {any} [verdict] */
+export function comparisonConclusion(entries, verdict = null) {
+ const live = entries.map((e, i) => e?.mean && finite(e.mean.waterstof_kg) ? i : -1).filter(i => i >= 0);
+ if (live.length < 2) return null;
+ const h2 = i => entries[i].mean.waterstof_kg, lcoh = i => entries[i].mean.lcoh_eur_kg;
+ const mostH2 = list => list.reduce((b, i) => h2(i) > h2(b) ? i : b, list[0]);
+ const withCost = verdict && live.every(i => finite(lcoh(i)));
+ const ranking = [...live].sort((a, b) => withCost ? lcoh(a) - lcoh(b) || h2(b) - h2(a) : h2(b) - h2(a));
+ let winner, kind, closeOnH2 = [];
+ if (withCost && (verdict.clear || verdict.equivalent.length <= 1)) { winner = verdict.lowest; kind = 'duidelijk'; }
+ else if (withCost) { winner = mostH2(verdict.equivalent); kind = 'gelijkwaardig'; }
+ else { winner = mostH2(live); kind = 'waterstof'; }
+ closeOnH2 = live.filter(i => i !== winner && Math.abs(h2(i) - h2(winner)) <= HYDROGEN_TIE * h2(winner));
+ // The recommended setup leads; the rest keep their order (LCOH, otherwise hydrogen).
+ return {winner, kind, ranking: [winner, ...ranking.filter(i => i !== winner)], closeOnH2, equivalent: withCost ? verdict.equivalent : [], dearer: withCost ? verdict.dearer : []};
+}

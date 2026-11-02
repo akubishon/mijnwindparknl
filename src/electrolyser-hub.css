@@ -124,3 +124,34 @@
 .import-bar p{margin:0;flex:1 1 320px}
 .import-actions{display:flex;gap:10px;flex-wrap:wrap}
 .import-actions .download.secondary{background:#fff;color:#0C2340}
+/* Vergelijken: de conclusie eerst */
+.compare-lead{margin:-4px 0 18px}
+.compare-conclusion{background:#C3E4F2;border-radius:0 28px 0 0;padding:24px 26px;margin:18px 0 22px;color:#0C2340}
+.compare-conclusion h3{font-size:clamp(22px,3vw,30px);font-weight:500;letter-spacing:-.5px;margin:8px 0 6px}
+.compare-conclusion .conclusion-setup{font-size:17px;margin:0 0 12px;font-variant-numeric:tabular-nums}
+.compare-conclusion .conclusion-why{font-size:16px;line-height:1.6;margin:0 0 16px;max-width:95ch}
+.conclusion-ranking{list-style:none;margin:0 0 16px;padding:0;display:grid;gap:6px}
+.conclusion-ranking li{display:grid;grid-template-columns:34px minmax(0,1fr) 110px 100px 170px;gap:12px;align-items:center;background:#fff;padding:10px 14px;border-radius:0 12px 0 0}
+.conclusion-ranking li.winner{outline:2px solid #0C2340}
+.conclusion-ranking .rank{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#EFECE6;font-weight:600}
+.conclusion-ranking li.winner .rank{background:#0C2340;color:#fff}
+.conclusion-ranking .who small{display:block;font-size:12px;color:#465970}
+.conclusion-ranking .num{text-align:right;font-variant-numeric:tabular-nums;font-size:16px}
+.conclusion-ranking .num small{font-size:12px;color:#465970}
+.conclusion-ranking .status-chip{justify-self:end}
+.status-dearer{background:#f6e3e1;border-color:#b3261e;color:#7a1a14}
+.conclusion-check{background:#fff;border-left:4px solid #00A6DE;padding:12px 16px;font-size:14px;line-height:1.6}
+.conclusion-check ul{margin:6px 0 0;padding-left:20px}
+.open-points-bar{display:grid;grid-template-columns:1fr auto;gap:8px 18px;align-items:center;background:#fff3e0;border-left:4px solid #9a5b13;padding:14px 18px;margin:14px 0;line-height:1.5}
+.open-points-bar .wind-note{grid-column:1/-1;margin:0}
+.compare-settings>summary{font-size:16px}
+@media(max-width:760px){
+ .conclusion-ranking li{grid-template-columns:30px minmax(0,1fr);row-gap:4px;column-gap:10px}
+ .conclusion-ranking .num{grid-column:2;text-align:left;font-size:15px}
+ .conclusion-ranking .status-chip{grid-column:2;justify-self:start}
+ .compare-conclusion{padding:18px 16px}
+ .open-points-bar{grid-template-columns:1fr}
+}
+.electrolyser-tabs .tab-step{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1px solid currentColor;font-size:11px;margin-right:8px;vertical-align:1px}
+.electrolyser-tabs .tab-extra{margin-left:auto;font-style:italic}
+.route-hint{margin:12px 0 14px}

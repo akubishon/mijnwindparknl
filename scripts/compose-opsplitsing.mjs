@@ -15,6 +15,6 @@ assets['chart-export.js']=[(await build({stdin:{contents:"import {initChartExpor
 assets['scenarios.json']=['{"scenarios":[]}','application/json'];
 let html=readFileSync(root+'opsplitsing.html','utf8').replace('<title>','<script src="/opsplitsing-assets/i18n.js"></script><title>').replace('href="./opsplitsing.css"','href="/opsplitsing-assets/opsplitsing.css"').replace('<script src="./opsplitsing.js" defer></script>','<script src="/opsplitsing-assets/bridge.js" defer></script><script src="/opsplitsing-assets/opsplitsing.js" defer></script><script src="/opsplitsing-assets/chart-export.js" defer></script>');
 html=html.replaceAll(/(?:href|src)="\.\/(report[^"]+)"/g, (match,file)=>match.replace('./'+file,'/opsplitsing-assets/'+file));
-html=html.replace('<section class="intro">','<section class="intro"><p class="note">De berekeningen draaien op dit apparaat. Houd deze pagina open tijdens het rekenen. Het eerste gebruik downloadt het rekenmodel; grote analyses kunnen enkele minuten duren.</p>');
+html=html.replace('<!--device-note-->','<p class="note">De berekeningen draaien op dit apparaat. Houd deze pagina open tijdens het rekenen. Het eerste gebruik downloadt het rekenmodel; grote analyses kunnen enkele minuten duren.</p>');
 const policy="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; worker-src 'self'; connect-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'";
 export {assets,html,policy};
