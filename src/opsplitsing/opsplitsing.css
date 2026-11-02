@@ -441,3 +441,4 @@ th,td{padding:12px 14px}
  .module-row{grid-template-columns:1fr;gap:8px}
  .module-tiles{height:96px}
 }
+.intro-notes{margin-top:18px;padding-top:12px;border-top:1px solid rgba(12,35,64,.2)}.intro-notes .note{font-size:14px;margin:4px 0;line-height:1.55}
