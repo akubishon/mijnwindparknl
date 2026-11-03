@@ -2163,4 +2163,5 @@ export default {
   'KNMI {0} (per tien minuten de hoogste)': 'KNMI {0} (the highest per ten minutes)',
   '{0}, geen gegevens': '{0}, no data',
   'Welkom · Mijn Windpark': 'Welcome · Mijn Windpark',
+  'Stuurt per model de modules, waterstof, LCOH en maximale meerprijs naar de Arena van de Waterstofatlas, met de gegevens die nog op aannames rusten als open vragen voor fabrikanten. In de Arena wordt de LCOH omgezet naar 0–100 punten binnen je doorgerekende modellen; opstellingen die hierboven op kosten gelijkwaardig zijn, krijgen daar dezelfde punten. Er gaan geen ingevoerde prijzen of persoonsgegevens mee; de Atlas vraagt eerst om bevestiging.': 'Sends the modules, hydrogen, LCOH and maximum price premium per model to the Arena of the Waterstofatlas, with the data that still rests on assumptions as open questions for manufacturers. In the Arena the LCOH becomes 0–100 points within your calculated models; setups that are equivalent on cost above get the same points there. No entered prices or personal data are sent; the Atlas asks for confirmation first.',
 };

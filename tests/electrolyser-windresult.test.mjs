@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {catalogueModels} from '../src/electrolyser-catalogue.mjs';
-import {resolveSetup, windResultPayload, windResultLink, encodeBase64Url, decodeBase64Url, MAX_SETUPS} from '../src/electrolyser-setup.mjs';
+import {resolveSetup, windResultPayload, windResultLink, costVerdictOf, encodeBase64Url, decodeBase64Url, MAX_SETUPS} from '../src/electrolyser-setup.mjs';
 import {KERNEL_VERSION} from '../src/electrolyser-kernel.mjs';
 import {compareNow} from '../src/electrolyser-run.mjs';
 import * as eco from '../src/electrolyser-economics.mjs';
@@ -76,4 +76,24 @@ test('de link gebruikt een queryparameter en #arena, en de payload komt er ongew
  assert.ok(raw.length < 8000, String(raw.length));
  assert.equal(windResultLink({setups: []}), null);
  assert.equal(decodeBase64Url(encodeBase64Url('Ω ≥ 5 kWh/kg')), 'Ω ≥ 5 kWh/kg');
+});
+
+test('kostenoordeel per model volgt de robuustheidstoets; zonder toets is het null', () => {
+ const list = entries(i => ({...fixture, id: i ? 'abcdefabcdef' : fixture.id}));
+ const verdict = eco.robustness(list.map(e => ({result: e.result.summary, a: e.costs.a, fixedOwn: false})));
+ assert.ok(verdict);
+ const p = windResultPayload({entries: list, reference: 0, general, target: 44, verdict});
+ const byId = Object.fromEntries(p.setups.map(s => [s.modelId, s.kostenoordeel]));
+ assert.equal(byId[list[verdict.lowest].model.id], 'goedkoopst');
+ const other = list[1 - verdict.lowest].model.id;
+ assert.equal(byId[other], verdict.equivalent.length > 1 ? 'gelijkwaardig' : 'duurder');
+ assert.equal(p.kostentoetsen, verdict.cases);
+ const none = windResultPayload({entries: list, reference: 0, general, target: 44});
+ assert.ok(none.setups.every(s => s.kostenoordeel === null)); assert.equal(none.kostentoetsen, null);
+});
+
+test('costVerdictOf: goedkoopst, gelijkwaardig, duurder', () => {
+ const v = {lowest: 1, equivalent: [1, 2], dearer: [0]};
+ assert.equal(costVerdictOf(v, 1), 'goedkoopst'); assert.equal(costVerdictOf(v, 2), 'gelijkwaardig');
+ assert.equal(costVerdictOf(v, 0), 'duurder'); assert.equal(costVerdictOf(v, 3), null); assert.equal(costVerdictOf(null, 0), null);
 });
