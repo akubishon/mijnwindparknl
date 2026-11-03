@@ -15,6 +15,7 @@ Public Const MAX_MODULES As Long = 12
 Public Const SENSITIVITY_STEP As Double = 0.25
 Public Const OXYGEN_KG_PER_KG As Double = 8#
 Public Const DATA_SHEET As String = "Data_Aanbod"
+Public Const ERR_BASE As Long = -2147221504   ' gelijk aan vbObjectError (dat LibreOffice niet kent)
 
 ' ---------------------------------------------------------------- aannames (volgorde van de dataclass)
 Public Const A_CAPACITEIT_MW As Long = 0
@@ -189,7 +190,7 @@ Private Sub EnsureData()
     Do While Len(CStr(ws.Cells(1, gYearCount * COLS_PER_YEAR + 1).Value)) > 0
         gYearCount = gYearCount + 1
     Loop
-    If gYearCount < 1 Then Err.Raise vbObjectError + 1, , "Geen windaanbod gevonden op het werkblad " & DATA_SHEET & "."
+    If gYearCount < 1 Then Err.Raise ERR_BASE + 1, , "Geen windaanbod gevonden op het werkblad " & DATA_SHEET & "."
     ReDim gYears(0 To gYearCount - 1)
     Dim tt() As Variant, zz() As Variant, mm() As Variant, m2() As Variant
     ReDim tt(0 To gYearCount - 1): ReDim zz(0 To gYearCount - 1)
@@ -248,7 +249,7 @@ Private Function YearIndex(ByVal yr As Long) As Long
             Exit Function
         End If
     Next i
-    Err.Raise vbObjectError + 2, , "Geen windgegevens voor " & yr & "."
+    Err.Raise ERR_BASE + 2, , "Geen windgegevens voor " & yr & "."
 End Function
 
 Public Function SupplyLength(ByVal yr As Long) As Long
@@ -1157,7 +1158,7 @@ Public Sub BreakEven(rows As Variant, a() As Double)
     Dim k1 As Double, kn As Double, s1 As Double, sn As Double, e1 As Double, en As Double
     For r = LBound(rows) To UBound(rows)
         If IsEmpty(rows(r)(X_LCOH)) Then
-            Err.Raise vbObjectError + 10, , NoHydrogenMessage(rows)
+            Err.Raise ERR_BASE + 10, , NoHydrogenMessage(rows)
         End If
     Next r
     ref1 = rows(LBound(rows))
@@ -1396,7 +1397,7 @@ Private Function Advantage(years As Variant, ByVal n As Long, simA() As Double, 
     If IsEmpty(s1(X_LCOH)) Or IsEmpty(sn(X_LCOH)) Then
         Dim l(0 To 0) As Long
         l(0) = 1
-        Err.Raise vbObjectError + 11, , NoHydrogenText(l, 1)
+        Err.Raise ERR_BASE + 11, , NoHydrogenText(l, 1)
     End If
     Advantage = s1(X_LCOH) - sn(X_LCOH)
 End Function
@@ -1408,7 +1409,7 @@ Public Function Sensitivity(a() As Double, years As Variant, ByVal n As Long, By
                             ByVal parks As Long, lows() As Double, highs() As Double, scales() As Double) As Variant
     Dim baseAdv As Double, costs As Variant, ops As Variant, items() As Variant, nItems As Long, k As Long, key As Long
     Dim sv(0 To 1) As Double, cases As Variant, cnt As Long, lo As Double, hi As Double, isCost As Boolean, ca() As Double
-    If n <= 1 Or n > MAX_MODULES Then Err.Raise vbObjectError + 12, , "Kies een aantal modules groter dan 1, een besturing en minstens één windjaar."
+    If n <= 1 Or n > MAX_MODULES Then Err.Raise ERR_BASE + 12, , "Kies een aantal modules groter dan 1, een besturing en minstens één windjaar."
     costs = SensitiveCosts()
     ops = SensitiveOperation(standbyMode)
     ProgressDone = 0
@@ -1470,7 +1471,7 @@ Public Function Omslagkaart(a() As Double, years As Variant, counts As Variant, 
     ml = OmslagMinimumlast(): vk = OmslagVasteKosten()
     nY = UBound(years) - LBound(years) + 1
     nC = UBound(counts) - LBound(counts) + 1
-    If nC < 2 Then Err.Raise vbObjectError + 13, , "Kies minstens twee moduleaantallen, een besturing en minstens één windjaar."
+    If nC < 2 Then Err.Raise ERR_BASE + 13, , "Kies minstens twee moduleaantallen, een besturing en minstens één windjaar."
     ReDim grid(0 To UBound(ml), 0 To UBound(vk))
     ProgressDone = 0: ProgressTotal = (UBound(ml) + 1) * nC * nY
     For i = 0 To UBound(ml)
@@ -1537,7 +1538,7 @@ Public Function DayTrace(a() As Double, ByVal dag As Date, counts As Variant, By
             i1 = i
         End If
     Next i
-    If i0 < 0 Then Err.Raise vbObjectError + 14, , "Geen windgegevens voor deze dag."
+    If i0 < 0 Then Err.Raise ERR_BASE + 14, , "Geen windgegevens voor deze dag."
     cnt = i1 - i0 + 1
     ReDim wt(0 To cnt - 1): ReDim wm(0 To cnt - 1): ReDim wz(0 To cnt - 1)
     For i = 0 To cnt - 1
@@ -1551,7 +1552,7 @@ Public Function DayTrace(a() As Double, ByVal dag As Date, counts As Variant, By
             Exit For
         End If
     Next i
-    If visFrom < 0 Or visTo <= visFrom Then Err.Raise vbObjectError + 14, , "Geen windgegevens voor deze dag."
+    If visFrom < 0 Or visTo <= visFrom Then Err.Raise ERR_BASE + 14, , "Geen windgegevens voor deze dag."
     ReDim out(LBound(counts) To UBound(counts))
     For c = LBound(counts) To UBound(counts)
         n = counts(c)

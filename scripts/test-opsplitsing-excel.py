@@ -53,9 +53,14 @@ CASES = [
     ("Alkaline, bijschakelen, voorspelling", "Alkaline", "bijschakelen", "voorspelling", "Beide", [2024], [1, 3], {}),
     ("Alkaline hoog, samen, alleen Fryslân, twee jaren", "Alkaline, hoge minimumlast", "samen", "vast", "Windpark Fryslân", [2022, 2023],
      [1, 2], {"stroomprijs_eur_mwh": 60, "capex_subsidie_eur_kw": 200, "zuurstofprijs_eur_t": 50, "waterstofpremie_eur_kg": 1}),
-    ("PEM, verdelen, voorspelling zonder fout", "PEM", "verdelen", "voorspelling", "Windpark Beabuorren", [2025], [1, 2],
+    ("PEM, verdelen, voorspelling zonder fout, alleen Beabuorren", "PEM", "verdelen", "voorspelling", "Windpark Beabuorren", [2025], [2, 4],
      {"voorspelfout": 0, "rente": 0, "storingen_per_jaar": 0, "stackwissel_weken": 0}),
 ]
+
+
+# Gevoeligheid en omslagkaart (--volledig): zonder stackwissels, dus één simulatie per job; voorspelling met fout, zodat ook de
+# voorspelfout als gevoelige aanname meedoet.
+FULL_CASE = ("Gevoeligheid en omslagkaart", "PEM", "verdelen", "voorspelling", "Beide", [2023], [1, 3], {"stackwissel_weken": 0})
 
 
 def close(a, b, rel=REL):
@@ -296,6 +301,7 @@ def main() -> int:
     parser.add_argument("--werkmap", type=Path, help="bestaande werkmap; standaard wordt er een gebouwd")
     parser.add_argument("--snel", action="store_true", help="alleen de eerste twee cases, zonder dagverloop")
     parser.add_argument("--volledig", action="store_true", help="ook gevoeligheid en omslagkaart (duurt in LibreOffice minuten)")
+    parser.add_argument("--alleen-volledig", action="store_true", help="alleen gevoeligheid en omslagkaart")
     args = parser.parse_args()
     unit_checks()
     workbook = args.werkmap
@@ -315,8 +321,8 @@ def main() -> int:
         doc = office.open(workbook)
         if not doc.BasicLibraries.hasByName("VBAProject"):
             raise SystemExit("LibreOffice vindt geen VBA-project in de werkmap.")
-        cases = CASES[:2] if args.snel else CASES
-        for index, (name, tech, strategy, standby, parks, years, counts, changes) in enumerate(cases):
+        cases = [] if args.alleen_volledig else CASES[:2] if args.snel else CASES
+        for name, tech, strategy, standby, parks, years, counts, changes in cases:
             shown = set_inputs(doc, tech, strategy, standby, parks, years, counts, changes, meta)
             request = body(shown, strategy, standby, parks, years, counts)
             seconds = run_macro(doc, "Bereken")
@@ -326,13 +332,29 @@ def main() -> int:
                 seconds = run_macro(doc, "BerekenDagverloop")
                 compare_day(doc, dispatch("/dag", {**request, "datum": day}), name, standby == "voorspelling")
                 print(f"{name}: Dagverloop {day} {seconds:.0f} s, {len(FAILURES)} verschillen tot nu toe", flush=True)
-            if args.volledig and index == len(CASES) - 1:   # zonder stackwissels: één simulatie per job, dus het snelst
-                seconds = run_macro(doc, "BerekenGevoeligheid")
-                compare_sensitivity(doc, dispatch("/gevoeligheid", {**request, "n": counts[-1]}), name)
-                print(f"{name}: Gevoeligheid {seconds:.0f} s, {len(FAILURES)} verschillen tot nu toe", flush=True)
-                seconds = run_macro(doc, "BerekenOmslagkaart")
-                compare_omslag(doc, dispatch("/omslagkaart", request), name)
-                print(f"{name}: Omslagkaart {seconds:.0f} s, {len(FAILURES)} verschillen tot nu toe", flush=True)
+        if args.volledig or args.alleen_volledig:
+            name, tech, strategy, standby, parks, years, counts, changes = FULL_CASE
+            shown = set_inputs(doc, tech, strategy, standby, parks, years, counts, changes, meta)
+            request = body(shown, strategy, standby, parks, years, counts)
+            seconds = run_macro(doc, "BerekenGevoeligheid")
+            compare_sensitivity(doc, dispatch("/gevoeligheid", {**request, "n": counts[-1]}), name)
+            print(f"{name}: Gevoeligheid {seconds:.0f} s, {len(FAILURES)} verschillen tot nu toe", flush=True)
+            seconds = run_macro(doc, "BerekenOmslagkaart")
+            compare_omslag(doc, dispatch("/omslagkaart", request), name)
+            print(f"{name}: Omslagkaart {seconds:.0f} s, {len(FAILURES)} verschillen tot nu toe", flush=True)
+        # Alleen Beabuorren (10,4 MW) haalt nooit de minimumlast van één module van 44 MW: zelfde melding als de website.
+        set_inputs(doc, "PEM", "verdelen", "vast", "Windpark Beabuorren", [2025], [1, 2], {}, meta)
+        try:
+            run_macro(doc, "Bereken")
+            FAILURES.append("geen waterstof: Bereken gaf geen foutmelding")
+        except AssertionError as exc:
+            try:
+                dispatch("/bereken", body({}, "verdelen", "vast", "Windpark Beabuorren", [2025], [1, 2]))
+                FAILURES.append("geen waterstof: Python gaf geen foutmelding")
+            except ValueError as python_error:
+                if str(python_error) not in str(exc):
+                    FAILURES.append(f"geen waterstof: Excel {exc} ≠ Python {python_error}")
+        print(f"Geen waterstof: {len(FAILURES)} verschillen tot nu toe", flush=True)
         doc.close(True)
     finally:
         office.close()

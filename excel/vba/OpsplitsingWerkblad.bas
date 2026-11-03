@@ -106,7 +106,7 @@ Public Function ReadAssumptions() As Variant
     Do While Len(CStr(ws.Cells(r, COL_KEY).Value)) > 0
         key = CStr(ws.Cells(r, COL_KEY).Value)
         k = KeyIndex(key)
-        If k < 0 Then Err.Raise vbObjectError + 20, , "Onbekende aanname '" & key & "' in rij " & r & "."
+        If k < 0 Then Err.Raise ERR_BASE + 20, , "Onbekende aanname '" & key & "' in rij " & r & "."
         gLabels(k) = CStr(ws.Cells(r, COL_LABEL).Value)
         gUnits(k) = CStr(ws.Cells(r, COL_EENHEID).Value)
         gLows(k) = CDbl(ws.Cells(r, COL_MIN).Value)
@@ -114,20 +114,20 @@ Public Function ReadAssumptions() As Variant
         gScales(k) = CDbl(ws.Cells(r, COL_SCHAAL).Value)
         v = ws.Cells(r, COL_WAARDE).Value
         If IsEmpty(v) Or VarType(v) = vbString Or VarType(v) = vbBoolean Then
-            Err.Raise vbObjectError + 21, , gLabels(k) & ": kies een waarde van " & gLows(k) & " tot " & gHighs(k) & "."
+            Err.Raise ERR_BASE + 21, , gLabels(k) & ": kies een waarde van " & gLows(k) & " tot " & gHighs(k) & "."
         End If
         If CDbl(v) < gLows(k) Or CDbl(v) > gHighs(k) Then
-            Err.Raise vbObjectError + 21, , gLabels(k) & ": kies een waarde van " & gLows(k) & " tot " & gHighs(k) & "."
+            Err.Raise ERR_BASE + 21, , gLabels(k) & ": kies een waarde van " & gLows(k) & " tot " & gHighs(k) & "."
         End If
         a(k) = CDbl(v) / gScales(k)
         seen(k) = True
         r = r + 1
     Loop
     For k = 0 To A_LAST
-        If Not seen(k) Then Err.Raise vbObjectError + 22, , "De aannametabel op Invoer mist een regel (aanname " & k & ")."
+        If Not seen(k) Then Err.Raise ERR_BASE + 22, , "De aannametabel op Invoer mist een regel (aanname " & k & ")."
     Next k
     If PerKwEur(a) <= 0 Then
-        Err.Raise vbObjectError + 23, , "Vaste kosten per module × aantal units moeten onder de prijs van de referentieofferte blijven."
+        Err.Raise ERR_BASE + 23, , "Vaste kosten per module × aantal units moeten onder de prijs van de referentieofferte blijven."
     End If
     ReadAssumptions = a
 End Function
@@ -135,14 +135,14 @@ End Function
 Private Function ReadStrategy() As String
     Dim s As String
     s = LCase(Trim(CStr(Invoer().Range(CELL_BESTURING).Value)))
-    If s <> "verdelen" And s <> "bijschakelen" And s <> "samen" Then Err.Raise vbObjectError + 24, , "Kies een besturing: verdelen, bijschakelen of samen."
+    If s <> "verdelen" And s <> "bijschakelen" And s <> "samen" Then Err.Raise ERR_BASE + 24, , "Kies een besturing: verdelen, bijschakelen of samen."
     ReadStrategy = s
 End Function
 
 Private Function ReadStandby() As String
     Dim s As String
     s = LCase(Trim(CStr(Invoer().Range(CELL_STANDBY).Value)))
-    If s <> "vast" And s <> "voorspelling" Then Err.Raise vbObjectError + 25, , "Kies een stand-by-beleid: vast of voorspelling."
+    If s <> "vast" And s <> "voorspelling" Then Err.Raise ERR_BASE + 25, , "Kies een stand-by-beleid: vast of voorspelling."
     ReadStandby = s
 End Function
 
@@ -156,7 +156,7 @@ Private Function ReadParks() As Long
     ElseIf InStr(s, "beabuorren") > 0 Then
         ReadParks = PARKEN_BEABUORREN
     Else
-        Err.Raise vbObjectError + 26, , "Kies minstens één windpark: Windpark Fryslân, Windpark Beabuorren of beide."
+        Err.Raise ERR_BASE + 26, , "Kies minstens één windpark: Windpark Fryslân, Windpark Beabuorren of beide."
     End If
 End Function
 
@@ -174,20 +174,20 @@ Public Function ParseList(ByVal txt As String, ByVal low As Long, ByVal high As 
     ReDim used(low To high)
     txt = Replace(Replace(Replace(txt, ";", ","), " ", ""), Chr(150), "-")
     txt = Replace(txt, ChrW(8211), "-")
-    If Len(txt) = 0 Then Err.Raise vbObjectError + 27, , "Kies minstens één " & what & "."
+    If Len(txt) = 0 Then Err.Raise ERR_BASE + 27, , "Kies minstens één " & what & "."
     parts = Split(txt, ",")
     For p = LBound(parts) To UBound(parts)
         part = parts(p)
         If Len(part) > 0 Then
             dash = InStr(part, "-")
             If dash > 0 Then
-                If Not IsNumeric(Left(part, dash - 1)) Or Not IsNumeric(Mid(part, dash + 1)) Then Err.Raise vbObjectError + 27, , "Onbekend " & what & ": " & part & "."
+                If Not IsNumeric(Left(part, dash - 1)) Or Not IsNumeric(Mid(part, dash + 1)) Then Err.Raise ERR_BASE + 27, , "Onbekend " & what & ": " & part & "."
                 a = CLng(Left(part, dash - 1)): b = CLng(Mid(part, dash + 1))
             Else
-                If Not IsNumeric(part) Then Err.Raise vbObjectError + 27, , "Onbekend " & what & ": " & part & "."
+                If Not IsNumeric(part) Then Err.Raise ERR_BASE + 27, , "Onbekend " & what & ": " & part & "."
                 a = CLng(part): b = a
             End If
-            If a > b Or a < low Or b > high Then Err.Raise vbObjectError + 27, , "Kies " & what & " van " & low & " tot en met " & high & "."
+            If a > b Or a < low Or b > high Then Err.Raise ERR_BASE + 27, , "Kies " & what & " van " & low & " tot en met " & high & "."
             For v = a To b
                 used(v) = True
             Next v
@@ -199,7 +199,7 @@ Public Function ParseList(ByVal txt As String, ByVal low As Long, ByVal high As 
             out(c) = v: c = c + 1
         End If
     Next v
-    If c = 0 Then Err.Raise vbObjectError + 27, , "Kies minstens één " & what & "."
+    If c = 0 Then Err.Raise ERR_BASE + 27, , "Kies minstens één " & what & "."
     ReDim Preserve out(0 To c - 1)
     ParseList = out
 End Function
@@ -213,7 +213,7 @@ Private Function ReadYears() As Variant
         For j = LBound(avail) To UBound(avail)
             If avail(j) = years(i) Then ok = True
         Next j
-        If Not ok Then Err.Raise vbObjectError + 28, , "Kies windjaren uit de lijst: " & JoinLongs(avail) & "."
+        If Not ok Then Err.Raise ERR_BASE + 28, , "Kies windjaren uit de lijst: " & JoinLongs(avail) & "."
     Next i
     ReadYears = years
 End Function
@@ -484,7 +484,7 @@ Public Sub BerekenGevoeligheid()
     On Error GoTo failed
     a = ReadAssumptions(): years = ReadYears()
     strategy = ReadStrategy(): standbyMode = ReadStandby(): parks = ReadParks()
-    If Not IsNumeric(Invoer().Range(CELL_GEVOELIGHEID_N).Value) Then Err.Raise vbObjectError + 29, , "Kies een aantal modules voor de gevoeligheid."
+    If Not IsNumeric(Invoer().Range(CELL_GEVOELIGHEID_N).Value) Then Err.Raise ERR_BASE + 29, , "Kies een aantal modules voor de gevoeligheid."
     n = CLng(Invoer().Range(CELL_GEVOELIGHEID_N).Value)
     BeginWork
     began = Timer
@@ -598,9 +598,9 @@ Public Sub BerekenDagverloop()
     If IsEmpty(dag) Or CStr(dag) = "" Then
         dag = Empty
         dag = Invoer().Range(CELL_VOORBEELDDAG).Value
-        If IsEmpty(dag) Or CStr(dag) = "" Then Err.Raise vbObjectError + 30, , "Vul een datum in bij Invoer!" & CELL_DAG & " of kies eerst Bereken voor de voorbeelddag."
+        If IsEmpty(dag) Or CStr(dag) = "" Then Err.Raise ERR_BASE + 30, , "Vul een datum in bij Invoer!" & CELL_DAG & " of kies eerst Bereken voor de voorbeelddag."
     End If
-    If Not IsDate(dag) And Not IsNumeric(dag) Then Err.Raise vbObjectError + 30, , "Geen geldige datum bij Invoer!" & CELL_DAG & "."
+    If Not IsDate(dag) And Not IsNumeric(dag) Then Err.Raise ERR_BASE + 30, , "Geen geldige datum bij Invoer!" & CELL_DAG & "."
     BeginWork
     began = Timer
     data = DayTrace(a, CDate(dag), counts, strategy, standbyMode, parks)
