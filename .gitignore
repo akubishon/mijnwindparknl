@@ -8,3 +8,5 @@ outputs/
 work/
 *.tsbuildinfo
 .dev.vars*
+__pycache__/
+.~lock.*#
