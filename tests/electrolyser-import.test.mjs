@@ -19,7 +19,7 @@ test('geldige payload wordt gelezen en genormaliseerd', () => {
 
 test('ongeldige payloads worden geweigerd met een melding', () => {
  const bad = [
-  {...good, type: 'iets-anders'}, {...good, version: 2}, {...good, ids: []}, {...good, ids: ids(7)},
+  {...good, type: 'iets-anders'}, {...good, version: 2}, {...good, ids: []}, {...good, ids: ids(MAX_SETUPS + 1)},
   {...good, ids: ['zzzzzzzzzzzz']}, {...good, ids: ['ABCDEF012345']}, {...good, ids: [ids(1)[0], ids(1)[0]]}, {...good, ids: 'abc'}, null, [],
  ];
  for (const b of bad) { const r = parseAtlasImport(search(b)); assert.equal(r.ok, false, JSON.stringify(b)); assert.equal(r.present, true); assert.ok(r.error); assert.equal(r.payload, null); }
@@ -33,7 +33,13 @@ test('doelvermogen buiten 1–200 MW valt weg, de modellen blijven', () => {
  assert.equal(parseAtlasImport(search({...good, maxModules: 12})).payload.maxModules, 12);
 });
 
-test('zes opstellingen zijn toegestaan', () => { assert.equal(MAX_SETUPS, 6); });
+test('een hele shortlist uit de Atlas past: tot MAX_SETUPS modellen', () => {
+ assert.ok(MAX_SETUPS >= 100);
+ const ids = Array.from({length: MAX_SETUPS}, (_, i) => i.toString(16).padStart(12, '0'));
+ const r = parseAtlasImport(search({...good, ids}));
+ assert.equal(r.ok, true); assert.equal(r.payload.ids.length, MAX_SETUPS);
+ assert.equal(parseAtlasImport(search({...good, ids: [...ids, 'ffffffffffff']})).ok, false);
+});
 
 // Real catalogue fixture: setups are filled to the target using the module power of each model.
 const catalogue = JSON.parse(readFileSync(new URL('./fixtures/atlas-catalogue.json', import.meta.url), 'utf8'));
