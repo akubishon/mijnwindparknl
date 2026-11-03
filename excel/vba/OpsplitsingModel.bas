@@ -1103,6 +1103,12 @@ Public Function CopyRow(v As Variant) As Variant
     CopyRow = o
 End Function
 
+Private Function NewList(ByVal count As Long) As Variant
+    Dim o() As Variant
+    ReDim o(0 To count - 1)
+    NewList = o
+End Function
+
 Public Function LcohOf(res As Variant, a() As Double) As Variant
     Dim copy As Variant
     copy = CopyRow(res)
@@ -1467,7 +1473,7 @@ End Function
 Public Function Omslagkaart(a() As Double, years As Variant, counts As Variant, ByVal strategy As String, ByVal standbyMode As String, _
                             ByVal parks As Long) As Variant
     Dim ml As Variant, vk As Variant, grid() As Variant, i As Long, f As Long, c As Long, y As Long, nY As Long, nC As Long
-    Dim cs() As Double, vrt() As Double, sims() As Variant, per() As Variant, lcoh() As Variant, best As Long
+    Dim cs() As Double, vrt() As Double, sims() As Variant, per As Variant, lcoh() As Variant, best As Long
     ml = OmslagMinimumlast(): vk = OmslagVasteKosten()
     nY = UBound(years) - LBound(years) + 1
     nC = UBound(counts) - LBound(counts) + 1
@@ -1478,7 +1484,7 @@ Public Function Omslagkaart(a() As Double, years As Variant, counts As Variant, 
         cs = WithValue(a, A_MINIMUMLAST, ml(i))
         ReDim sims(0 To nC - 1)
         For c = 0 To nC - 1
-            ReDim per(0 To nY - 1)
+            per = NewList(nY)   ' elke ronde een nieuwe array: sims(c) mag niet meeveranderen (LibreOffice deelt arrays)
             For y = 0 To nY - 1
                 Progress "omslagkaart, minimumlast " & ml(i) * 100 & " %"
                 per(y) = SimulateYear(years(LBound(years) + y), parks, counts(LBound(counts) + c), cs, strategy, standbyMode)
