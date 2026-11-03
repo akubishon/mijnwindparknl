@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {catalogueModels} from '../src/electrolyser-catalogue.mjs';
-import {resolveSetup, windResultPayload, windResultLink, costVerdictOf, encodeBase64Url, decodeBase64Url, MAX_SETUPS} from '../src/electrolyser-setup.mjs';
+import {resolveSetup, windResultPayload, windResultLink, costVerdictOf, encodeBase64Url, decodeBase64Url, MAX_SETUPS, compactWindResult, expandWindResult, WIND_RESULT_MAX_CHARS} from '../src/electrolyser-setup.mjs';
 import {KERNEL_VERSION} from '../src/electrolyser-kernel.mjs';
 import {compareNow} from '../src/electrolyser-run.mjs';
 import * as eco from '../src/electrolyser-economics.mjs';
@@ -59,7 +59,7 @@ test('hetzelfde model in twee opstellingen wordt één keer verstuurd, met het b
  assert.equal(p.setups[0].modules, best.resolved.modules);
 });
 
-test('opstellingen zonder resultaat of met een ongeldig model-ID gaan niet mee; maximaal 6 modellen', () => {
+test('opstellingen zonder resultaat of met een ongeldig model-ID gaan niet mee; maximaal MAX_SETUPS modellen', () => {
  const list = entries(() => fixture);
  assert.equal(windResultPayload({entries: [{...list[0], result: null}], reference: 0, general, target: 44}).setups.length, 0);
  assert.equal(windResultPayload({entries: [{...list[0], model: {id: 'niet-geldig'}}], reference: 0, general, target: 44}).setups.length, 0);
@@ -96,4 +96,28 @@ test('costVerdictOf: goedkoopst, gelijkwaardig, duurder', () => {
  const v = {lowest: 1, equivalent: [1, 2], dearer: [0]};
  assert.equal(costVerdictOf(v, 1), 'goedkoopst'); assert.equal(costVerdictOf(v, 2), 'gelijkwaardig');
  assert.equal(costVerdictOf(v, 0), 'duurder'); assert.equal(costVerdictOf(v, 3), null); assert.equal(costVerdictOf(null, 0), null);
+});
+
+test('een lange shortlist gaat compact (versie 2) mee en past binnen de leeslimiet van de Atlas', () => {
+ const list = entries(() => fixture);
+ const many = Array.from({length: MAX_SETUPS}, (_, i) => ({...list[i % 2], model: {...fixture, id: i.toString(16).padStart(12, '0')}}));
+ const p = windResultPayload({entries: many, reference: 0, general, target: 44});
+ assert.equal(p.setups.length, MAX_SETUPS);
+ const raw = new URL(windResultLink(p)).searchParams.get('windresultaat');
+ assert.ok(raw.length <= WIND_RESULT_MAX_CHARS, String(raw.length));
+ const data = JSON.parse(decodeBase64Url(raw));
+ assert.equal(data.version, 2);
+ const back = expandWindResult(data);
+ assert.equal(back.setups.length, MAX_SETUPS);
+ back.setups.forEach((x, i) => {
+  const {aannameVelden, ...rest} = p.setups[i];
+  assert.deepEqual({...x, aannameVelden: undefined}, {...rest, aannameVelden: undefined});
+  assert.deepEqual(new Set(x.aannameVelden), new Set(aannameVelden));
+ });
+ assert.deepEqual(expandWindResult(compactWindResult(p)).reference, p.reference);
+});
+
+test('een korte shortlist blijft versie 1', () => {
+ const p = windResultPayload({entries: entries(i => ({...fixture, id: i ? 'abcdefabcdef' : fixture.id})), reference: 0, general, target: 44});
+ assert.equal(JSON.parse(decodeBase64Url(new URL(windResultLink(p)).searchParams.get('windresultaat'))).version, 1);
 });

@@ -8,7 +8,8 @@ import {WIND_PROFILES, DEFAULT_WIND_PROFILE, windSeries} from './electrolyser-wi
 import {COST_KEYS, COST_SETUP_KEYS, generalCosts} from './electrolyser-economics.mjs';
 
 export const WIND_YEARS = [2022, 2023, 2024, 2025];
-export const MAX_SETUPS = 6, MAX_MODULES = 200, DEFAULT_TARGET_MW = 44;
+// Enough for a whole Waterstofatlas shortlist: the catalogue holds fewer than 100 electrolysers.
+export const MAX_SETUPS = 120, MAX_MODULES = 200, DEFAULT_TARGET_MW = 44;
 
 // [key, label, unit, shown-scale, low, high] in the shown unit, as AANNAMES_META in opsplitsing.py.
 const META = {
@@ -362,7 +363,7 @@ export function comparisonCSV({catalogue, entries, general}) {
 
 // ---- Import of a shortlist from the Waterstofatlas (?atlas=<base64url JSON>) ----
 // The Atlas links here with a query parameter because both password gates keep path + query and drop the #fragment.
-export const ATLAS_IMPORT_MAX_IDS = 6, ATLAS_IMPORT_MAX_CHARS = 4000, ATLAS_TARGET_RANGE = [1, 200];
+export const ATLAS_IMPORT_MAX_IDS = MAX_SETUPS, ATLAS_IMPORT_MAX_CHARS = 4000, ATLAS_TARGET_RANGE = [1, 200];
 export function decodeBase64Url(text) {
  const bin = atob(String(text).replace(/-/g, '+').replace(/_/g, '/')), bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
  return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
@@ -437,7 +438,36 @@ export function windResultPayload({entries, reference = 0, general = defaultGene
  return {type: 'windpark-result', version: 1, kernel: KERNEL_VERSION, years: [...g.years], windprofiel: g.windProfile, target: sig(target, 6),
   reference: typeof referenceId === 'string' && best.has(referenceId) ? referenceId : null, kostentoetsen: verdict?.tested ? verdict.cases : null, setups};
 }
-export const windResultLink = payload => payload?.setups?.length ? `${ATLAS_RESULT_BASE}?windresultaat=${encodeBase64Url(JSON.stringify(payload))}#arena` : null;
+// The Atlas reads at most WIND_RESULT_MAX_CHARS characters of ?windresultaat= (and long addresses are refused along the way).
+// Version 1 lists every field per model; that fits for a handful of models. A longer shortlist travels as version 2: the same
+// data in rows, with the assumption fields named once and the fields that every model shares listed once.
+export const WIND_RESULT_MAX_CHARS = 16000;
+const ROW_KEYS = ['modelId', 'modules', 'waterstof_t', 'benutting', 'lcoh_eur_kg', 'meerprijs_eur_kw', 'koude_starts', 'kostenoordeel'];
+export function compactWindResult(payload) {
+ const {setups, version, ...rest} = payload, fields = [...new Set(setups.flatMap(x => x.aannameVelden))], index = new Map(fields.map((k, i) => [k, i]));
+ const shared = fields.filter(k => setups.every(x => x.aannameVelden.includes(k)));
+ return {...rest, version: 2, velden: fields, algemeen: shared.map(k => index.get(k)),
+  rijen: setups.map(x => [...ROW_KEYS.map(k => x[k] ?? null), x.aannameVelden.filter(k => !shared.includes(k)).map(k => index.get(k))])};
+}
+// The inverse, for tests and as a reference for the Atlas reader.
+export function expandWindResult(data) {
+ if (data?.version !== 2) return data;
+ const {velden, algemeen, rijen, ...rest} = data;
+ return {...rest, version: 1, setups: rijen.map(r => ({...Object.fromEntries(ROW_KEYS.map((k, i) => [k, r[i]])), aannameVelden: [...algemeen, ...r[ROW_KEYS.length]].map(i => velden[i])}))};
+}
+const resultParam = payload => encodeBase64Url(JSON.stringify(payload));
+export function windResultLink(payload) {
+ if (!payload?.setups?.length) return null;
+ let p = payload, raw = resultParam(p);
+ // Should even the rows not fit, the last models in the comparison order stay behind, never the reference.
+ while (raw.length > WIND_RESULT_MAX_CHARS) {
+  raw = resultParam(compactWindResult(p));
+  const drop = p.setups.findLastIndex(x => x.modelId !== p.reference);
+  if (raw.length <= WIND_RESULT_MAX_CHARS || drop < 0) break;
+  p = {...p, setups: p.setups.filter((_, i) => i !== drop)};
+ }
+ return `${ATLAS_RESULT_BASE}?windresultaat=${raw}#arena`;
+}
 
 // ---- Open punten in één keer invullen ----
 // After an Atlas import most setups are not calculable yet: a range in the datasheet, a minimum load in hydrogen terms,

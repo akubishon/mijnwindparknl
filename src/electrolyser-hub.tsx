@@ -24,9 +24,12 @@ type Assembled={years:number[];keys:string[];perYear:Metrics[];mean:Metrics;drop
 
 const TABS:[Tab,string,string][]=[['catalogus','Catalogus','/elektrolyser/catalogus'],['samenstellen','Samenstellen','/elektrolyser/samenstellen'],['vergelijken','Vergelijken','/elektrolyser/vergelijken']];
 const tabFromPath=(path:string):Tab=>(TABS.find(t=>t[2]===path.replace(/\/$/,''))?.[0])||'catalogus';
-const LETTERS='ABCDEF';
+// Setups are named A–Z, then AA, AB, … so a whole shortlist gets its own letters.
+const letter=(i:number):string=>(i>=26?letter(Math.floor(i/26)-1):'')+String.fromCharCode(65+i%26);
 const TARGET_NOTE='Het doelvermogen is het totale stackvermogen; de BoP komt daar in de berekening bovenop. Met de standaard 10 % BoP neemt 44 MW stack bij vollast 48,4 MW op.';
-const COLORS=['#0C2340','#00A6DE','#9A5B13','#4E7A3A','#B3261E','#6B4C9A'],DASHES=['','6 4','2 3','10 3 2 3','4 2','8 2 2 2 2 2'];
+const PALETTE=['#0C2340','#00A6DE','#9A5B13','#4E7A3A','#B3261E','#6B4C9A'],DASH_STYLES=['','6 4','2 3','10 3 2 3','4 2','8 2 2 2 2 2'];
+// Six colours and six dash patterns: the first six setups look as before, the next ones shift the dash, so 36 are distinct.
+const color=(i:number)=>PALETTE[i%6],dash=(i:number)=>DASH_STYLES[(i+Math.floor(i/6))%6];
 const fmt=(n:number|null|undefined,d=1)=>typeof n==='number'&&Number.isFinite(n)?new Intl.NumberFormat('nl-NL',{maximumFractionDigits:d,minimumFractionDigits:0}).format(n):'—';
 const STATUS_CLASS:Record<string,string>={'bron':'bron','afgeleid':'afgeleid','standaard technologie':'standaard','eigen invoer':'eigen','open':'open','ontbreekt':'ontbreekt','niet-in-endpoint':'endpoint'};
 function load<T>(key:string,fallback:T,valid:(v:any)=>boolean):T{try{const v=JSON.parse(localStorage.getItem(key)||'null');return v!==null&&valid(v)?v:fallback;}catch{return fallback;}}
@@ -54,24 +57,35 @@ function Shell({tab,go,children}:{tab:Tab;go:(t:Tab)=>void;children:ReactNode}){
  return <div className="shell electrolyser-shell"><SiteHeader/><main id="inhoud"><SiteNavigation current="/elektrolyser"/><SubTabs current={tab} go={go}/><p className="wind-note route-hint">Zo kom je tot een keuze: <strong>1</strong> kies modellen (hier of in de <a href="https://waterstofatlas.nl/" target="_blank" rel="noopener">Waterstofatlas ↗</a>), <strong>2</strong> stel opstellingen samen, <strong>3</strong> vergelijk ze op dezelfde wind en lees de conclusie. Opsplitsen is achtergrond: één grote of meerdere kleine modules?</p>{children}<footer>Waterstofatlas · rekenkern /opsplitsing · Europe/Amsterdam</footer></main></div>;
 }
 
-// Worker-backed calculation with progress and a cache per input hash.
+// Worker-backed calculation with progress and a cache per input hash. A whole Atlas shortlist is many jobs (one per setup
+// and wind year), so they are spread over several workers, one per spare processor core.
+const MAX_WORKERS=6;
 function useCalculator(){
- const worker=useRef<Worker|null>(null),cache=useRef(new Map<string,any>()),serial=useRef(0);
+ const workers=useRef<Worker[]>([]),cache=useRef(new Map<string,any>()),serial=useRef(0);
  const [state,setState]=useState({running:false,done:0,total:0,fromCache:0,error:'',version:0,label:''});
  const run=useCallback((jobs:any[])=>{
   const missing=jobs.filter(j=>!cache.current.has(j.key));
-  if(!missing.length){setState(s=>({...s,running:false,done:jobs.length,total:jobs.length,fromCache:jobs.length,error:'',version:s.version+1}));return;}
   const id=++serial.current;
-  try{worker.current||=new Worker('/assets/elektrolyser-rekenkern.js');}catch{setState(s=>({...s,running:false,error:'Het rekenmodel kon niet starten in deze browser.'}));return;}
+  const want=Math.max(1,Math.min(MAX_WORKERS,(navigator.hardwareConcurrency||2)-1,missing.length));
+  try{while(workers.current.length<want)workers.current.push(new Worker('/assets/elektrolyser-rekenkern.js'));}
+  catch{if(!workers.current.length){setState(s=>({...s,running:false,error:'Het rekenmodel kon niet starten in deze browser.'}));return;}}
+  const pool=missing.length?workers.current.slice(0,want):[];
+  // Workers left out of this run drop whatever older request they were still working on.
+  for(const w of workers.current.slice(pool.length)){w.onmessage=null;w.postMessage({id,jobs:[]});}
+  if(!missing.length){setState(s=>({...s,running:false,done:jobs.length,total:jobs.length,fromCache:jobs.length,error:'',version:s.version+1}));return;}
   setState(s=>({...s,running:true,done:0,total:missing.length,fromCache:jobs.length-missing.length,error:'',label:''}));
-  worker.current.onmessage=({data})=>{
-   if(data.id!==serial.current)return;
-   if(data.type==='progress')setState(s=>({...s,done:data.done,label:data.label||''}));
-   else if(data.type==='done'){for(const [k,v] of Object.entries(data.results))cache.current.set(k,v);setState(s=>({...s,running:false,done:s.total,version:s.version+1}));}
-   else setState(s=>({...s,running:false,error:data.error||'De berekening is mislukt.'}));
-  };
-  worker.current.onerror=()=>{worker.current=null;setState(s=>({...s,running:false,error:'Het rekenmodel kon niet worden geladen. Controleer de verbinding en probeer opnieuw.'}));};
-  worker.current.postMessage({id,jobs:missing});
+  const done=pool.map(()=>0);let open=pool.length,failed=false;
+  const fail=(error:string)=>{if(failed||id!==serial.current)return;failed=true;setState(s=>({...s,running:false,error}));};
+  pool.forEach((worker,w)=>{
+   worker.onmessage=({data})=>{
+    if(data.id!==serial.current||failed)return;
+    if(data.type==='progress'){done[w]=data.done;const sum=done.reduce((a,b)=>a+b,0);setState(s=>({...s,done:sum,label:data.label||''}));}
+    else if(data.type==='done'){for(const [k,v] of Object.entries(data.results))cache.current.set(k,v);if(--open===0)setState(s=>({...s,running:false,done:s.total,version:s.version+1}));}
+    else fail(data.error||'De berekening is mislukt.');
+   };
+   worker.onerror=()=>{workers.current=workers.current.filter(x=>x!==worker);fail('Het rekenmodel kon niet worden geladen. Controleer de verbinding en probeer opnieuw.');};
+   worker.postMessage({id,jobs:missing.filter((_,i)=>i%pool.length===w)});
+  });
  },[]);
  return {state,cache:cache.current,run};
 }
@@ -122,7 +136,7 @@ export default function ElectrolyserApp(){
  // Fill every open point of the given setups (all when omitted) with a cautious, labelled assumption.
  const fillOpen=(ids?:string[])=>{
   const notes:string[]=[];
-  const next=setups.map((s,i)=>{if(ids&&!ids.includes(s.id))return s;const m=byId.get(s.modelId);if(!m||resolved[i]?.ready)return s;const r=autoResolve(m,s,general,{target,limit});if(r.notes.length)notes.push(`Opstelling ${LETTERS[i]}: ${r.notes.join(' ')}`);return r.setup as Setup;});
+  const next=setups.map((s,i)=>{if(ids&&!ids.includes(s.id))return s;const m=byId.get(s.modelId);if(!m||resolved[i]?.ready)return s;const r=autoResolve(m,s,general,{target,limit});if(r.notes.length)notes.push(`Opstelling ${letter(i)}: ${r.notes.join(' ')}`);return r.setup as Setup;});
   setSetups(()=>next);
   setImportNote(notes.length?`Open punten ingevuld met voorzichtige aannames (bij een bereik de ongunstige kant). ${notes.join(' ')} Elke ingevulde waarde staat als aanname in Samenstellen en is daar aan te passen.`:'Er waren geen open punten om in te vullen.');
  };
@@ -222,7 +236,7 @@ type UpdateFn=(id:string,change:(s:Setup)=>Setup)=>void;
 function OpenPointsBar({setups,resolved,fillOpen,byId}:{setups:Setup[];resolved:Resolved[];fillOpen:(ids?:string[])=>void;byId:Map<string,Model>}){
  const open=setups.map((s,i)=>({s,i})).filter(({s,i})=>byId.get(s.modelId)&&!resolved[i]?.ready);
  if(!open.length)return null;
- return <div className="open-points-bar" role="region" aria-label="Open punten"><div><strong>{open.length===1?'1 opstelling heeft':`${open.length} opstellingen hebben`} nog open punten</strong> ({open.map(x=>LETTERS[x.i]).join(', ')}): de datasheet geeft een bereik, een andere eenheid of niets. Zonder keuze kan er niet gerekend worden.</div><button type="button" className="primary-button" onClick={()=>fillOpen()}>Vul alle open punten in</button><p className="wind-note">Met voorzichtige aannames: bij een bereik de ongunstige kant (hoogste verbruik, hoogste minimumlast), anders de technologiestandaard. Elke ingevulde waarde blijft als aanname zichtbaar en aanpasbaar.</p></div>;
+ return <div className="open-points-bar" role="region" aria-label="Open punten"><div><strong>{open.length===1?'1 opstelling heeft':`${open.length} opstellingen hebben`} nog open punten</strong> ({open.map(x=>letter(x.i)).join(', ')}): de datasheet geeft een bereik, een andere eenheid of niets. Zonder keuze kan er niet gerekend worden.</div><button type="button" className="primary-button" onClick={()=>fillOpen()}>Vul alle open punten in</button><p className="wind-note">Met voorzichtige aannames: bij een bereik de ongunstige kant (hoogste verbruik, hoogste minimumlast), anders de technologiestandaard. Elke ingevulde waarde blijft als aanname zichtbaar en aanpasbaar.</p></div>;
 }
 
 function ComposeTab({setups,setSetups,active,setActive,resolved,byId,models,update,target,setTarget,go,general,limit,setLimit,fillOpen}:{setups:Setup[];setSetups:(f:(l:Setup[])=>Setup[])=>void;active:string;setActive:(id:string)=>void;resolved:Resolved[];byId:Map<string,Model>;models:Model[];update:UpdateFn;target:number;setTarget:(n:number)=>void;go:(t:Tab)=>void;general:General;limit:Limit;setLimit:(l:Limit)=>void;fillOpen:(ids?:string[])=>void}){
@@ -240,20 +254,20 @@ function ComposeTab({setups,setSetups,active,setActive,resolved,byId,models,upda
   <p className="wind-note">Een module is de kleinste eenheid die zelfstandig aan en uit kan, met een eigen minimumlast. Een systeem met meerdere stacks telt als één module.</p><p className="wind-note">{TARGET_NOTE}</p>
   <OpenPointsBar setups={setups} resolved={resolved} fillOpen={fillOpen} byId={byId}/>
   <details className="model-settings"><summary>Modulelimiet (optioneel){limit.mode!=='uit'?` · ${limit.mode}, maximaal ${limit.max}`:' · uit'}</summary><LimitPanel limit={limit} setLimit={setLimit} target={target}/></details>
-  <div className="setup-picker" role="tablist" aria-label="Opstellingen">{setups.map((s,i)=><button key={s.id} type="button" role="tab" aria-selected={s.id===setup?.id} onClick={()=>setActive(s.id)}><strong>Opstelling {LETTERS[i]}</strong><span>{byId.get(s.modelId)?.name||'Nog geen model'}{resolved[i]?.nominalMW?` · ${s.modules} × ${fmt(resolved[i].moduleMW,3)} MW`:''}</span><span className={'status-chip '+(resolved[i]?.ready?'status-ready':'status-open')}>{resolved[i]?.ready?'klaar om te rekenen':'nog open'}</span></button>)}{setups.length<MAX_SETUPS&&<button type="button" className="setup-add" onClick={add}>+ Opstelling toevoegen</button>}</div>
+  <div className="setup-picker" role="tablist" aria-label="Opstellingen">{setups.map((s,i)=><button key={s.id} type="button" role="tab" aria-selected={s.id===setup?.id} onClick={()=>setActive(s.id)}><strong>Opstelling {letter(i)}</strong><span>{byId.get(s.modelId)?.name||'Nog geen model'}{resolved[i]?.nominalMW?` · ${s.modules} × ${fmt(resolved[i].moduleMW,3)} MW`:''}</span><span className={'status-chip '+(resolved[i]?.ready?'status-ready':'status-open')}>{resolved[i]?.ready?'klaar om te rekenen':'nog open'}</span></button>)}{setups.length<MAX_SETUPS&&<button type="button" className="setup-add" onClick={add}>+ Opstelling toevoegen</button>}</div>
   {setup&&<div className="setup-editor">
    <div className="model-grid setup-basics">
     <label>Model uit de Waterstofatlas<select value={setup.modelId} onChange={e=>{const m=byId.get(e.target.value);const f=m?.power.value?fillWithinLimit(stackPowerMW(m.power.value,m.boundary.value),target,limit):null;update(setup.id,s=>({...newSetup(s.id,e.target.value,f?.modules||s.modules)}));}}><option value="">Kies een elektrolyser</option>{groups.map(g=><optgroup key={g} label={g}>{models.filter(m=>m.manufacturer===g).map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</optgroup>)}</select></label>
     <label>Aantal modules<span className="stepper"><button type="button" aria-label="Eén module minder" disabled={setup.modules<=1} onClick={()=>update(setup.id,s=>({...s,modules:Math.max(1,s.modules-1)}))}>−</button><input type="number" min="1" max={maxModules} step="1" value={setup.modules} onChange={e=>{const n=Math.round(Number(e.target.value));if(Number.isFinite(n))update(setup.id,s=>({...s,modules:Math.min(maxModules,Math.max(1,n))}));}}/><button type="button" aria-label="Eén module meer" disabled={setup.modules>=maxModules} onClick={()=>update(setup.id,s=>({...s,modules:Math.min(maxModules,s.modules+1)}))}>+</button></span></label>
     <label>Doelvermogen stack (MW)<NumberInput label="Doelvermogen als totaal stackvermogen in MW" value={target} onCommit={v=>{if(v!==null&&v>0&&v<=100000)setTarget(v);}}/></label>
    </div>
-   <div className="model-actions"><button type="button" className="download" disabled={!fill} onClick={()=>fill&&update(setup.id,s=>({...s,modules:fill.modules}))}>Vul aan tot doelvermogen</button>{fill?.capped&&<span className="wind-note">Beperkt tot de limiet van {limit.max} modules: {fmt(fill.modules*stack,3)} MW stack voor een doel van {fmt(target,2)} MW.</span>}{fill&&!fill.exact&&!fill.capped&&<span className="wind-note">{fill.modules} × {fmt(stack,3)} = {fmt(fill.modules*stack,3)} MW stack{fill.below?`; met ${fill.below} modules is het ${fmt(fill.below*stack,3)} MW`:''}.</span>}{setups.length>1&&<button type="button" className="text-button" onClick={remove}>Opstelling {LETTERS[index]} verwijderen</button>}</div>
+   <div className="model-actions"><button type="button" className="download" disabled={!fill} onClick={()=>fill&&update(setup.id,s=>({...s,modules:fill.modules}))}>Vul aan tot doelvermogen</button>{fill?.capped&&<span className="wind-note">Beperkt tot de limiet van {limit.max} modules: {fmt(fill.modules*stack,3)} MW stack voor een doel van {fmt(target,2)} MW.</span>}{fill&&!fill.exact&&!fill.capped&&<span className="wind-note">{fill.modules} × {fmt(stack,3)} = {fmt(fill.modules*stack,3)} MW stack{fill.below?`; met ${fill.below} modules is het ${fmt(fill.below*stack,3)} MW`:''}.</span>}{setups.length>1&&<button type="button" className="text-button" onClick={remove}>Opstelling {letter(index)} verwijderen</button>}</div>
    {model&&r&&<>
     <div className="setup-summary"><div><span>Totaal nominaal vermogen</span><strong>{fmt(r.nominalMW,3)} <small>MW</small></strong><p>{setup.modules} × {fmt(r.moduleMW,3)} MW · {r.boundary==='stack'?'stackvermogen':`systeemvermogen incl. BoP · ${fmt(setup.modules*stack,3)} MW stack`}</p></div><div><span>Opname bij vollast incl. BoP</span><strong>{fmt(r.intakeMW,3)} <small>MW</small></strong><p>{!r.bopFactor?'Volgt na de BoP-aanname.':r.boundary==='stack'?`Stack × (1 + BoP-vast + BoP-variabel) = × ${fmt(r.bopFactor,3)}`:'Gelijk aan het systeemvermogen.'}</p></div><div><span>Rekenwaarden</span><strong>{r.counts?.bron??0} <small>bron</small> · {r.counts?.aanname??0} <small>aanname</small></strong><p>{r.counts?.open?`${r.counts.open} nog open`:`Rust op ${r.counts?.bron} bronwaarden en ${r.counts?.aanname} aannames.`}</p></div></div>
     {r.platformLimitMW&&<p className="wind-note">Atlas-regel: maximaal {fmt(r.platformLimitMW)} MW per platform; meerdere platforms zijn mogelijk.</p>}
     {target>0&&stack>0&&Math.abs(setup.modules*stack-target)/target>0.05&&<p className="live-error">Het totale stackvermogen ({fmt(setup.modules*stack,3)} MW) wijkt {fmt(Math.abs(setup.modules*stack-target)/target*100,1)}% af van het doelvermogen van {fmt(target,2)} MW.</p>}
     {r.limit?.mode==='waarschuwen'&&!r.limit.ok&&<div className="live-error" role="status"><strong>Waarschuwing modulelimiet</strong><ul>{r.limit.problems.map(p=><li key={p}>{p}</li>)}</ul></div>}
-    {r.problems.length>0&&<div className="live-error" role="status"><strong>Nog geen resultaat mogelijk</strong><ul>{r.problems.map(p=><li key={p}>{p}</li>)}</ul><button type="button" className="download" onClick={()=>fillOpen([setup.id])}>Vul de open punten van opstelling {LETTERS[index]} in</button></div>}
+    {r.problems.length>0&&<div className="live-error" role="status"><strong>Nog geen resultaat mogelijk</strong><ul>{r.problems.map(p=><li key={p}>{p}</li>)}</ul><button type="button" className="download" onClick={()=>fillOpen([setup.id])}>Vul de open punten van opstelling {letter(index)} in</button></div>}
     <FieldList model={model} resolved={r} choices={choices} set={set}/>
     <details className="model-settings"><summary>Informatie uit de catalogus die niet wordt meegerekend</summary><p><strong>Leveringstype:</strong> {model.delivery.status==='niet-in-endpoint'?'niet in de catalogus-endpoint':`${model.delivery.label} (${model.delivery.raw})`}. <strong>Aantal stacks:</strong> {model.stacks.status==='niet-in-endpoint'?'niet in de catalogus-endpoint':model.stacks.raw||'niet vermeld'}.</p><p><strong>Nominale productie:</strong> {model.production||'niet vermeld'}. <strong>Warme start:</strong> {model.hotStart||'niet vermeld'}. <strong>Koude start:</strong> {model.coldStart||'niet vermeld'}. Opstarttijden zijn in de vergelijking een algemene aanname, gelijk voor alle opstellingen.</p>{model.partload&&<p><strong>Deellastcurve:</strong> {model.partload.raw}{model.partload.usable?` → ${model.partload.bands.map(b=>`${fmt(b.van*100,0)}–${fmt(b.tot*100,0)}%: ${fmt(b.kWhPerKg,1)} kWh/kg`).join('; ')}${model.partload.unit==='Nm3'?` (× ${fmt(NM3_PER_KG,2)} Nm³/kg bij 0 °C en 1,013 bar)`:''}`:''}</p>}<p><strong>Bron:</strong> {model.source||'niet vermeld'} · <a href={model.url} target="_blank" rel="noopener noreferrer">Waterstofatlas ↗</a></p></details>
    </>}
@@ -289,7 +303,7 @@ function FieldList({model,resolved,choices,set}:{model:Model;resolved:Resolved;c
 
 function CompareTab({setups,resolved,byId,general,setGeneral,reference,setReference,calc,catalogue,target,setTarget,update,go,setActive,limit,setLimit,fillOpen}:{setups:Setup[];resolved:Resolved[];byId:Map<string,Model>;general:General;setGeneral:(f:(g:General)=>General)=>void;reference:number;setReference:(n:number)=>void;calc:ReturnType<typeof useCalculator>;catalogue:Catalogue|null;target:number;setTarget:(n:number)=>void;update:UpdateFn;go:(t:Tab)=>void;setActive:(id:string)=>void;limit:Limit;setLimit:(l:Limit)=>void;fillOpen:(ids?:string[])=>void}){
  const g=generalValues(general);
- const ready=setups.map((s,i)=>({setup:s,label:LETTERS[i],resolved:resolved[i],model:byId.get(s.modelId)})).filter(x=>x.resolved.ready&&x.model);
+ const ready=setups.map((s,i)=>({setup:s,label:letter(i),resolved:resolved[i],model:byId.get(s.modelId)})).filter(x=>x.resolved.ready&&x.model);
  const ref=Math.min(reference,Math.max(0,ready.length-1));
  const jobs=ready.flatMap(x=>g.years.map(year=>({...jobFor(x.resolved,general,year),label:`Opstelling ${x.label} · ${year}`})));
  const signature=jobs.map(j=>j.key).join(',');
@@ -316,15 +330,15 @@ function CompareTab({setups,resolved,byId,general,setGeneral,reference,setRefere
  const atlasLink=complete?windResultLink(windResultPayload({entries:ready.map((x,i)=>({setup:x.setup,model:x.model,resolved:x.resolved,result:costed[i],costs:costsOf[i]})),reference:ref,general,target,verdict})):null;
  const fillAll=()=>ready.forEach(x=>{const f=x.resolved.stackModuleMW?fillWithinLimit(x.resolved.stackModuleMW,target,limit):null;if(f)update(x.setup.id,s=>({...s,modules:f.modules}));});
  // With a warning limit the setups stay in the comparison; each one outside the limit is listed.
- const outside=setups.map((s,i)=>({label:LETTERS[i],limit:resolved[i].limit})).filter(x=>x.limit?.mode==='waarschuwen'&&!x.limit.ok);
+ const outside=setups.map((s,i)=>({label:letter(i),limit:resolved[i].limit})).filter(x=>x.limit?.mode==='waarschuwen'&&!x.limit.ok);
  const conclusion=complete?comparisonConclusion(costed.map(r=>r?{mean:r.mean}:null),verdict):null;
  const settingsOpen=ready.length<2;
  return <section className="production-panel electrolyser-panel" aria-labelledby="compare-title">
   <div className="panel-heading"><div><span className="eyebrow">ZELFDE WIND · ZELFDE ALGEMENE AANNAMES</span><h2 id="compare-title">Vergelijken</h2></div></div>
   <p className="wind-note compare-lead">Alle opstellingen draaien op dezelfde vier windjaren van Windpark Fryslân (10 %) en Beabuorren, met dezelfde aannames. Bovenaan staat de conclusie; de details en instellingen staan eronder.</p>
   {outside.length>0&&<div className="live-error capacity-warning" role="status">{outside.map(x=><div key={x.label}><p><strong>Opstelling {x.label}</strong> valt buiten de modulelimiet maar wordt wel meegerekend:</p><ul>{x.limit!.problems.map(p=><li key={p}>{p}</li>)}</ul></div>)}</div>}
-  {ready.length<2?<div className="live-error" role="status"><p><strong>Nog geen vergelijking mogelijk.</strong> Er zijn 2 tot 6 opstellingen nodig die klaar zijn om te rekenen. Nu klaar: {ready.length}.</p>{setups.some((s,i)=>byId.get(s.modelId)&&!resolved[i].ready)&&<div className="model-actions"><button type="button" className="primary-button" onClick={()=>fillOpen()}>Vul alle open punten in en reken</button><span className="wind-note">Met voorzichtige aannames (bij een bereik de ongunstige kant). Ze blijven zichtbaar en aanpasbaar in Samenstellen.</span></div>}<p>Of los de punten zelf op:</p><ul>{setups.map((s,i)=>resolved[i].ready?null:<li key={s.id}>Opstelling {LETTERS[i]}: {resolved[i].problems[0]||'kies een model'} <button type="button" className="text-button" onClick={()=>{setActive(s.id);go('samenstellen');}}>Aanpassen</button></li>)}</ul></div>:<>
-   {setups.some((s,i)=>!resolved[i].ready)&&<p className="wind-note">Niet meegerekend: {setups.map((s,i)=>resolved[i].ready?null:`opstelling ${LETTERS[i]} (${notCounted(resolved[i])})`).filter(Boolean).join(', ')}. <button type="button" className="text-button" onClick={()=>fillOpen()}>Open punten invullen</button></p>}
+  {ready.length<2?<div className="live-error" role="status"><p><strong>Nog geen vergelijking mogelijk.</strong> Er zijn minstens 2 opstellingen nodig die klaar zijn om te rekenen. Nu klaar: {ready.length}.</p>{setups.some((s,i)=>byId.get(s.modelId)&&!resolved[i].ready)&&<div className="model-actions"><button type="button" className="primary-button" onClick={()=>fillOpen()}>Vul alle open punten in en reken</button><span className="wind-note">Met voorzichtige aannames (bij een bereik de ongunstige kant). Ze blijven zichtbaar en aanpasbaar in Samenstellen.</span></div>}<p>Of los de punten zelf op:</p><ul>{setups.map((s,i)=>resolved[i].ready?null:<li key={s.id}>Opstelling {letter(i)}: {resolved[i].problems[0]||'kies een model'} <button type="button" className="text-button" onClick={()=>{setActive(s.id);go('samenstellen');}}>Aanpassen</button></li>)}</ul></div>:<>
+   {setups.some((s,i)=>!resolved[i].ready)&&<p className="wind-note">Niet meegerekend: {setups.map((s,i)=>resolved[i].ready?null:`opstelling ${letter(i)} (${notCounted(resolved[i])})`).filter(Boolean).join(', ')}. <button type="button" className="text-button" onClick={()=>fillOpen()}>Open punten invullen</button></p>}
    {(calc.state.running||calc.state.error)&&<div className="research-progress" role="status">{calc.state.running&&<><p>{calc.state.done} van {calc.state.total} berekeningen klaar{calc.state.label?` · ${calc.state.label}`:''}{calc.state.fromCache?` · ${calc.state.fromCache} uit de cache`:''}.</p><progress value={calc.state.done} max={calc.state.total||1} aria-label="Berekeningen klaar"/></>}{calc.state.error&&<p className="live-error">{calc.state.error}</p>}</div>}
    {!complete&&!calc.state.running&&<div className="model-actions"><button type="button" className="primary-button" onClick={()=>calc.run(jobs)}>Bereken vergelijking</button></div>}
    {conclusion&&<Conclusion conclusion={conclusion} verdict={verdict} ready={ready} results={costed as Assembled[]}/>}
@@ -390,7 +404,7 @@ function Conclusion({conclusion,verdict,ready,results}:{conclusion:Conclusion;ve
 }
 type ReadyEntry={setup:Setup;label:string;resolved:Resolved;model?:Model};
 function ResultTable({ready,rows,diffs,reference,results}:{ready:ReadyEntry[];rows:(Metrics|null)[];diffs:any[];reference:number;results:Assembled[]}){
- return <div className="table-scroll compare-table-scroll"><table className="compare-table"><caption>Uitkomst per opstelling · verschil ten opzichte van opstelling {ready[reference].label}</caption><thead><tr><th scope="col">Uitkomst</th>{ready.map((x,i)=><th key={x.setup.id} scope="col"><span className="setup-swatch" style={{background:COLORS[i]}}/>Opstelling {x.label}{i===reference?' (referentie)':''}<small>{x.model!.name} · {x.resolved.modules} × {fmt(x.resolved.moduleMW,3)} MW</small></th>)}</tr></thead><tbody>
+ return <div className="table-scroll compare-table-scroll"><table className="compare-table"><caption>Uitkomst per opstelling · verschil ten opzichte van opstelling {ready[reference].label}</caption><thead><tr><th scope="col">Uitkomst</th>{ready.map((x,i)=><th key={x.setup.id} scope="col"><span className="setup-swatch" style={{background:color(i)}}/>Opstelling {x.label}{i===reference?' (referentie)':''}<small>{x.model!.name} · {x.resolved.modules} × {fmt(x.resolved.moduleMW,3)} MW</small></th>)}</tr></thead><tbody>
   {(RESULT_ROWS as [string,string,string,string,string][]).map(row=>{const shown=resultRow(row,rows,diffs);return <tr key={row[1]}><th scope="row">{row[0]}{shown.unit?<small> {shown.unit}</small>:null}</th>{shown.cells.map((cell:{value:string;diff?:string},i:number)=><td key={i}>{cell.value}{cell.diff?<small className="diff">{cell.diff}</small>:null}</td>)}</tr>;})}
   <tr><th scope="row">Rust op</th>{ready.map(x=><td key={x.setup.id}>{x.resolved.counts?.bron} bronwaarden en {x.resolved.counts?.aanname} aannames</td>)}</tr>
   <tr><th scope="row">Uren met data<small> per windjaar</small></th>{results.map((r,i)=><td key={i}>{r.perYear.map(y=>`${y.jaar}: ${fmt(y.dekking_uur,0)} van ${fmt(y.uren_in_jaar,0)}`).join(' · ')}</td>)}</tr>
@@ -418,11 +432,11 @@ function ClassChart({ready,rows,reference}:{ready:ReadyEntry[];rows:(Metrics|nul
  // Opgenomen en aanbod in dezelfde eenheid en afronding, bepaald door het aanbod.
  const energyPair=(taken:number,supply:number)=>{const u=energyUnit(supply),d=decimalsFor(supply*u.factor);return `${formatFixed(taken*u.factor,d,true)} van ${formatFixed(supply*u.factor,d,true)} ${u.unit} per jaar`;};
  return <figure className="class-chart"><figcaption><h3>Waar neemt elke opstelling het aanbod op?</h3><p>Per klasse van het windaanbod (MW): het deel van de windenergie in die klasse dat de opstelling opneemt. De lichte balken tonen op dezelfde as welk deel van het jaaraanbod in die klasse valt. Kleine modules beginnen eerder; bij veel wind telt vooral het totaalvermogen.</p></figcaption>
-  <div className="combined-legend">{ready.map((x,i)=><span key={x.setup.id}><svg width="26" height="10" aria-hidden="true"><line x1="1" x2="25" y1="5" y2="5" stroke={COLORS[i]} strokeWidth={i===reference?4:2.5} strokeDasharray={DASHES[i]}/></svg>Opstelling {x.label}{i===reference?' (referentie)':''}</span>)}<span><span className="combined-hour-swatch"/>Deel van het jaaraanbod in de klasse</span></div>
+  <div className="combined-legend">{ready.map((x,i)=><span key={x.setup.id}><svg width="26" height="10" aria-hidden="true"><line x1="1" x2="25" y1="5" y2="5" stroke={color(i)} strokeWidth={i===reference?4:2.5} strokeDasharray={dash(i)}/></svg>Opstelling {x.label}{i===reference?' (referentie)':''}</span>)}<span><span className="combined-hour-swatch"/>Deel van het jaaraanbod in de klasse</span></div>
   <div className="class-chart-box" ref={box}><svg className="class-chart-svg" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Opgenomen deel van het windaanbod per aanbodklasse, per opstelling"><title>Opgenomen deel van het windaanbod per aanbodklasse</title>
    {[0,.25,.5,.75,1].map(v=><g key={v}><line x1={L} x2={W-R} y1={y(v)} y2={y(v)} stroke="#e4e9e3"/><text x={L-8} y={y(v)+4} textAnchor="end" fontSize="11">{fmt(v*100,0)}%</text></g>)}
    {classes.map((c,i)=><rect key={i} x={x(i)-step*.38} width={step*.76} y={y(c.aanbod_mwh/total)} height={(H-T-B)*(c.aanbod_mwh/total)} fill="#C3E4F2"><title>{label(c)} MW: {fmt(c.aanbod_mwh/total*100,1)}% van het jaaraanbod</title></rect>)}
-   {ready.map((s,i)=>{const cl=rows[i]!.klassen as typeof classes;const pts=cl.map((c,j)=>c.aanbod_mwh>0?[x(j),y(c.opgenomen_mwh/c.aanbod_mwh)]:null);return <g key={s.setup.id}><polyline points={pts.filter(Boolean).map(p=>p!.join(',')).join(' ')} fill="none" stroke={COLORS[i]} strokeWidth={i===reference?3.5:2.2} strokeDasharray={DASHES[i]}/>{pts.map((p,j)=>p&&<circle key={j} cx={p[0]} cy={p[1]} r={i===reference?4:3} fill={COLORS[i]}><title>Opstelling {s.label}, {label(cl[j])} MW: {fmt(cl[j].opgenomen_mwh/cl[j].aanbod_mwh*100,1)}% opgenomen ({energyPair(cl[j].opgenomen_mwh,cl[j].aanbod_mwh)})</title></circle>)}</g>;})}
+   {ready.map((s,i)=>{const cl=rows[i]!.klassen as typeof classes;const pts=cl.map((c,j)=>c.aanbod_mwh>0?[x(j),y(c.opgenomen_mwh/c.aanbod_mwh)]:null);return <g key={s.setup.id}><polyline points={pts.filter(Boolean).map(p=>p!.join(',')).join(' ')} fill="none" stroke={color(i)} strokeWidth={i===reference?3.5:2.2} strokeDasharray={dash(i)}/>{pts.map((p,j)=>p&&<circle key={j} cx={p[0]} cy={p[1]} r={i===reference?4:3} fill={color(i)}><title>Opstelling {s.label}, {label(cl[j])} MW: {fmt(cl[j].opgenomen_mwh/cl[j].aanbod_mwh*100,1)}% opgenomen ({energyPair(cl[j].opgenomen_mwh,cl[j].aanbod_mwh)})</title></circle>)}</g>;})}
    {classes.map((c,i)=>narrow?<text key={i} x={x(i)} y={H-B+12} textAnchor="end" fontSize="11" transform={`rotate(-50 ${x(i)} ${H-B+12})`}>{label(c)}</text>:<text key={i} x={x(i)} y={H-B+18} textAnchor="middle" fontSize="12">{label(c)}</text>)}
    <text x={(L+W-R)/2} y={H-8} textAnchor="middle" fontSize="12">{narrow?'Windaanbod (MW)':`Windaanbod in MW (laatste klasse: ${fmt(SUPPLY_EDGES[SUPPLY_EDGES.length-1])} MW en meer)`}</text>
   </svg></div>
