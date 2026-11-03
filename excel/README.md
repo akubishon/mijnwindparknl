@@ -4,6 +4,11 @@
 elektrolyser van 44 MW of meerdere kleine modules, gesimuleerd per tien minuten op de windjaren 2022–2025. Het rekenmodel is
 `src/opsplitsing/python/opsplitsing.py` (modelversie 18), naar VBA overgezet in [`vba/`](vba/).
 
+Downloaden: op de site via de link bovenaan [/opsplitsing](https://mijnwindpark.nl/opsplitsing), of direct
+`https://mijnwindpark.nl/opsplitsing/Opsplitsing.xlsm` (achter de site-login). Het bestand is te groot om in `worker/index.js` op te nemen;
+Cloudflare serveert het als Workers Static Asset (`[assets]` in `wrangler.toml`, map `excel/`). Met `run_worker_first` loopt elk
+verzoek eerst door de worker, dus de login geldt en alleen deze route bereikt de bestanden.
+
 ## Gebruik
 
 1. Open `Opsplitsing.xlsm` in Excel (Windows of Mac) en kies **Inhoud inschakelen** / **Macro's inschakelen**. Een gedownload

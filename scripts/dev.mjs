@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +20,8 @@ if (!env.WPF_PUBLIC_CLIENT_KEY || !env.WPF_FIREBASE_API_KEY) {
   env.WPF_FIREBASE_API_KEY = resources.toString('latin1').match(/AIza[\w-]{35}/)?.[0];
 }
 if (!env.WPF_PUBLIC_CLIENT_KEY || !env.WPF_FIREBASE_API_KEY) throw Error('The APK does not contain the expected client configuration.');
+// Local stand-in for the Workers Static Assets binding (wrangler.toml [assets], directory excel/).
+env.ASSETS = { fetch: async request => { try { return new Response(readFileSync(resolve(project, 'excel', decodeURIComponent(new URL(request.url).pathname).replace(/^\/+/, '').replace(/\.\.+/g, '')))); } catch { return new Response('Not found', { status: 404 }); } } };
 const port = Number(process.env.PORT || 8787);
 const server = http.createServer(async (req, res) => {
   try {

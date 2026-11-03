@@ -545,3 +545,18 @@ test('HARMONIE forecast power uses the WINS50 table of the KNMI curve: same park
  const alpha=await forecast('park=fryslan&day=2026-10-31&hoogte=alpha'),options=modelOptions(new URLSearchParams({park:'fryslan',hoogte:'alpha'}));
  assert.equal(alpha[0].parks[0].heightFactor,hubFactor('2026-10-31',options));assert.equal(alpha[0].parks[0].powerMW,windPowerModel('2026-10-31',options)(7));
 });
+test('the Excel model with VBA (Opsplitsing.xlsm) downloads from /opsplitsing behind the site login',async()=>{
+ const raw=await rawFresh();
+ assert.equal((await get(raw,'/opsplitsing/Opsplitsing.xlsm')).status,401);
+ const worker=await fresh();
+ assert.match(await (await get(worker,'/opsplitsing')).text(),/href="\/opsplitsing\/Opsplitsing\.xlsm"/);
+ assert.equal((await get(worker,'/opsplitsing/Opsplitsing.xlsm')).status,503);
+ const file=await readFile(new URL('../excel/Opsplitsing.xlsm',import.meta.url));
+ const asked=[];
+ const assets={ASSETS:{fetch:async request=>{asked.push(new URL(request.url).pathname);return new Response(file);}}};
+ const response=await worker.fetch(new Request('https://fixture.test/opsplitsing/Opsplitsing.xlsm'),{...env,...assets});
+ assert.equal(response.status,200);assert.deepEqual(asked,['/Opsplitsing.xlsm']);
+ assert.equal(response.headers.get('Content-Type'),'application/vnd.ms-excel.sheet.macroEnabled.12');
+ assert.match(response.headers.get('Content-Disposition'),/attachment; filename="Opsplitsing\.xlsm"/);
+ const body=Buffer.from(await response.arrayBuffer());assert.equal(body.length,file.length);assert.equal(body.subarray(0,2).toString(),'PK');
+});

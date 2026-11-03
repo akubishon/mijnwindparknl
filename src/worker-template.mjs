@@ -117,6 +117,14 @@ export default {
       const policy=opsPolicy.replace('script-src ',`script-src 'nonce-${nonce}' `);
       return new Response(html,{headers:{...securityHeaders,'Content-Security-Policy':policy,'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
     }
+    if(url.pathname==='/opsplitsing/Opsplitsing.xlsm'){
+      // The 9 MB workbook is too large to inline; it is a Workers Static Asset (wrangler.toml [assets], directory excel/).
+      // run_worker_first keeps it behind the site login above.
+      if(!env.ASSETS)return answer({error:'Het Excel-model is niet beschikbaar in deze omgeving.'},503);
+      const file=await env.ASSETS.fetch(new Request(new URL('/Opsplitsing.xlsm',url.origin)));
+      if(!file.ok)return answer({error:'Het Excel-model is niet gevonden.'},404);
+      return new Response(request.method==='HEAD'?null:file.body,{headers:{...securityHeaders,'Content-Type':'application/vnd.ms-excel.sheet.macroEnabled.12','Content-Disposition':'attachment; filename="Opsplitsing.xlsm"','Cache-Control':'private, max-age=3600'}});
+    }
     if(url.pathname==='/api/opsplitsing/scenarios')return answer({scenarios:[]});
     if(url.pathname.startsWith('/opsplitsing-assets/')){const asset=opsAssets[url.pathname.slice('/opsplitsing-assets/'.length)];return asset?new Response(asset[0],{headers:{...securityHeaders,'Content-Security-Policy':opsPolicy,'Content-Type':asset[1]+'; charset=utf-8','Cache-Control':'private, max-age=3600'}}):answer({error:'Onbekend bestand.'},404);}
     if(url.pathname==='/api/research/auth'&&request.method==='POST'){
