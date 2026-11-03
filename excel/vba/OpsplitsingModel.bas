@@ -880,8 +880,8 @@ Public Function Simulate(t() As Double, mw() As Double, z() As Double, ByVal yr 
         End If
     Next st
 
-    Dim scale As Double, supply_mwh As Double, sumH As Double, sumWarm As Double, sumCold As Double, sumHot As Double
-    If cnt > 0 Then scale = 8760 / (cnt * STEP_H) Else scale = 0
+    Dim yrScale As Double, supply_mwh As Double, sumH As Double, sumWarm As Double, sumCold As Double, sumHot As Double
+    If cnt > 0 Then yrScale = 8760 / (cnt * STEP_H) Else yrScale = 0
     supply_mwh = 0#
     For st = 0 To cnt - 1
         supply_mwh = supply_mwh + mw(st)
@@ -897,7 +897,7 @@ Public Function Simulate(t() As Double, mw() As Double, z() As Double, ByVal yr 
         sumWarm = sumWarm + warm(i) * avail_f
         sumCold = sumCold + cold(i) * avail_f
         sumHot = sumHot + hot_h(i)
-        eqOut(i) = eq(i) * avail_f * scale
+        eqOut(i) = eq(i) * avail_f * yrScale
     Next i
 
     Dim res() As Variant
@@ -906,18 +906,18 @@ Public Function Simulate(t() As Double, mw() As Double, z() As Double, ByVal yr 
     res(R_MODULE_MW) = size
     res(R_STRATEGIE) = strategy
     res(R_JAAR) = yr
-    res(R_WATERSTOF_T) = kg * scale / 1000
-    res(R_VERBRUIK_MWH) = used * scale
-    res(R_STANDBY_MWH) = standby * scale
-    res(R_AANBOD_MWH) = supply_mwh * scale
+    res(R_WATERSTOF_T) = kg * yrScale / 1000
+    res(R_VERBRUIK_MWH) = used * yrScale
+    res(R_STANDBY_MWH) = standby * yrScale
+    res(R_AANBOD_MWH) = supply_mwh * yrScale
     If supply_mwh <> 0 Then res(R_BENUTTING) = used / supply_mwh Else res(R_BENUTTING) = 0#
-    res(R_BEDRIJFSUREN_GEM) = sumH / n * scale
-    res(R_PRODUCTIE_UUR) = producing * scale
-    res(R_STARTS_WARM) = sumWarm / n * scale
-    res(R_STARTS_KOUD) = sumCold / n * scale
+    res(R_BEDRIJFSUREN_GEM) = sumH / n * yrScale
+    res(R_PRODUCTIE_UUR) = producing * yrScale
+    res(R_STARTS_WARM) = sumWarm / n * yrScale
+    res(R_STARTS_KOUD) = sumCold / n * yrScale
     res(R_STANDBYBELEID) = standbyMode
-    res(R_STANDBY_UUR) = sumHot * avail_f / n * scale
-    res(R_STARTS_VERMEDEN) = avoided * avail_f / n * scale
+    res(R_STANDBY_UUR) = sumHot * avail_f / n * yrScale
+    res(R_STARTS_VERMEDEN) = avoided * avail_f / n * yrScale
     res(R_EQ_UREN) = eqOut
     res(R_DEKKING_UUR) = cnt * STEP_H
     res(R_BESCHIKBAARHEID) = avail_f
