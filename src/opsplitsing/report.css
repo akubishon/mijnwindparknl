@@ -42,3 +42,10 @@
 .report-robust p:last-child{font-size:14px;color:var(--muted)}
 .report-notes{margin:12px 0;padding-left:20px}
 .report-notes li{font-size:14px;margin:4px 0}
+/* Eén moment narekenen (moment-check.js) */
+.moment-check-controls{align-items:end}.moment-check-counts{border:0;margin:0;padding:0;display:grid;gap:5px;font-size:13px}.moment-check-counts legend{padding:0;margin-bottom:5px}#mc-counts{display:flex;flex-wrap:wrap;gap:4px 14px}#mc-counts label{display:inline-flex;gap:5px;align-items:center}
+.moment-check-when{margin:22px 0 0;font-size:15px}
+.moment-check-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:16px 0 8px}.moment-check-summary section{background:var(--paper);border-left:4px solid #29816a;padding:14px 16px}.moment-check-summary .moment-check-fail{border-left-color:#aa4624;background:#fff5ef}.moment-check-summary h4{font-size:15px;margin:0 0 6px}.moment-check-summary strong{display:block;font-size:26px;font-weight:500;font-variant-numeric:tabular-nums}.moment-check-summary small{font-size:14px;font-weight:400}.moment-check-summary p{margin:6px 0 0;font-size:14px}.moment-check-verdict{font-weight:600}
+.moment-check-config{margin-top:14px;border-top:2px solid var(--sky);padding-top:6px}.moment-check-config>summary,.moment-check-section>summary{cursor:pointer;font-weight:600;padding:10px 0}.moment-check-section{margin-left:12px}.moment-check-section>.note{margin:0 0 8px}
+.moment-check-table tbody th{width:30%}.moment-check-input th,.moment-check-input td{background:#fff9e6}.moment-check-ok{color:#1f6b55;font-weight:600}.moment-check-bad{color:#aa4624;font-weight:600}
+@media (max-width:640px){.moment-check-section{margin-left:0}}

@@ -11,7 +11,7 @@ let serial=0;
 // Progress: fetch(path, {voortgang}) takes a callback. It receives the worker's {fase, ...} messages for the running request
 // (calculator-worker.js, browser-runtime.py) and {fase:'wachten', na:kind} while the request waits for another one.
 const queue=[];let running=null;
-const PRIORITY={aannames:0,run:0,dag:1,gevoeligheid:2,omslagkaart:2};
+const PRIORITY={aannames:0,run:0,dag:1,moment:1,gevoeligheid:2,omslagkaart:2};
 const kindOf=path=>{const kind=path.slice('/api/opsplitsing/'.length);return Object.hasOwn(PRIORITY,kind)?kind:'run';};
 function next(){
  if(running||!queue.length)return;

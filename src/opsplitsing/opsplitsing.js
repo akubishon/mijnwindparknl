@@ -1129,6 +1129,7 @@ function headline(rows, result) {
 function render(result) {
   lastResult = result;
   globalThis.OpsReportUI?.setResult(result, meta);
+  globalThis.OpsMomentCheck?.setResult(result, snapshotRequest(result));
   assess(result);
   const rows = result.rijen;
   $("results").hidden = false;
@@ -1430,6 +1431,14 @@ async function start() {
   $("step-play").addEventListener("click", () => setPlaying(!play.timer));
   $("step-prev").addEventListener("click", () => { setPlaying(false); selectStep(day.index - 1); });
   $("step-next").addEventListener("click", () => { setPlaying(false); selectStep(day.index + 1); });
+  $("step-verify").addEventListener("click", () => {
+    if (!day.data) return;
+    setPlaying(false);
+    const start = new Date((cfg(day.data, 1).stappen[day.index].t - 300) * 1000);
+    const part = type => new Intl.DateTimeFormat("en-CA", {timeZone: "Europe/Amsterdam", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"})
+      .formatToParts(start).find(p => p.type === type).value;
+    globalThis.OpsMomentCheck?.show(`${part("year")}-${part("month")}-${part("day")}`, `${part("hour")}:${part("minute")}`, [1, day.n]);
+  });
   $("walk-toggle").addEventListener("click", () => {
     const steps = [...$("walk").querySelectorAll("details")];
     const open = !steps.every(step => step.open);
@@ -1461,7 +1470,9 @@ function selectStep(i) {
   $("step-prev").disabled = day.index === 0;
   $("step-next").disabled = day.index === day.data.wind.length - 1;
   $("step-play").disabled = false;
-  $("step-time").textContent = `${clockOf(cfg(day.data, 1).stappen[day.index].t)}–${clockOf(cfg(day.data, 1).stappen[day.index].t + 600)}`;
+  // Het tijdstempel is het midden van het tienminuteninterval (opsplitsing.py, HALF_STEP_S).
+  $("step-time").textContent = `${clockOf(cfg(day.data, 1).stappen[day.index].t - 300)}–${clockOf(cfg(day.data, 1).stappen[day.index].t + 300)}`;
+  $("step-verify").disabled = !globalThis.OpsMomentCheck;
   day.marker?.(day.index);
   updateStage();
   renderWalk();
