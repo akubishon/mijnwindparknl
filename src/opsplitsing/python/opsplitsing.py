@@ -471,7 +471,10 @@ def need_tables(kf: list[int], times: list[int], n: int) -> tuple[list[list[int]
     return need, end
 
 
-def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | None = None, standby_mode: str = "vast") -> dict:
+def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | None = None, standby_mode: str = "vast",
+             detail: int | None = None) -> dict:
+    """Eén jaar (of venster) per tien minuten. `detail` is de index van één tijdstap waarvan de volledige toestand vóór en na
+    de stap en alle tussenuitkomsten onafgerond worden teruggegeven (voor moment_trace); de uitkomst verandert er niet door."""
     times, mw = supply["t"], supply["mw"]
     size = a.capaciteit_mw / n
     min_on, min_off, delay = a.min_aan_min / 60, a.min_uit_min / 60, a.startvertraging_min / 60
@@ -509,7 +512,11 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
 
         def seconds_until(j: int, stamp: int) -> float:
             return (times[j] - stamp) if j < count else float("inf")
+    detail_out = None
     for step, (stamp, power) in enumerate(zip(times, mw)):
+        if step == detail:
+            before = {"aan": on[:], "aan_uur": on_h[:], "uit_uur": off_h[:], "opstart_rest_min": startup[:], "warmte": heat[:],
+                      "eq_uur": eq[:], "zoeken_uur": want_h, "kg": kg, "used": used, "standby": standby}
         avail = [i for i in range(n) if not down[step][i]]
         running = [i for i in avail if on[i]]
         must = [i for i in running if on_h[i] < min_on]
@@ -517,6 +524,9 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
         fits = min(len(avail), floor(power / minimum)) if minimum > 0 else len(avail)
         k = desired_count(power, len(avail), size, a, strategy, memo)
         wanted = k
+        if step == detail:
+            decision = {"beschikbaar": avail[:], "draaiend": running[:], "verplicht": must[:], "startklaar": starters[:], "passen": fits,
+                        "gewenst": k}
         resting = [i for i in avail if not on[i] and off_h[i] < min_off]
         want_h = want_h + STEP_H if k > len(running) else 0.0
         blocked = []
@@ -626,6 +636,16 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
         entry = daily.setdefault(day, [0.0, 0.0])
         entry[0] += step_kg
         entry[1] = max(entry[1], float(len(avail) < n))
+        if step == detail:
+            detail_out = {"index": step, "t": stamp, "aanbod": power, "voor": {key: before[key] for key in
+                          ("aan", "aan_uur", "uit_uur", "opstart_rest_min", "warmte", "eq_uur", "zoeken_uur")},
+                          "onderhoud": list(down[step]), **decision, "zoeken_uur_na": want_h, "wachten": waiting,
+                          "starters_toegestaan": len(starters), "k": k, "gekozen": chosen[:], "stack": loads[:],
+                          "opstart_min": starting[:], "kg_module": module_kg[:], "kg_stap": step_kg,
+                          "verbruik_mwh": used - before["used"], "standby_mwh": standby - before["standby"],
+                          "toestand": state[:] if predict else None,
+                          "na": {"aan": on[:], "aan_uur": on_h[:], "uit_uur": off_h[:], "opstart_rest_min": startup[:], "warmte": heat[:],
+                                 "eq_uur": eq[:]}}
         if trace is not None and step in trace:
             reasons = []
             if waiting and wanted > len(running):
@@ -670,6 +690,7 @@ def simulate(supply: dict, n: int, a: Aannames, strategy: str, trace: range | No
         "dekking_uur": len(mw) * STEP_H, "beschikbaarheid_storing": avail_f,
         "dagen": {d: [round(v[0], 1), v[1]] for d, v in daily.items()},
         "stappen": steps,
+        **({"detail": detail_out} if detail is not None else {}),
     }
 
 
@@ -1053,6 +1074,61 @@ def day_trace(a: Aannames, day: date, counts: list[int], strategy: str, method: 
             "hoogtevertaling": {park_id: windbron.describe(park_id, pm, datetime.combine(day, datetime.min.time(), LOCAL))
                                 for park_id, pm in methods.items()},
             "parken": {park_id: park["name"] for park_id, park in PARKS.items()}}
+
+
+HALF_STEP_S = 300   # een tijdstempel in het aanbod is het midden van het KNMI-tienminuteninterval
+
+
+def moment_index(supply: dict, day: date, clock: str) -> int:
+    """Index van het interval dat op `day` om `clock` (UU:MM, Nederlandse tijd) begint. Bij de wintertijdwissel komt 02:00–02:50
+    twee keer voor; dan het eerste. Zonder windgegevens een foutmelding met het dichtstbijzijnde moment dat wel gegevens heeft."""
+    starts = [datetime.fromtimestamp(t - HALF_STEP_S, LOCAL) for t in supply["t"]]
+    for i, start in enumerate(starts):
+        if start.date() == day and start.strftime("%H:%M") == clock:
+            return i
+    try:
+        hour, minute = (int(part) for part in clock.split(":"))
+        target = datetime.combine(day, datetime.min.time(), LOCAL).replace(hour=hour, minute=minute).timestamp()
+    except ValueError:
+        raise ValueError("Kies een tijd als UU:MM, in stappen van tien minuten.") from None
+    if not starts:
+        raise ValueError("Geen windgegevens in dit jaar.")
+    near = min(range(len(starts)), key=lambda i: abs(starts[i].timestamp() - target))
+    raise ValueError(f"Geen windgegevens voor {day.isoformat()} {clock} (meetgat of buiten de windjaren). Dichtstbijzijnde moment met "
+                     f"gegevens: {starts[near].date().isoformat()} {starts[near].strftime('%H:%M')}.")
+
+
+def moment_trace(a: Aannames, day: date, clock: str, counts: list[int], strategy: str, method: str = windbron.DEFAULT,
+                 standby_mode: str = "vast") -> dict:
+    """Eén tijdstap van tien minuten uit de doorlopende jaarsimulatie, precies zoals Bereken hem rekent.
+
+    Anders dan day_trace (een apart dagvenster dat twee dagen eerder begint) is dit dezelfde simulatie als de jaaruitkomst,
+    met dezelfde stilstand voor stackwissels. De toestand vóór de stap (aan of uit, aan- en uit-tijd, resterende opstartminuten,
+    warmte, slijtage-uren, startvertraging) en elke tussenuitkomst komen onafgerond terug, zodat de stap volledig na te rekenen is.
+    Bij stand-by ‘vast’ hangt de toestand alleen van eerdere stappen af; de simulatie stopt daarom na deze stap. Met voorspelling
+    kijkt de besturing vooruit en loopt het hele jaar mee."""
+    check_standby(standby_mode)
+    supply = supply_year(day.year, method=method)
+    index = moment_index(supply, day, clock)
+    upto = supply if standby_mode == "voorspelling" else {**supply, "t": supply["t"][:index + 1], "mw": supply["mw"][:index + 1]}
+    out = {}
+    for n in sorted(set(counts)):
+        year = _job((supply, n, a, strategy, standby_mode))   # de jaarsimulatie van Bereken (in de browser uit het geheugen)
+        days = year.get("stackwissel_dagen", 0.0)
+        used = replace(a, onderhoud_dagen=a.onderhoud_dagen + days)
+        result = simulate(upto, n, used, strategy, trace=range(index, index + 1), standby_mode=standby_mode, detail=index)
+        size = result["module_mw"]
+        out[n] = {"module_mw": size, "drempel_mw": draw_mw(a.minimumlast * size, size, a), "vollast_mw": draw_mw(size, size, a),
+                  "stackwissel_dagen": days, "onderhoud_dagen": used.onderhoud_dagen, "stap": result["detail"],
+                  "redenen": result["stappen"][0]["redenen"] if result["stappen"] else [],
+                  "jaar_waterstof_t": year["waterstof_t"]}
+    start = datetime.fromtimestamp(supply["t"][index] - HALF_STEP_S, LOCAL)
+    previous = supply["t"][index - 1] if index else None
+    return {"datum": day.isoformat(), "tijd": clock, "begin": start.isoformat(), "eind": (start + timedelta(minutes=10)).isoformat(),
+            "t": supply["t"][index], "index": index, "jaar": supply["jaar"], "stappen_in_jaar": len(supply["t"]),
+            "vorige_t": previous, "aansluitend": previous is None or supply["t"][index] - previous == 600,
+            "aanbod_mw": supply["mw"][index], "strategie": strategy, "standbybeleid": standby_mode, "windmethode": method,
+            "aannames": asdict(a), "model_versie": MODEL_VERSION, "configuraties": out}
 
 
 # ---------------------------------------------------------------- opdrachtregel

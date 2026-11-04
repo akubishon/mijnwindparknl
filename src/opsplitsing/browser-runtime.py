@@ -259,6 +259,12 @@ def dispatch(path, body):
     if path.endswith('/dag'):
         day = date.fromisoformat(body['datum'])
         return trace_wind(model.day_trace(a, day, counts, strategy, method=profile, standby_mode=standby), profile, WIND['parken'], day)
+    if path.endswith('/moment'):
+        # Eén tijdstap uit de jaarsimulatie van Bereken, met de volledige toestand ervoor; aanbod volgens het gekozen windprofiel.
+        day = date.fromisoformat(body['datum'])
+        if day.year not in model.available_years(): raise ValueError('Kies een dag uit de windjaren.')
+        return {**model.moment_trace(a, day, str(body.get('tijd', '')), counts, strategy, method=profile, standby_mode=standby),
+                'windprofiel': profile, 'parken': list(WIND['parken'])}
     if path.endswith('/gevoeligheid'):
         return model.sensitivity(a, years, body['n'], strategy, workers=1, method=profile, standby_mode=standby)
     if path.endswith('/omslagkaart'):

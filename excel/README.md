@@ -72,7 +72,21 @@ Werkt het VBA-project in een Excel-versie niet, importeer de modules dan met de 
 modules en kies *Bestand → Bestand importeren* voor `excel/vba/OpsplitsingModel.bas` en `OpsplitsingWerkblad.bas`. De bestanden zijn
 UTF-8; sla ze voor het importeren op als Windows-1252 (ANSI), anders worden é, ë en € onleesbaar.
 
-## Eén interval narekenen
+## Eén moment uit de jaarrun narekenen (op de website)
+
+Op `/opsplitsing` staat na **Bereken** het blok **Eén moment narekenen**. Kies een dag, een begintijd en de moduleaantallen; de knop
+*Reken dit moment na in de jaarrun* in *Een dag van dichtbij* doet hetzelfde voor het gekozen moment. Het moment komt uit dezelfde
+jaarsimulatie als de uitkomst (`moment_trace` in `opsplitsing.py`), niet uit een aparte dagsimulatie, en is onafgerond.
+
+Per moduleaantal staat elke rekenstap met formule, ingevulde getallen, uitkomst en de waarde uit de simulatie met ✓:
+de toestand vóór het moment (aan of uit, aan- en uit-tijd, resterende opstartminuten, slijtage-uren, onderhoud, startvertraging),
+hoeveel modules passen en draaien, welke modules dat zijn, de last, de start (warm of koud) met het opstartverlies, de kilo's, de
+stroom, het warmhouden en de resterende opstartminuten voor het volgende moment. **Excel met formules** downloadt hetzelfde als
+werkmap: de toestand vóór het moment is gele invoer, elke stap een formule, kolom G controleert elke stap tegen de simulatie
+(`src/opsplitsing/moment-check.js`, getest in `tests/moment-check.test.mjs`). Bij stand-by *met voorspelling* zijn de besluiten
+van de voorspelling (toegestane starts, volgorde, warm gehouden) invoer; de rest blijft formule.
+
+## Eén interval narekenen (los rekenblad)
 
 `Interval-10-minuten.xlsx` (zonder macro's) rekent één tijdstap van tien minuten met gewone Excel-formules na, voor 1, 2, 3 en 4
 modules naast elkaar (besturing *verdelen*, standaardwaarden PEM). Vul in de gele cellen het windaanbod en eventueel andere aannames in.

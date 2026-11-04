@@ -7,13 +7,14 @@ for(const file of readdirSync(root+'python').sort())if(file.endsWith('.py'))add(
 for(const file of readdirSync(root+'python/data').sort())add('python/data/'+file,'windprofiel/data/'+file);
 add('Amsterdam','zoneinfo/Europe/Amsterdam');add('browser-runtime.py','browser-runtime.py');
 const assets={};
-for(const file of ['opsplitsing.css','opsplitsing.js','bridge.js','calculator-worker.js','report.css','report-model.js','report-moments.js','report-xlsx.js','report-ui.js'])assets[file]=[readFileSync(root+file,'utf8'),file.endsWith('.css')?'text/css':'text/javascript'];
+for(const file of ['opsplitsing.css','opsplitsing.js','bridge.js','calculator-worker.js','report.css','report-model.js','report-moments.js','report-xlsx.js','report-ui.js','moment-check.js'])assets[file]=[readFileSync(root+file,'utf8'),file.endsWith('.css')?'text/css':'text/javascript'];
 assets['bundle.json']=[JSON.stringify(bundle),'application/json'];
 for(const file of readdirSync(root+'data').sort())assets['data/'+file]=[readFileSync(root+'data/'+file,'utf8'),'application/json'];
 assets['i18n.js']=[(await build({entryPoints:['src/i18n-page.mjs'],bundle:true,write:false,minify:true,format:'iife',target:['es2022']})).outputFiles[0].text,'text/javascript'];
 assets['chart-export.js']=[(await build({stdin:{contents:"import {initChartExport} from './chart-export.js';initChartExport();",resolveDir:'src',loader:'js'},bundle:true,write:false,minify:true,format:'iife',target:['es2022']})).outputFiles[0].text,'text/javascript'];
 assets['scenarios.json']=['{"scenarios":[]}','application/json'];
 let html=readFileSync(root+'opsplitsing.html','utf8').replace('<title>','<script src="/opsplitsing-assets/i18n.js"></script><title>').replace('href="./opsplitsing.css"','href="/opsplitsing-assets/opsplitsing.css"').replace('<script src="./opsplitsing.js" defer></script>','<script src="/opsplitsing-assets/bridge.js" defer></script><script src="/opsplitsing-assets/opsplitsing.js" defer></script><script src="/opsplitsing-assets/chart-export.js" defer></script>');
+html=html.replace('src="./moment-check.js"','src="/opsplitsing-assets/moment-check.js"');
 html=html.replaceAll(/(?:href|src)="\.\/(report[^"]+)"/g, (match,file)=>match.replace('./'+file,'/opsplitsing-assets/'+file));
 html=html.replace('<!--device-note-->','<p class="note">De berekeningen draaien op dit apparaat. Houd deze pagina open tijdens het rekenen. Het eerste gebruik downloadt het rekenmodel; grote analyses kunnen enkele minuten duren.</p>');
 const policy="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; worker-src 'self'; connect-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'";

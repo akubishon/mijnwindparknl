@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Elektrolyser opsplitsen</title>
-  <link rel="stylesheet" href="./opsplitsing.css"><link rel="stylesheet" href="./report.css"><script src="./report-model.js" defer></script><script src="./report-moments.js" defer></script><script src="./report-xlsx.js" defer></script><script src="./report-ui.js" defer></script><script src="./opsplitsing.js" defer></script>
+  <link rel="stylesheet" href="./opsplitsing.css"><link rel="stylesheet" href="./report.css"><script src="./report-model.js" defer></script><script src="./report-moments.js" defer></script><script src="./report-xlsx.js" defer></script><script src="./report-ui.js" defer></script><script src="./moment-check.js" defer></script><script src="./opsplitsing.js" defer></script>
 </head>
 <body>
   <div class="site-session"><form method="post" action="/auth/logout"><button type="submit">Uitloggen</button></form></div>
@@ -247,7 +247,8 @@
                 <input type="range" id="step" min="0" max="143" value="72" aria-describedby="step-time"></label>
               <div class="moment-navigation"><button id="step-play" class="primary-button play-button" type="button" disabled aria-pressed="false">▶ Afspelen</button>
                 <button id="step-prev" class="secondary-button" type="button" disabled aria-label="Vorige tien minuten">← Vorige</button>
-                <button id="step-next" class="secondary-button" type="button" disabled aria-label="Volgende tien minuten">Volgende →</button></div>
+                <button id="step-next" class="secondary-button" type="button" disabled aria-label="Volgende tien minuten">Volgende →</button>
+                <button id="step-verify" class="secondary-button" type="button" disabled>Reken dit moment na in de jaarrun</button></div>
             </div>
             <div id="module-stage" class="module-stage" aria-hidden="true"></div>
             <div id="moment-summary" class="moment-summary" aria-live="polite"></div>
@@ -259,6 +260,23 @@
             <ol class="flow walk" id="walk"></ol>
           </aside>
         </div>
+      </section>
+
+      <section class="panel" aria-labelledby="moment-title" id="moment-panel" hidden>
+        <div class="step-heading"><span class="step-number">✓</span><div>
+          <h2 id="moment-title">Eén moment narekenen</h2>
+          <p>Kies tien minuten uit de jaarrun. Je ziet per module elke rekenstap: de toestand vóór dit moment (aan of uit, aan- en uit-tijd, resterende opstarttijd, startvertraging), hoeveel modules draaien, de last, het opstartverlies en de kilo’s waterstof. Naast elke stap staat de waarde uit de jaarsimulatie zelf. Klopt dit moment tot op de laatste decimaal, dan rekent de jaarrun met dezelfde regels: hij herhaalt deze stap voor elk moment en geeft alleen de toestand door.</p>
+        </div></div>
+        <div class="day-controls moment-check-controls">
+          <label>Dag <input type="date" id="mc-day"></label>
+          <label>Begintijd <select id="mc-time"></select></label>
+          <fieldset class="moment-check-counts"><legend>Aantal modules</legend><div id="mc-counts"></div></fieldset>
+          <button class="primary-button" type="button" id="mc-run">Reken dit moment na</button>
+          <button class="secondary-button" type="button" id="mc-excel" disabled>Excel met formules</button>
+          <span id="mc-status" role="status" aria-live="polite"></span>
+        </div>
+        <p class="note">Hetzelfde moment als in de jaaruitkomst, geen aparte dagsimulatie. In Excel is de toestand vóór het moment gele invoer en is elke rekenstap een formule; kolom G controleert elke stap tegen de simulatie.</p>
+        <div id="mc-result" aria-live="polite"></div>
       </section>
 
       <details class="panel model-support"><summary>Onderbouwing van wind en rekenmodel</summary>

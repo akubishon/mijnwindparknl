@@ -223,7 +223,7 @@ for key, label, unit, words, formula, fmt, py in spec:
 
 # ------------------------------------------------------------------ D. kandidaten
 section(d_start, "D. Hoe de besturing k kiest: elk mogelijk aantal draaiende modules uitgerekend", last_col="L")
-heads = ["N", "k draaiend", "Past k? (k ≤ passen)", "Stackvermogen per module (MW)", "Last per module",
+heads = ["N", "k draaiend", "Past k? (k ≤ passen)", "Stackvermogen per module (MW, aanbod op 0,01 MW)", "Last per module",
          "Boven minimumlast?", "Faradayrendement", "Stackverbruik (kWh/kg)", "Waterstof per module (kg/uur)",
          "Mogelijk?", "Toelichting", "Waterstof totaal (kg/uur)"]
 for i, text in enumerate(heads):
@@ -234,7 +234,8 @@ for (n, k), r in cand_rows.items():
     put(f"A{r}", n, F, "0")
     put(f"B{r}", k, F, "0")
     put(f"C{r}", f'=IF(B{r}<={fits},"ja","nee")')
-    put(f"D{r}", f"=MIN({size},({R['aanbod']}/B{r}-{R['bopv']}*{size})/(1+{R['bopvar']}))", F, "0.000")
+    # desired_count kiest k op het aanbod afgerond op 0,01 MW (memosleutel round(power, 2)); de last zelf gebruikt het volle aanbod.
+    put(f"D{r}", f"=MIN({size},(ROUND({R['aanbod']},2)/B{r}-{R['bopv']}*{size})/(1+{R['bopvar']}))", F, "0.000")
     put(f"E{r}", f"=D{r}/{size}", F, "0.0%")
     put(f"F{r}", f'=IF(AND(E{r}>0,E{r}>={R["minlast"]}-1E-9),"ja","nee")')
     put(f"G{r}", f"=IF(E{r}<=0,0,MAX(0,1-{R['faraday']}*0.1/E{r}))", F, "0.0000")
@@ -250,7 +251,7 @@ for (n, k), r in cand_rows.items():
                                                            bottom=Side(style="medium", color="1F4E78"))
 note = d_first + 16
 ws[f"A{note}"].value = ("Besturing ‘verdelen’: van alle k die passen kiest het model de k met de meeste waterstof per uur; "
-                        "het aanbod wordt gelijk over de k modules verdeeld. Elke module is beperkt tot haar eigen vermogen; "
+                        "het aanbod wordt gelijk over de k modules verdeeld. Voor die keuze rondt het model het aanbod af op 0,01 MW. Elke module is beperkt tot haar eigen vermogen; "
                         "wat overblijft gaat verloren (regel 18).")
 ws[f"A{note}"].font = GREY
 

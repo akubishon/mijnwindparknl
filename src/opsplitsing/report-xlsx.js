@@ -119,6 +119,11 @@
         switch (node.name) {
           case 'IF': return truthy(ev(args[0])) ? ev(args[1]) : args.length > 2 ? ev(args[2]) : false;
           case 'AND': return args.every(arg => truthy(ev(arg)));
+          case 'OR': return args.some(arg => truthy(ev(arg)));
+          case 'NOT': return !truthy(ev(args[0]));
+          case 'INT': return Math.floor(toNumber(ev(args[0])));
+          // Excel rondt een exacte helft van nul af; de cel rekent bij openen opnieuw met Excel zelf.
+          case 'ROUND': { const f = 10 ** toNumber(ev(args[1])), x = toNumber(ev(args[0])); return Math.sign(x) * Math.round(Math.abs(x) * f) / f; }
           case 'SUM': return list(args).reduce((s, v) => s + v, 0);
           case 'MAX': { const v = list(args); return v.length ? Math.max(...v) : 0; }
           case 'MIN': { const v = list(args); return v.length ? Math.min(...v) : 0; }
@@ -139,7 +144,7 @@
     return new Intl.NumberFormat('nl-NL', options).format(v).replace(/^[-−]/, '−');
   };
   const OPS = {'+': ' + ', '-': ' − ', '*': ' × ', '/': ' / ', '^': '^', '=': ' = ', '<>': ' ≠ ', '<': ' < ', '>': ' > ', '<=': ' ≤ ', '>=': ' ≥ '};
-  const FN = {IF: 'ALS', AND: 'EN', MAX: 'max', MIN: 'min'};
+  const FN = {IF: 'ALS', AND: 'EN', OR: 'OF', NOT: 'NIET', INT: 'INTEGER', ROUND: 'AFRONDEN', MAX: 'max', MIN: 'min'};
   // mode 'filled': celverwijzingen worden getallen; mode 'symbolic': celverwijzingen worden variabelenamen.
   function render(node, ctx) {
     const r = n => render(n, ctx);
@@ -250,6 +255,16 @@
       }).join('') + '</row>').join('');
       return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>' + widths.map((width, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + width + '" customWidth="1"/>').join('') + '</cols><sheetData>' + body + '</sheetData><pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/></worksheet>';
     }
+    // Waarde van een cel zoals Excel hem toont, voor dezelfde tabel op de pagina (moment-check.js).
+    let indexed = false;
+    function read(entry) {
+      if (!indexed) { index(); indexed = true; }
+      if (entry === undefined || entry === null || entry === '') return null;
+      if (typeof entry !== 'object') return entry;
+      if (entry.kind === 'formula') { const out = resolve(entry); return out.error ? {error: out.error} : out.value; }
+      if (entry.kind === 'text') return textOf(entry);
+      return entry.value ?? null;
+    }
     function files() {
       index();
       const out = {
@@ -262,7 +277,7 @@
       sheets.forEach((s, i) => { out['xl/worksheets/sheet' + (i + 1) + '.xml'] = serialize(s); });
       return out;
     }
-    return {add, files};
+    return {add, files, read};
   }
 
   // ------------------------------------------------------------------ the report
@@ -632,6 +647,7 @@
   }
 
   // parse/evaluate/render staan open voor de tests; ze veranderen niets aan het werkboek.
-  root.OpsReportExcel = Object.freeze({build, formula: Object.freeze({parse, evaluate, render, nlNumber})});
+  root.OpsReportExcel = Object.freeze({build, formula: Object.freeze({parse, evaluate, render, nlNumber}),
+    kit: Object.freeze({workbook, text, header, input, fx, symbolic, filled, zip})});
   if (typeof module !== 'undefined' && module.exports) module.exports = root.OpsReportExcel;
 })(globalThis);
