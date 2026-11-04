@@ -11,7 +11,7 @@ op 12 modules gezet.
 
 - `src/opsplitsing/python/opsplitsing.py`
   - `MODULE_COUNTS` (keuzelijst op de pagina): `16` vervangen door `12`
-    → `[1, 2, 3, 4, 5, 6, 8, 10, 11, 12]`.
+    → `[1, 2, 3, 4, 5, 6, 8, 10, 11, 12]`; later (4 november) aangevuld tot alle aantallen 1 tot en met 12.
   - `MAX_MODULES` (bovengrens voor scenario's, aanvragen en de gevoeligheidsanalyse):
     van `64` naar `12`. Aanvragen met meer modules worden nu geweigerd.
 - `src/opsplitsing/python/scenarios.py`: standaardbereik van de scenario-CLI van `1-16`
