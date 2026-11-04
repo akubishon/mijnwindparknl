@@ -71,3 +71,16 @@ minuten.
 Werkt het VBA-project in een Excel-versie niet, importeer de modules dan met de hand: open de VBA-editor (Alt+F11), verwijder de twee
 modules en kies *Bestand → Bestand importeren* voor `excel/vba/OpsplitsingModel.bas` en `OpsplitsingWerkblad.bas`. De bestanden zijn
 UTF-8; sla ze voor het importeren op als Windows-1252 (ANSI), anders worden é, ë en € onleesbaar.
+
+## Eén interval narekenen
+
+`Interval-10-minuten.xlsx` (zonder macro's) rekent één tijdstap van tien minuten met gewone Excel-formules na, voor 1, 2, 3 en 4
+modules naast elkaar (besturing *verdelen*, standaardwaarden PEM). Vul in de gele cellen het windaanbod en eventueel andere aannames in.
+Sectie C toont per moduleaantal stap voor stap het vermogen per module, de minimumlast, hoeveel modules passen, hoeveel er draaien, de
+last, het rendement, de waterstof in kg en de benutting. Sectie D laat zien hoe de besturing het aantal draaiende modules kiest. De
+narekening gaat uit van modules die al draaien: opstartverlies, minimale aan-/uit-tijd, startvertraging en onderhoud tellen niet mee.
+
+```sh
+pip install openpyxl
+python3 scripts/build-interval-excel.py
+```
