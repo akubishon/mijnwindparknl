@@ -164,7 +164,7 @@ Public Function STANDBY_MODES() As Variant
 End Function
 
 Public Function MODULE_COUNTS() As Variant
-    MODULE_COUNTS = Array(1, 2, 3, 4, 5, 6, 8, 10, 11, 12)
+    MODULE_COUNTS = Array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
 End Function
 
 Public Sub ResetData()

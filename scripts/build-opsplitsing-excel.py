@@ -133,7 +133,7 @@ def build(out: Path) -> None:
         ("Windparken", PARK_LABELS[0], "Aanbod: " + ", ".join(f"{v['naam']} {round(v['aandeel'] * 100)} % (tot {str(v['mw']).replace('.', ',')} MW)"
                                                             for v in shares.values()) + ". Windprofiel: productie-onafhankelijk (standaard)."),
         ("Windjaren", ", ".join(map(str, years)), "Komma's of reeksen, bijvoorbeeld 2022-2025 of 2024, 2025."),
-        ("Aantal modules", ", ".join(map(str, meta["modules"])), f"1 tot en met {model.MAX_MODULES}, bijvoorbeeld 1-6, 8, 10-12. "
+        ("Aantal modules", ", ".join(map(str, meta["modules"])), f"1 tot en met {model.MAX_MODULES}, bijvoorbeeld 1-12 of 1, 2, 4, 8. "
                                                                   "De eerste is de basis voor vergelijkingen."),
         ("Gevoeligheid: aantal modules", 4, "Het aantal modules dat de gevoeligheid tegen 1 module afzet (2 tot en met 12)."),
         ("Dag voor dagverloop", None, "Leeg: de voorbeelddag van de laatste Bereken. Anders een datum in een van de windjaren."),
