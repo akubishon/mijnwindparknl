@@ -604,7 +604,6 @@ export default {
   '10% · max. 38,3 MW': '10% · max. 38.3 MW',
   '100% · max. 10,4 MW': '100% · max. 10.4 MW',
   'max. 48,7 MW': 'max. 48.7 MW',
-  'max. 48,4 MW': 'max. 48.4 MW',
   '4,4 MW': '4.4 MW',
   '89 × 4,3 MW · 382,7 MW': '89 × 4.3 MW · 382.7 MW',
   '8 × 1,3 MW · 10,4 MW': '8 × 1.3 MW · 10.4 MW',
