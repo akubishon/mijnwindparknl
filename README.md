@@ -344,6 +344,19 @@ Verification: `npm test` covers the existing Worker behavior plus wind-before-po
 De daganalyse gebruikt een samenhangende werkruimte: daggrafiek, tijdschuif en productie per configuratie links; zes compacte rekenstappen rechts. De kernwaarden blijven zichtbaar, formules zijn per stap uit te klappen en ‘Alle rekenstappen tonen’ opent alles. De keuze blijft behouden bij wisselen van tijdstip. Vorige/volgende bedient één tienminutenstap. Brede schermen tonen maximaal twee grote resultaatgrafieken per rij; gewone tekst en tabellen zijn groter gezet. Op kleine schermen stapelen de onderdelen en scrolt alleen de daggrafiek horizontaal.
 
 
+## Productweergave (voor verkoopgesprekken)
+
+De knop **Productweergave** in de sessiebalk (naast de taalknop en Uitloggen) zet de hele site in verkoopstand: mijnwindpark.nl gepresenteerd als platform voor de energietransitie, met de bestaande schermen en echte data als demo-case. Nogmaals klikken zet de projectweergave terug. De achtergrond en het hypothetische marktplan staan in [`docs/productplan-mijnwindpark.md`](docs/productplan-mijnwindpark.md); het plan voor de Waterstofatlas in [`docs/productplan-waterstofatlas.md`](docs/productplan-waterstofatlas.md).
+
+- **Keuze bewaren:** cookie `mwp_view` (`project` of `product`), net als de taalkeuze; `src/view-mode.mjs` houdt de keuze bij en meldt wijzigingen aan de React-pagina's en aan `/opsplitsing`. Een link met `?weergave=product` of `?weergave=project` zet de keuze en haalt de parameter uit het adres; hij overleeft het inloggen, omdat de loginpagina pad en query bewaart.
+- **Startpagina:** in de productweergave toont `/` de productpagina (`src/product-landing.tsx`) in plaats van `src/landing.tsx`: een live-paneel met het actuele vermogen (`/api/live`, elke 15 s zolang de pagina zichtbaar is; na 2 minuten zonder nieuwe meting heet het "laatste meting", zoals `isStale` in `src/live-reading.mjs`), de jaren met meetdata (`/api/catalog`), het aantal elektrolysers en fabrikanten (`/api/atlas/catalogue`, gefilterd zoals de Catalogus) en de laatste opgeslagen HARMONIE-run (`/api/harmonie`). Een mislukte aanvraag toont alleen die regel als niet beschikbaar. Daaronder: waarom nu (marktcijfers met bron), het platform in drie lagen, zes doelgroepen, vier productvormen, wat het anders maakt, de demo-route, "van demo-case naar jouw project" en de demo-case zelf (het stroomschema `EnergyFlow` uit `landing.tsx`).
+- **Andere pagina's:** onder de hoofdnavigatie staat een productnotitie met wat je ziet, waarom het telt, voor wie, een vraag voor het gesprek en de volgende stap in de demo-route (`ProductNote` in `src/product-view.tsx`, gerenderd door `SiteNavigation`). `/opsplitsing` heeft geen React: `src/i18n-page.mjs` zet daar de knop en de notitie (`src/product-note-dom.mjs`), met dezelfde stijl uit `/opsplitsing-assets/product.css`.
+- **Inhoud:** alle tekst staat als data in `src/product-content.mjs`, met Engelse vertalingen in `src/i18n-en.mjs`. De marktcijfers zijn op 23 november 2026 in de bron nagelezen; werk ze bij met bron en datum. Prijzen staan bewust niet op de site, alleen in het productplan.
+- **Stijl:** `src/product.css`, achter de andere stijlbestanden in de pagina.
+- **Let op:** iedereen met het sitewachtwoord ziet de knop, ook de huidige opdrachtgever.
+
+Tests: `tests/product-view.test.mjs` controleert de URL-parameter, dat elke link naar een bestaande pagina of een anker wijst, dat elke pagina een notitie en een volgende demo-stap heeft, dat alle tekst een Engelse vertaling heeft, dat het aantal KNMI-stations klopt met `src/stations.json`, dat er geen prijzen in de productvormen staan, en dat de samengestelde worker alle pagina's van de demo-route, de stijl en het script voor `/opsplitsing` levert.
+
 ## Navigatie en HARMONIE
 
 De hoofdnavigatie bevat Start, Fryslân, Beabuorren, Elektrolyser en Onderzoek.
