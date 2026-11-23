@@ -5,6 +5,8 @@
 // docs/productplan-mijnwindpark.md, niet op de site.
 
 // Pagina's van de site waar de productweergave naar mag linken.
+// Openbare pagina's (zonder login), zie src/scan-page.mjs.
+export const PUBLIC_ROUTES = ['/waterstofscan'];
 export const SITE_ROUTES = ['/', '/fryslan', '/beabuorren', '/elektrolyser', '/elektrolyser/catalogus', '/elektrolyser/samenstellen', '/elektrolyser/vergelijken', '/opsplitsing', '/onderzoek'];
 // Ankers op de productpagina zelf.
 export const ANCHORS = ['#demo', '#doelgroepen', '#democase', '#stroom', '#volgende-stap'];
@@ -21,8 +23,8 @@ export const hero = {
   // Zacht afbreekstreepje: op een telefoon past het lange woord anders niet in de kop.
   titleEnd: 'investerings­besluit.',
   lead: 'Eén rekenplatform voor de energietransitie: wat levert een wind- of zonnepark per tien minuten, wat kan een flexibele afnemer daarmee achter een begrensde aansluiting, en wat kost dat? Op echte meetjaren, met conclusies die rekening houden met onzekerheid, en narekenbaar tot in Excel.',
-  primary: {label: 'Volg de demo-route', href: '#demo'},
-  secondary: {label: 'Voor wie is het?', href: '#doelgroepen'},
+  primary: {label: 'Wat we nu verkopen: de waterstofscan', href: '/waterstofscan'},
+  secondary: {label: 'Volg de demo-route', href: '#demo'},
   note: 'Alle schermen en cijfers op deze site zijn echt. De demo-case is 10 % van Windpark Fryslân plus Windpark Beabuorren, samen tot 48,7 MW, voor een elektrolyser van 44 MW.',
 };
 

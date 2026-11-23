@@ -5,7 +5,7 @@ import * as content from '../src/product-content.mjs';
 import {viewFromSearch,withoutViewParam,VIEW_HINT,VIEW_LABEL} from '../src/view-mode.mjs';
 import {translate} from '../src/i18n.mjs';
 
-const {SITE_ROUTES,ANCHORS,pageNotes,noteFor,nextDemoStep} = content;
+const {SITE_ROUTES,PUBLIC_ROUTES,ANCHORS,pageNotes,noteFor,nextDemoStep} = content;
 
 test('?weergave= kiest de weergave en verdwijnt uit het adres, andere parameters blijven', () => {
  assert.equal(viewFromSearch('?weergave=product'), 'product');
@@ -31,7 +31,7 @@ function links() {
 
 test('elke link in de productweergave wijst naar een bestaande pagina of een anker op de productpagina', () => {
  for (const href of links()) {
-  const ok = SITE_ROUTES.includes(href) || ANCHORS.includes(href) || (href.startsWith('/#') && ANCHORS.includes(href.slice(1)));
+  const ok = SITE_ROUTES.includes(href) || PUBLIC_ROUTES.includes(href) || ANCHORS.includes(href) || (href.startsWith('/#') && ANCHORS.includes(href.slice(1)));
   assert.ok(ok, href);
  }
 });
@@ -62,7 +62,7 @@ function texts() {
   else if (Array.isArray(value)) value.forEach(item => walk(item, key));
   else if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) walk(v, k);
  };
- for (const [name, value] of Object.entries(content)) if (typeof value !== 'function' && !['SITE_ROUTES', 'ANCHORS'].includes(name)) walk(value, name);
+ for (const [name, value] of Object.entries(content)) if (typeof value !== 'function' && !['SITE_ROUTES', 'PUBLIC_ROUTES', 'ANCHORS'].includes(name)) walk(value, name);
  return [...found];
 }
 

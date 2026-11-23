@@ -88,7 +88,7 @@ Reverting the commit `Make approved brandbook style standard across the website`
 
 ## Whole-site password protection
 
-Every page, asset and API request is gated server-side. Without authentication, visitors receive only the text Wachtwoord and a password field in default browser styling (Enter submits, no button or explanatory copy); APIs return 401 before fetching upstream data. The password is `SITE_PASSWORD` when configured, otherwise the existing secret `RESEARCH_PASSWORD`. If neither is configured the site stays locked (503). Set or change secrets directly in Site settings → Environment variables with Secret enabled; never add them to source. Redeploy after changing runtime secrets.
+Every page, asset and API request is gated server-side, except the public sales page `/waterstofscan`, `/robots.txt` and `/favicon.svg` (see *Openbare verkooppagina*); unauthenticated visitors of `/` are redirected to `/waterstofscan` and the team logs in at `/inloggen`. Without authentication, visitors receive only the text Wachtwoord and a password field in default browser styling (Enter submits, no button or explanatory copy); APIs return 401 before fetching upstream data. The password is `SITE_PASSWORD` when configured, otherwise the existing secret `RESEARCH_PASSWORD`. If neither is configured the site stays locked (503). Set or change secrets directly in Site settings → Environment variables with Secret enabled; never add them to source. Redeploy after changing runtime secrets.
 
 Successful login sets a signed `__Host-site_session` cookie for at most 12 hours, with Secure, HttpOnly, SameSite=Strict and Path=/. Login is same-origin, passwords are compared using fixed-length digests, and wrong guesses are throttled per IP within the Worker instance. Rotating the access password invalidates existing session signatures. Page responses use no-store. A visible logout form clears the browser cookie; it does not revoke copies of a stolen session token before expiry. Research requests obtain their existing short-lived token from the authenticated session, without asking for a second password. No password or token is stored in localStorage or embedded in HTML.
 
@@ -343,6 +343,17 @@ Verification: `npm test` covers the existing Worker behavior plus wind-before-po
 
 De daganalyse gebruikt een samenhangende werkruimte: daggrafiek, tijdschuif en productie per configuratie links; zes compacte rekenstappen rechts. De kernwaarden blijven zichtbaar, formules zijn per stap uit te klappen en ‘Alle rekenstappen tonen’ opent alles. De keuze blijft behouden bij wisselen van tijdstip. Vorige/volgende bedient één tienminutenstap. Brede schermen tonen maximaal twee grote resultaatgrafieken per rij; gewone tekst en tabellen zijn groter gezet. Op kleine schermen stapelen de onderdelen en scrolt alleen de daggrafiek horizontaal.
 
+
+## Openbare verkooppagina: de Waterstofscan
+
+Het product dat we nu verkopen is de **Waterstofscan**: de waterstofopbrengstberekening voor een OWE-aanvraag, doorgerekend op echte wind. Waarom dit product, prijzen, doelgroepen en berichten: [`docs/sales/waterstofscan.md`](docs/sales/waterstofscan.md).
+
+- **`/waterstofscan`** is openbaar (vóór de sitepoort), server-side HTML zonder scripts (`src/scan-page.mjs`), met een strikte CSP en vindbaar (`/robots.txt` staat alleen deze pagina toe). Prijzen en teksten staan in `SCAN` in dat bestand.
+- **Voordeur:** wie zonder login `/` opent (zonder query), gaat naar `/waterstofscan`. Het team logt in via **`/inloggen`**; alle andere pagina's, API's en `/leads` blijven achter het wachtwoord. `/favicon.svg` is openbaar.
+- **Aanvragen:** het formulier post naar `/waterstofscan`. Controle in `parseLead()` (`src/leads.mjs`): verplichte velden, e-mail, vermogen als getal, toestemming; lokveld `website` geldt als spam (zelfde bedankpagina, niets bewaard); Origin moet gelijk zijn; hooguit vijf aanvragen per IP per uur per worker-instantie. Opslag in R2 onder `leads/v1/<omgekeerde tijd>-<id>.json`, zonder IP-adres of browsergegevens. Zonder `BUCKET` krijgt de bezoeker een melding (503) in plaats van stil verlies.
+- **`/leads`** en **`/leads.csv`** (achter login): alle aanvragen, nieuwste eerst; CSV voor Nederlandse Excel met BOM en onschadelijk gemaakte formules. Er gaat geen e-mail uit: kijk hier elke werkdag. De pagina belooft verwijdering na hooguit twaalf maanden.
+
+Tests: `tests/scan.test.mjs`.
 
 ## Productweergave (voor verkoopgesprekken)
 

@@ -315,7 +315,10 @@ test('brand style is standard on every page and former trial links redirect',asy
 test('site gate blocks every page, data endpoint and asset before any upstream request',async()=>{
  const worker=await rawFresh();const prior=global.fetch;let calls=0;global.fetch=async()=>{calls++;throw Error('must not fetch');};
  try{
-  for(const path of ['/','/beabuorren','/elektrolyser','/onderzoek','/proefstijl','/favicon.svg','/assets/tasa-orbiter.ttf']){
+  // De voordeur leidt bezoekers zonder login naar de openbare pagina /waterstofscan (tests/scan.test.mjs); het icoon is openbaar.
+  const door=await get(worker,'/');assert.equal(door.status,302);assert.equal(door.headers.get('Location'),'/waterstofscan');
+  const icon=await get(worker,'/favicon.svg');assert.equal(icon.status,200);assert.match(icon.headers.get('Content-Type'),/svg/);
+  for(const path of ['/?weergave=product','/beabuorren','/elektrolyser','/onderzoek','/proefstijl','/assets/tasa-orbiter.ttf','/leads','/leads.csv']){
    const r=await get(worker,path);assert.equal(r.status,401,path);const html=await r.text();assert.match(html,/<label for="password">Wachtwoord<\/label>/);assert.match(html,/<h1 id="welcome-title">Welkom!<\/h1>/);assert.match(html,/Voer je wachtwoord in\./);assert.match(html,/<button type="submit">Inloggen<\/button>/);assert.doesNotMatch(html,/const |<script>|Fryslân|Beabuorren|brandFont/);assert.equal(r.headers.get('Cache-Control'),'no-store');assert.match(r.headers.get('Content-Security-Policy'),/form-action 'self'/);
   }
   for(const path of ['/api/live','/api/history?day=2026-10-14','/api/wind?day=2026-10-13','/api/research/day?day=2026-10-13','/api/stations','/api/catalog'])assert.equal((await get(worker,path)).status,401,path);
@@ -333,9 +336,9 @@ test('site login issues a secure session, rejects forged/expired/rotated session
  assert.match(setCookie,/Secure; HttpOnly; SameSite=Strict; Max-Age=43200/);assert.match(setCookie,/^__Host-site_session=/);
  const cookie=setCookie.split(';')[0],request=path=>new Request(base+path,{headers:{Cookie:cookie}});
  const page=await worker.fetch(request('/onderzoek'),env);assert.equal(page.status,200);assert.equal(page.headers.get('Cache-Control'),'no-store');
- assert.equal((await worker.fetch(request('/'),{...env,SITE_PASSWORD:'rotated'})).status,401);
- assert.equal((await worker.fetch(new Request(base+'/',{headers:{Cookie:cookie.slice(0,-1)+(cookie.endsWith('0')?'1':'0')}}),env)).status,401);
- assert.equal((await worker.fetch(new Request(base+'/',{headers:{Cookie:cookie.replace(/=\d+\./,'=1000000000000.')}}),env)).status,401);
+ assert.equal((await worker.fetch(request('/onderzoek'),{...env,SITE_PASSWORD:'rotated'})).status,401);
+ assert.equal((await worker.fetch(new Request(base+'/onderzoek',{headers:{Cookie:cookie.slice(0,-1)+(cookie.endsWith('0')?'1':'0')}}),env)).status,401);
+ assert.equal((await worker.fetch(new Request(base+'/onderzoek',{headers:{Cookie:cookie.replace(/=\d+\./,'=1000000000000.')}}),env)).status,401);
  const logout=await worker.fetch(new Request(base+'/auth/logout',{method:'POST',headers:{Origin:base,Cookie:cookie}}),env);assert.equal(logout.status,303);assert.match(logout.headers.get('Set-Cookie'),/Max-Age=0/);
  const implicitResearch=await worker.fetch(new Request(base+'/api/research/auth',{method:'POST',headers:{Origin:base,Cookie:cookie},body:'{}'}),{...env,RESEARCH_PASSWORD:'fixture-research'});assert.equal(implicitResearch.status,200);assert.ok((await implicitResearch.json()).token);
  const redirected=await login(env.SITE_PASSWORD,'//evil.test');assert.equal(redirected.headers.get('Location'),'/');
