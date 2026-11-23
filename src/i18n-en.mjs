@@ -2182,6 +2182,7 @@ export default {
   'investerings­besluit.': 'investment decision.',
   'Eén rekenplatform voor de energietransitie: wat levert een wind- of zonnepark per tien minuten, wat kan een flexibele afnemer daarmee achter een begrensde aansluiting, en wat kost dat? Op echte meetjaren, met conclusies die rekening houden met onzekerheid, en narekenbaar tot in Excel.': 'One calculation platform for the energy transition: what does a wind or solar farm deliver per ten minutes, what can a flexible consumer do with it behind a limited grid connection, and what does it cost? On real measured years, with conclusions that account for uncertainty, and verifiable down to Excel.',
   'Volg de demo-route': 'Follow the demo route',
+  'Wat we nu verkopen: de waterstofscan': 'What we sell now: the hydrogen scan',
   'Voor wie is het?': 'Who is it for?',
   'Alle schermen en cijfers op deze site zijn echt. De demo-case is 10 % van Windpark Fryslân plus Windpark Beabuorren, samen tot 48,7 MW, voor een elektrolyser van 44 MW.': 'Every screen and figure on this site is real. The demo case is 10 % of Windpark Fryslân plus Windpark Beabuorren, together up to 48.7 MW, for a 44 MW electrolyser.',
   'LIVE UIT HET PLATFORM': 'LIVE FROM THE PLATFORM',

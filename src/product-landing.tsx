@@ -64,7 +64,7 @@ function ProofPanel(){
 }
 
 function Hero(){
- return <section className="landing-hero product-hero" aria-labelledby="product-title"><div className="landing-hero-copy"><div className="eyebrow">{hero.eyebrow}</div><h1 id="product-title">{hero.titleStart} <span>{hero.titleEnd}</span></h1><p>{hero.lead}</p><div className="product-actions"><a className="product-button" href={hero.primary.href}>{hero.primary.label}<ArrowDown size={18} aria-hidden="true"/></a><a className="landing-jump" href={hero.secondary.href}>{hero.secondary.label}<ArrowDown size={18} aria-hidden="true"/></a></div><p className="product-hero-note">{hero.note}</p></div><ProofPanel/></section>;
+ return <section className="landing-hero product-hero" aria-labelledby="product-title"><div className="landing-hero-copy"><div className="eyebrow">{hero.eyebrow}</div><h1 id="product-title">{hero.titleStart} <span>{hero.titleEnd}</span></h1><p>{hero.lead}</p><div className="product-actions"><a className="product-button" href={hero.primary.href}>{hero.primary.label}<ArrowRight size={18} aria-hidden="true"/></a><a className="landing-jump" href={hero.secondary.href}>{hero.secondary.label}<ArrowDown size={18} aria-hidden="true"/></a></div><p className="product-hero-note">{hero.note}</p></div><ProofPanel/></section>;
 }
 
 function WhyNow(){
@@ -122,7 +122,7 @@ export default function ProductLanding(){
   <DemoRoute/>
   <Generalise/>
   <div className="product-democase" id="democase"><p className="product-democase-intro"><span className="card-eyebrow">{democase.eyebrow}</span><span>{democase.intro}</span></p><EnergyFlow/></div>
-  <section className="product-closing" id="volgende-stap" aria-labelledby="closing-title"><div><span className="card-eyebrow">{closing.eyebrow}</span><h2 id="closing-title">{closing.title}</h2><p>{closing.text}</p></div><div className="product-actions"><a className="product-button" href="#demo">{closing.back}<ArrowRight size={18} aria-hidden="true"/></a><button type="button" className="product-button product-button-light" onClick={()=>{setView('project');window.scrollTo({top:0});}}>{closing.project}</button></div></section>
+  <section className="product-closing" id="volgende-stap" aria-labelledby="closing-title"><div><span className="card-eyebrow">{closing.eyebrow}</span><h2 id="closing-title">{closing.title}</h2><p>{closing.text}</p></div><div className="product-actions"><a className="product-button" href={hero.primary.href}>{hero.primary.label}<ArrowRight size={18} aria-hidden="true"/></a><a className="product-button product-button-light" href="#demo">{closing.back}</a><button type="button" className="product-button product-button-light" onClick={()=>{setView('project');window.scrollTo({top:0});}}>{closing.project}</button></div></section>
   <footer className="landing-footer"><a href="/" aria-label="Mijnwindpark.nl startpagina">mijnwindpark.nl</a><span>{closing.footer}</span><a href="#inhoud">Terug naar boven <ArrowDown size={14} aria-hidden="true"/></a></footer>
  </main></div>;
 }
