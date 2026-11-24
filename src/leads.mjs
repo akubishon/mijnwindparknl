@@ -44,7 +44,7 @@ export function leadsPage(leads, {error = ''} = {}) {
   return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Aanvragen waterstofscan</title><style>
 body{margin:0;padding:24px;background:#EFECE6;color:#0C2340;font-family:'Segoe UI',Arial,sans-serif;font-size:14px}h1{font-weight:500;margin:0 0 6px}p{color:#465970}a{color:#0C2340}
 .bar{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 16px}.wrap{overflow-x:auto;background:#fff;border:1px solid #0C2340}table{border-collapse:collapse;min-width:900px;width:100%}th,td{text-align:left;vertical-align:top;padding:8px 10px;border-top:1px solid #e1e6ea}th{background:#C3E4F2}.error{color:#84251e}
-</style></head><body><h1>Aanvragen waterstofscan</h1><p>${leads.length} aanvra${leads.length === 1 ? 'ag' : 'gen'}, nieuwste eerst. Verwijder gegevens na hooguit twaalf maanden; dat is op de openbare pagina beloofd.</p>
+</style></head><body><h1>Aanvragen waterstofscan</h1><p>${leads.length} aanvra${leads.length === 1 ? 'ag' : 'gen'}, nieuwste eerst. Verwijder gegevens uiterlijk twaalf maanden na ontvangst.</p>
 <div class="bar"><a href="/leads.csv">Download CSV</a><a href="/waterstofscan">Openbare pagina</a><a href="/">Terug naar de site</a></div>${error ? `<p class="error">${leadEsc(error)}</p>` : ''}
 ${leads.length ? `<div class="wrap"><table><thead><tr>${LEAD_COLUMNS.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` : '<p>Nog geen aanvragen.</p>'}</body></html>`;
 }

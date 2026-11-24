@@ -351,7 +351,7 @@ Het product dat we nu verkopen is de **Waterstofscan**: de waterstofopbrengstber
 - **`/waterstofscan`** is openbaar (vóór de sitepoort), server-side HTML zonder scripts (`src/scan-page.mjs`), met een strikte CSP en vindbaar (`/robots.txt` staat alleen deze pagina toe). Prijzen en teksten staan in `SCAN` in dat bestand.
 - **Voordeur:** wie zonder login `/` opent (zonder query), gaat naar `/waterstofscan`. Het team logt in via **`/inloggen`**; alle andere pagina's, API's en `/leads` blijven achter het wachtwoord. `/favicon.svg` is openbaar.
 - **Aanvragen:** het formulier post naar `/waterstofscan`. Controle in `parseLead()` (`src/leads.mjs`): verplichte velden, e-mail, vermogen als getal, toestemming; lokveld `website` geldt als spam (zelfde bedankpagina, niets bewaard); Origin moet gelijk zijn; hooguit vijf aanvragen per IP per uur per worker-instantie. Opslag in R2 onder `leads/v1/<omgekeerde tijd>-<id>.json`, zonder IP-adres of browsergegevens. Zonder `BUCKET` krijgt de bezoeker een melding (503) in plaats van stil verlies.
-- **`/leads`** en **`/leads.csv`** (achter login): alle aanvragen, nieuwste eerst; CSV voor Nederlandse Excel met BOM en onschadelijk gemaakte formules. Er gaat geen e-mail uit: kijk hier elke werkdag. De pagina belooft verwijdering na hooguit twaalf maanden.
+- **`/leads`** en **`/leads.csv`** (achter login): alle aanvragen, nieuwste eerst. De CSV heeft een BOM voor Nederlandse Excel en beveiligt cellen tegen formule-injectie. Wijs één eigenaar aan die het overzicht elke werkdag controleert. Er gaat geen automatische e-mail uit. Verifieer vóór publicatie hoe je aanvragen uiterlijk twaalf maanden na ontvangst verwijdert.
 
 Tests: `tests/scan.test.mjs`.
 

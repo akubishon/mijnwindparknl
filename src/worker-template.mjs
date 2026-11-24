@@ -108,7 +108,12 @@ async function gateRequest(request,env,url){
 const leadAttempts=new Map();
 const scanHeaders=cache=>({...securityHeaders,'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src 'self' data:; form-action 'self'; base-uri 'none'; object-src 'none'",'Content-Type':'text/html; charset=utf-8','Cache-Control':cache});
 async function scanRoute(request,env,url){
- if(request.method==='GET'||request.method==='HEAD'){const sent=url.searchParams.get('verzonden')==='1';return new Response(scanPage({sent,font:brandFont}),{headers:scanHeaders(sent?'no-store':'public, max-age=300')});}
+ if(request.method==='GET'||request.method==='HEAD'){
+  const sent=url.searchParams.get('verzonden')==='1';
+  const requestedPackage=url.searchParams.get('pakket');
+  const pakket=SCAN.packages.find(p=>p.id===requestedPackage)?.id;
+  return new Response(scanPage({sent,values:{pakket},font:brandFont}),{headers:scanHeaders(sent?'no-store':'public, max-age=300')});
+ }
  if(request.method!=='POST')return new Response('Method not allowed',{status:405,headers:{...securityHeaders,Allow:'GET, POST'}});
  const page=(status,options)=>new Response(scanPage({...options,font:brandFont}),{status,headers:scanHeaders('no-store')});
  if(request.headers.get('Origin')!==url.origin)return page(403,{errors:['Ongeldige aanvraag. Laad de pagina opnieuw en probeer het nog eens.']});
