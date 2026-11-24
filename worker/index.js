@@ -1899,164 +1899,250 @@ async function readStoredHarmonie(env,selection={}){
 
 // Openbare verkooppagina /waterstofscan: het ene product dat we verkopen, zonder wachtwoord te bekijken,
 // met een aanvraagformulier. Server-side HTML zonder scripts; de worker serveert hem vóór de sitepoort.
-// De inhoud staat in SCAN; prijzen en teksten pas je hier aan. Zie docs/sales/waterstofscan.md.
+// De inhoud staat in SCAN en de lijsten eronder; prijzen en teksten pas je hier aan. Zie docs/sales/waterstofscan.md.
+// Let op: scripts/compose-worker.mjs plakt dit bestand in de worker en haalt daarbij elk 'export'-woord met spatie weg;
+// gebruik dat woord met een spatie erachter dus nergens in teksten.
 const SCAN_PATH = '/waterstofscan';
 
 const SCAN = {
-  title: 'Waterstofscan · opbrengstberekening voor je OWE-aanvraag · mijnwindpark.nl',
-  description: 'De waterstofopbrengst van je elektrolyseproject, per tien minuten doorgerekend op vier echte windjaren. Rapport en Excel met formules voor je OWE-aanvraag. Vaste prijs.',
+  headline: 'Technische opbrengstanalyse voor de voorbereiding van je OWE-aanvraag',
+  title: 'Waterstofscan · opbrengstanalyse voor OWE-aanvragen · mijnwindpark.nl',
+  description: 'Voor ontwikkelaars van elektrolyseprojecten op Nederlandse wind op land en hun subsidieadviseurs: de verwachte waterstofproductie per kalenderjaar, onderbouwd in een rekenrapport en een narekenbare Excel.',
+  // Wie levert en factureert. Zolang dit null is, toont de pagina geen bedrijfsgegevens. Vul vóór livegang in, bijvoorbeeld:
+  // {naam: 'Bedrijf B.V.', kvk: '12345678', adres: 'Straat 1, 1234 AB Plaats', email: 'scan@voorbeeld.nl', telefoon: '+31 …'}
+  provider: null,
   packages: [
-    {id: 'opbrengst', name: 'Opbrengstberekening', price: '€ 7.500', weeks: '2 weken', items: [
-      'Aanbodprofiel van je windpark per tien minuten, vier windjaren',
-      'Waterstofopbrengst per kalenderjaar en gemiddeld',
-      'Rendement, beschikbaarheid en degradatie onderbouwd',
+    {id: 'opbrengst', name: 'Opbrengstberekening', price: '€ 12.000', fit: 'Je hebt een voorkeursmodel en hebt de opbrengstberekening voor je dossier nodig.', items: [
+      'Aanbodprofiel van je windpark per tien minuten, op historische windjaren',
+      'Verwachte waterstofproductie per kalenderjaar van de exploitatieperiode',
+      'Onderbouwing van omzettingsrendement, beschikbaarheid en degradatie',
       'Eén elektrolyser in maximaal drie configuraties',
       'Rekenrapport en Excel met formules',
     ]},
-    {id: 'keuze', name: 'Opbrengst + keuze', price: '€ 14.500', weeks: '3 weken', featured: true, items: [
+    {id: 'keuze', name: 'Opbrengst + leverancierskeuze', price: '€ 22.000', fit: 'Je shortlist staat nog open en je wilt onderbouwd kiezen vóór je offertes opvraagt.', featured: true, items: [
       'Alles uit de Opbrengstberekening',
-      'Tot zes elektrolysers op dezelfde wind vergeleken',
-      'Aantal modules en vermogen gedimensioneerd',
-      'Kostprijs per kg met gevoeligheid (elke kostenpost ±25 %)',
-      'Open vragen per leverancier en een bespreking van anderhalf uur',
+      'Maximaal zes elektrolysers vergeleken op dezelfde stroominvoer',
+      'Dimensionering van vermogen en aantal modules',
+      'Kostprijs per kilo, met het effect van de belangrijkste kostenaannames',
+      'Open vragen per leverancier, voor je offerteaanvraag',
+      'Bespreking van de vergelijking',
     ]},
   ],
 };
 
-const SCAN_ROWS = [
-  ['De verwachte hoeveelheid volledig hernieuwbare waterstof', 'Kilo’s per jaar, alleen uit het aanbod van je park (directe lijn); netstroom apart.'],
-  ['De opbrengst per kalenderjaar', 'Per windjaar 2022–2025 en het gemiddelde, omgerekend naar een volledig jaar.'],
-  ['Het energetische omzettingsrendement', 'Systeemverbruik in kWh/kg per model, met deellast en randvoorzieningen.'],
-  ['De beschikbaarheid van de installatie', 'Onderhoud, storingen en stackwissels, per module gesimuleerd.'],
-  ['De beschikbaarheid van duurzame elektriciteit', 'Het aanbod van je park per tien minuten, uit KNMI-wind en de turbinecurve, of uit je eigen meetdata.'],
-  ['De verwachte degradatie van de elektrolysers', 'Meerverbruik per kilo over de looptijd, met de aanname erbij.'],
+const SCAN_FACTS = [
+  ['Vaste prijs', `vanaf ${SCAN.packages[0].price} excl. btw per projectlocatie`],
+  ['Per tien minuten', 'gerekend op historische windjaren'],
+  ['Narekenbaar', 'Excel met formules en een bron per aanname'],
+  ['Leveranciersneutraal', 'modellen van verschillende fabrikanten op dezelfde stroominvoer'],
 ];
-const SCAN_DELIVER = [
-  ['Opbrengst per windjaar', 'Kilo’s waterstof, vollasturen en hoeveel van het aanbod je benut, per jaar en gemiddeld.'],
-  ['Dimensionering', 'Vermogen en aantal modules, en wat er blijft liggen onder de minimumlast en boven het maximum.'],
-  ['Leverancierskeuze', 'Elektrolysers uit een leveranciersneutrale catalogus van 64 modellen, met per gegeven of het uit de datasheet komt of een aanname is.'],
-  ['Kostprijs en gevoeligheid', 'Kostprijs per kilo (LCOH) en welke aanname de uitkomst het sterkst verschuift.'],
-  ['Rapport en Excel', 'Een rekenrapport en een Excel waarin elke berekening een echte formule is: na te rekenen door RVO, bank of adviseur.'],
-  ['Vragen voor leveranciers', 'Wat in de datasheets nog onduidelijk is, als concrete vragen per leverancier.'],
+const SCAN_STAKES = [
+  ['Je subsidieplafond', 'Het maximale exploitatiesubsidiebedrag is de geraamde productie over de subsidieperiode, maal het verschil tussen je productieprijs en de ondergrens van het correctiebedrag.'],
+  ['De toets van € 9 per kilo', 'Het aangevraagde subsidiebedrag per kilo mag niet hoger zijn dan € 9. De investeringssubsidie wordt daarvoor over je geraamde kilo’s verdeeld: minder kilo’s geeft een hoger bedrag per kilo.'],
+  ['Je jaarlijkse norm', 'Per kalenderjaar ontvang je exploitatiesubsidie tot hooguit de gemiddelde jaarproductie uit je aanvraag. Een tekort schuift door naar volgende jaren, een overschot tot hooguit 25 %.'],
+];
+const SCAN_REQUIREMENTS = [
+  ['Verwachte productie volledig en niet-volledig hernieuwbare waterstof', 'Bij een directe lijn rekenen we uitsluitend met het aanbod van het gekoppelde park. Bij een netaansluiting met PPA leveren we het aanbod- en afnameprofiel per tien minuten als basis voor je onderbouwing. De toets aan de gedelegeerde verordeningen leg je vast met je adviseur.'],
+  ['Opbrengst per kalenderjaar', 'Verwachte productie per kalenderjaar van de exploitatieperiode, opgebouwd uit historische windjaren en de degradatie van de stacks. Desgewenst ook voor de jaren daarna, als de installatie langer meegaat.'],
+  ['Energetisch omzettingsrendement', 'Systeemverbruik in kWh per kilo aan het begin van de levensduur, bij vollast en deellast en inclusief randvoorzieningen, met per waarde de bron: datasheet of benoemde aanname.'],
+  ['Beschikbaarheid van de installatie', 'Gepland onderhoud, storingen en stilstand bij stackwissels, per module gerekend en uitgedrukt in uren per jaar.'],
+  ['Beschikbaarheid van duurzame elektriciteit', 'Het aanbod van je windpark per tien minuten uit KNMI-windmetingen en de vermogenscurve van je turbines, en welk deel de elektrolyser kan opnemen: wat onder de minimumlast valt en wat boven het maximum.'],
+  ['Verwachte degradatie', 'Meerverbruik per kilo door veroudering van de stacks en vervanging na de opgegeven levensduur, met de aanname erbij.'],
+];
+const SCAN_DELIVERABLES = [
+  ['Rekenrapport', 'Om toe te voegen aan je haalbaarheidsstudie.', [
+    'Samenvatting met de jaartabel',
+    'Uitgangspunten: locatie, windpark, aansluiting en elektrolyser',
+    'Windaanbod en benutting door de elektrolyser',
+    'Rendement, beschikbaarheid en degradatie',
+    'Productie per kalenderjaar en de spreiding tussen windjaren',
+    'Gevoeligheden, bronnen en aannames',
+  ]],
+  ['Excel met formules', 'Voor je adviseur, beoordelaar of financier.', [
+    'Elke uitkomst is een formule die naar de invoer verwijst',
+    'Per invoerwaarde de status: datasheet, afgeleid of aanname',
+    'Een aanname vervangen toont direct het effect',
+    'Controleblad dat aansluit op de cijfers in het rapport',
+  ]],
 ];
 const SCAN_STEPS = [
-  ['Intake', 'Een half uur: locatie, windpark, je aandeel of contractvermogen, doelvermogen en de technologie die je overweegt.'],
-  ['Aanbod', 'We bouwen het tienminutenprofiel van je park op vier echte windjaren, en ijken het op je meetdata als je die hebt.'],
-  ['Doorrekenen', 'Alle opties op dezelfde wind en dezelfde aannames: waterstof, starts, benutting en kosten.'],
-  ['Oplevering', 'Rapport, Excel en een bespreking. Je voegt de berekening toe aan je haalbaarheidsstudie.'],
+  ['Kennismaking', 'Een vrijblijvend gesprek over je project, je stroomaansluiting en de deadline van je aanvraag.'],
+  ['Offerte', 'We leggen pakket, scope, benodigde gegevens en opleverdatum schriftelijk vast.'],
+  ['Doorrekenen', 'We bouwen het aanbodprofiel van je park en rekenen de elektrolyser per tien minuten door, met elke aanname benoemd.'],
+  ['Oplevering', 'Je ontvangt rapport en Excel, met een toelichting voor jou of je subsidieadviseur.'],
+];
+const SCAN_INPUTS = [
+  'Locatie van de elektrolyser en van het windpark waarvan je stroom betrekt',
+  'Turbinetype, aantal, ashoogte en de vermogenscurve of het datasheet',
+  'Je aandeel in het park: directe lijn, contractvermogen of PPA-volume',
+  'Het beoogde elektrolysevermogen en de modellen of offertes die in beeld zijn',
+  'De beoogde start en looptijd van de exploitatie',
+  'Als je die hebt: productiedata van het park en de transportindicatie',
+];
+const SCAN_METHOD = [
+  'Windmetingen van KNMI-stations bij je park, per tien minuten, vertaald naar ashoogte.',
+  'De vermogenscurve van je turbines en jouw aandeel in het park of het contractvolume.',
+  'Per module: minimumlast, deellast, opstarten, stand-by, onderhoud, storingen en stackwissels.',
+  'Meerdere historische windjaren, zodat je de spreiding tussen goede en slechte jaren ziet.',
+  'Per waarde de status: uit een datasheet, afgeleid met een vaste regel, of een benoemde aanname.',
+];
+const SCAN_SCOPE = [
+  'De haalbaarheidsstudie zelf: investeringsbegroting, mijlpalen, financiering, afzet en exploitatieberekening.',
+  'De formele toets aan de RFNBO-regels en de certificering van je waterstof.',
+  'Een P50/P90-windstudie voor financiers. De spreiding tussen windjaren is geen betrouwbaarheidsinterval.',
+  'Garanties of financieel advies. De uitkomst is een berekening met benoemde aannames.',
 ];
 const SCAN_FAQ = [
-  ['Is dit een complete haalbaarheidsstudie?', 'Nee. We leveren de waterstofopbrengstberekening en de onderbouwing van vermogen, rendement en kostprijs. De investeringsbegroting, mijlpalen, afzet en financiering maak je zelf of met je adviseur; onze cijfers sluiten daarop aan.'],
-  ['Werkt het voor mijn locatie?', 'Voor windparken op land in Nederland: ja. We gebruiken de KNMI-stations in de buurt, de ashoogte en de turbinecurve van je park. Meetdata van je park maken het nauwkeuriger. Zon of wind op zee? Vraag ernaar: dat rekenen we nu nog niet standaard.'],
-  ['Welke elektrolysers kunnen jullie doorrekenen?', '64 modellen van 26 fabrikanten (PEM, alkalisch, drukalkalisch, AEM, SOEC en meer). Heb je al een offerte, dan rekenen we die mee.'],
-  ['Wat moet ik aanleveren?', 'De locatie, het windpark en de turbines, je aandeel of contractvermogen, het gewenste vermogen en, als je die hebt, meetdata en offertes.'],
-  ['Is de uitkomst een garantie?', 'Nee. Het is een berekening met benoemde aannames, geen garantie of financieel advies. Elke aanname staat in het rapport, zodat je haar kunt vervangen.'],
+  ['Wie stelt mijn haalbaarheidsstudie op?', 'Jij of je subsidieadviseur. De studie bevat ook de investeringsbegroting, mijlpalen, financiering, afzet en de exploitatieberekening. De Waterstofscan levert de technische onderbouwing van de opbrengstberekening, in een vorm die je adviseur kan overnemen.'],
+  ['Kan ik de cijfers overnemen in het RVO-model?', 'De jaartabel volgt wat RVO vraagt: de verwachte kilo’s per kalenderjaar over de exploitatieperiode, met rendement, beschikbaarheid en degradatie als aparte onderbouwing. Het invullen van het RVO-model en de keuze van je productieprijs blijven bij jou of je adviseur.'],
+  ['Hoe gaan jullie om met volledig en niet-volledig hernieuwbare waterstof?', 'Bij een directe lijn rekenen we alleen met het aanbod van het gekoppelde park. Bij een netaansluiting met PPA leveren we het profiel per tien minuten waarmee je gelijktijdigheid en volume kunt onderbouwen. De toets aan de gedelegeerde verordeningen en de certificering doe je met je adviseur en een certificerende instantie.'],
+  ['Leveren jullie een P90?', 'Nee. We tonen de uitkomst per historisch windjaar, de spreiding daartussen en het effect van de belangrijkste aannames. Vraagt je financier om een P90-windstudie, bespreek dan in de kennismaking hoe die aansluit op de analyse.'],
+  ['Welke elektrolysers kunnen jullie doorrekenen?', 'Modellen uit een leveranciersneutrale catalogus van datasheetgegevens, van PEM tot alkalisch, en het model uit je offerte. Ontbreekt een waarde in de datasheet, dan rekenen we met een benoemde aanname en nemen we die op als vraag aan de leverancier.'],
+  ['Past dit ook bij zon of een waterstofhub?', 'De scan is gericht op elektrolyse met stroom uit Nederlandse wind op land. Werk je met zon, een combinatie of aan een lokale waterstofhub, dan bekijken we in de kennismaking of en hoe we je situatie kunnen doorrekenen.'],
+  ['Is de uitkomst een garantie?', 'Nee. Het is een berekening met benoemde aannames, geen garantie of financieel advies. Omdat elke aanname in het rapport en de Excel staat, kun je haar vervangen door je eigen waarde.'],
 ];
-const SCAN_PLANS = [['opbrengst', 'Opbrengstberekening'], ['keuze', 'Opbrengst + keuze'], ['onbekend', 'Weet ik nog niet']];
-const SCAN_ROUNDS = [['owe', 'Een OWE-ronde'], ['hubs', 'De regeling voor waterstofhubs'], ['anders', 'Anders of nog niet bekend']];
+const SCAN_NEXT = [
+  'We reageren per e-mail en plannen een kennismaking.',
+  'We bespreken je project, je gegevens en je deadline.',
+  'Je ontvangt een offerte met scope en opleverdatum.',
+];
+const SCAN_PLANS = [['onbekend', 'Weet ik nog niet'], ...SCAN.packages.map(({id, name}) => [id, name])];
+const SCAN_SOURCES = {
+  handleiding: 'https://www.rvo.nl/sites/default/files/2024-08/Handleiding_haalbaarheidsstudie_OWE_2024_0.pdf',
+  owe: 'https://www.rvo.nl/subsidies-financiering/owe',
+  owe3: 'https://www.internetconsultatie.nl/owe3/b1',
+};
 
 const scanEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const SCAN_STYLE = `
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:#EFECE6;color:#0C2340;font-family:'TASA Orbiter','Segoe UI',Arial,sans-serif;font-size:16px;line-height:1.6}
-a{color:inherit}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #00A6DE;outline-offset:3px}
+a{color:inherit}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid #00A6DE;outline-offset:3px}
+.skip{position:absolute;left:-10000px}.skip:focus{left:16px;top:12px;z-index:2;background:#fff;padding:8px 12px}
 .wrap{max-width:1160px;margin:0 auto;padding:0 20px}
 header{background:#0C2340;color:#fff;border-radius:0 0 32px 0}header .wrap{display:flex;justify-content:space-between;align-items:center;min-height:76px;gap:16px}
-.brand{font-size:24px;font-weight:700;letter-spacing:-.6px;text-decoration:none}.brand span{color:#7ad0ed}header nav{display:flex;gap:18px;align-items:center;font-size:14px}header nav a{text-decoration:none}header nav a:hover{text-decoration:underline}
-.hero{background:#C3E4F2;border-radius:0 48px 0 0;margin:28px 0 0;padding:44px 40px}
-.eyebrow{display:inline-block;border-left:4px solid #00A6DE;padding-left:10px;font-size:12px;font-weight:700;letter-spacing:1.2px}
-h1{font-size:clamp(34px,5vw,60px);line-height:1.05;letter-spacing:-1.5px;font-weight:500;margin:18px 0 18px;max-width:900px}
-.lead{font-size:18px;max-width:760px;margin:0 0 26px}
+.brand{font-size:24px;font-weight:700;letter-spacing:-.6px;text-decoration:none;white-space:nowrap}.brand span{color:#7ad0ed}
+header nav{display:flex;gap:20px;align-items:center;font-size:14px}header nav a{text-decoration:none}header nav a:hover{text-decoration:underline}
+header nav .button{min-height:40px;padding:8px 16px;background:#00A6DE;border-color:#00A6DE;color:#0C2340}header nav .button:hover{background:#7ad0ed;text-decoration:none}
+.hero{background:#C3E4F2;border-radius:0 48px 0 0;margin:28px 0 0;padding:44px 40px 36px}
+.eyebrow{display:inline-block;border-left:4px solid #00A6DE;padding-left:10px;font-size:13px;font-weight:700;letter-spacing:1.2px}
+h1{font-size:clamp(32px,5vw,56px);line-height:1.08;letter-spacing:-1.3px;font-weight:500;margin:16px 0 18px;max-width:880px;overflow-wrap:break-word}.nowrap{white-space:nowrap}
+.lead{font-size:18px;max-width:780px;margin:0 0 26px}
 .cta{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center}
 .button{display:inline-flex;align-items:center;gap:10px;min-height:50px;padding:12px 22px;background:#0C2340;color:#fff;border:1px solid #0C2340;border-radius:0 14px 0 0;font:inherit;font-weight:600;text-decoration:none;cursor:pointer}.button:hover{background:#193a5d}
 .link{font-weight:600;border-bottom:1px solid #0C2340;text-decoration:none;padding-bottom:3px}
-.facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:34px 0 0;padding:0;list-style:none}.facts li{background:#fff;border:1px solid #0C2340;border-radius:0 18px 0 0;padding:14px 16px;font-size:14px}.facts strong{display:block;font-size:22px;font-weight:500;letter-spacing:-.4px}
-section{margin:64px 0 0;scroll-margin-top:16px}h2{font-size:clamp(26px,3.4vw,38px);line-height:1.15;font-weight:500;letter-spacing:-.8px;margin:6px 0 12px;max-width:820px}.intro{max-width:760px;color:#465970;margin:0 0 22px}
-.label{font-size:12px;font-weight:700;letter-spacing:1.2px}
-table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #a7b4bf}th,td{text-align:left;vertical-align:top;padding:14px 18px;border-top:1px solid #e1e6ea}th{background:#C3E4F2;font-size:12px;letter-spacing:.6px;text-transform:uppercase;border-bottom:1px solid #0C2340}td:first-child{font-weight:600;width:42%}
-.note{font-size:13px;color:#465970;margin:10px 0 0}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.card{background:#fff;border:1px solid #a7b4bf;border-radius:0 24px 0 0;padding:20px 22px}.card h3{margin:0 0 6px;font-size:19px;font-weight:600}.card p{margin:0;color:#465970;font-size:15px}
-.steps{counter-reset:s;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;list-style:none;margin:0;padding:0}.steps li{border-top:3px solid #00A6DE;padding-top:12px}.steps li::before{counter-increment:s;content:counter(s);display:inline-grid;place-items:center;width:32px;height:32px;background:#0C2340;color:#fff;font-weight:700;border-radius:0 9px 0 0;margin-bottom:8px}.steps h3{margin:0 0 4px;font-size:18px}.steps p{margin:0;font-size:15px;color:#465970}
-.plans{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;max-width:900px}.plan{background:#fff;border:1px solid #0C2340;border-radius:0 28px 0 0;padding:26px}.plan.featured{background:#0C2340;color:#fff}.plan h3{margin:0;font-size:22px;font-weight:500}.price{font-size:38px;font-weight:500;letter-spacing:-1px;margin:8px 0 0}.price small{font-size:14px;letter-spacing:0;font-weight:400}.plan .meta{font-size:14px;opacity:.8;margin:0 0 14px}.plan ul{margin:0 0 20px;padding-left:18px}.plan li{margin:4px 0;font-size:15px}.plan.featured .button{background:#00A6DE;border-color:#00A6DE;color:#0C2340}
-.when{background:#0C2340;color:#fff;border-radius:0 32px 0 0;padding:28px 30px}.when h2{color:#fff}.when p{margin:0 0 10px;color:#d2e2ec;max-width:820px}.when a{color:#7ad0ed}
-details{background:#fff;border:1px solid #a7b4bf;border-radius:0 16px 0 0;padding:14px 18px;margin:0 0 10px}summary{cursor:pointer;font-weight:600}details p{margin:10px 0 0;color:#465970}
-form{background:#fff;border:1px solid #0C2340;border-radius:0 28px 0 0;padding:28px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 20px;max-width:900px}
+.facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:34px 0 0}.facts div{background:#fff;border:1px solid #0C2340;border-radius:0 18px 0 0;padding:14px 16px}.facts dt{font-weight:700}.facts dd{margin:2px 0 0;font-size:14px;color:#465970}
+section{margin:64px 0 0;scroll-margin-top:16px}#prijzen{margin-top:48px}
+h2{font-size:clamp(26px,3.4vw,38px);line-height:1.15;font-weight:500;letter-spacing:-.8px;margin:0 0 12px;max-width:860px}h3{line-height:1.3}
+.intro{max-width:780px;color:#465970;margin:0 0 24px}
+.note{font-size:13px;color:#465970;margin:12px 0 0;max-width:860px}
+.plans{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.plan{display:flex;flex-direction:column;align-items:flex-start;background:#fff;border:1px solid #0C2340;border-radius:0 28px 0 0;padding:26px}.plan.featured{background:#0C2340;color:#fff}.plan h3{margin:0;font-size:22px;font-weight:600}.price{font-size:38px;font-weight:500;letter-spacing:-1px;margin:4px 0 8px}.price small{font-size:14px;letter-spacing:0;font-weight:400}.plan .fit{margin:0 0 12px}.plan ul{margin:0 0 22px;padding-left:20px}.plan li{margin:4px 0}.plan .button{margin-top:auto}.plan.featured .button{background:#00A6DE;border-color:#00A6DE;color:#0C2340}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.card{background:#fff;border:1px solid #a7b4bf;border-top:4px solid #00A6DE;border-radius:0 22px 0 0;padding:20px 22px}.card h3{margin:0 0 6px;font-size:19px;font-weight:600}.card p{margin:0;color:#465970}
+.conclusion{font-weight:600;max-width:860px;margin:20px 0 0}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #a7b4bf}th,td{text-align:left;vertical-align:top;padding:14px 18px;border-top:1px solid #e1e6ea}thead th{background:#C3E4F2;font-size:13px;letter-spacing:.6px;text-transform:uppercase;border-bottom:1px solid #0C2340}tbody th{font-weight:600;width:36%}td{color:#334a63}
+.split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.panel{background:#fff;border:1px solid #a7b4bf;border-radius:0 24px 0 0;padding:24px 26px}.panel h3{margin:0 0 4px;font-size:20px;font-weight:600}.panel .sub{margin:0 0 12px;color:#465970}.panel ul{margin:0;padding-left:20px}.panel li{margin:6px 0}
+.panel.dark{background:#0C2340;color:#fff;border-color:#0C2340}.panel.dark .sub{color:#d2e2ec}
+.steps{counter-reset:s;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;list-style:none;margin:0 0 26px;padding:0}.steps li{border-top:3px solid #00A6DE;padding-top:12px}.steps li::before{counter-increment:s;content:counter(s);display:inline-grid;place-items:center;width:30px;height:30px;background:#0C2340;color:#fff;font-weight:700;border-radius:0 9px 0 0;margin-bottom:8px}.steps h3{margin:0 0 4px;font-size:18px}.steps p{margin:0;color:#465970}
+.when{background:#0C2340;color:#fff;border-radius:0 32px 0 0;padding:30px 32px}.when h2{color:#fff}.when p{margin:0 0 10px;color:#d2e2ec;max-width:820px}.when a{color:#7ad0ed}.when .note{color:#b5c8d6;margin:0}
+details{background:#fff;border:1px solid #a7b4bf;border-radius:0 16px 0 0;padding:14px 18px;margin:0 0 10px}summary{cursor:pointer;font-weight:600}details p{margin:10px 0 0;color:#465970;max-width:860px}
+.contact{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:24px;align-items:start}
+form{background:#fff;border:1px solid #0C2340;border-radius:0 28px 0 0;padding:28px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 20px}
 label{display:block;font-size:14px;font-weight:600}input,select,textarea{display:block;width:100%;margin-top:6px;padding:11px 12px;border:1px solid #788b9f;border-radius:0 8px 0 0;background:#fff;color:#0C2340;font:inherit;font-size:16px}textarea{min-height:110px;resize:vertical}
 .full{grid-column:1/-1}.check{display:flex;gap:10px;align-items:flex-start;font-weight:400}.check input{width:auto;margin-top:5px}
 .trap{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
-.ok,.error{grid-column:1/-1;margin:0;padding:12px 14px;border-left:4px solid}.ok{border-color:#4E7A3A;background:#eef5e9}.error{border-color:#a32c22;background:#fff3f0;color:#84251e}
-.thanks{background:#fff;border:1px solid #0C2340;border-left:6px solid #4E7A3A;border-radius:0 28px 0 0;padding:26px;max-width:900px}.thanks h3{margin:0 0 6px;font-size:22px;font-weight:500}
-footer{margin:64px 0 0;border-top:1px solid #0C2340;padding:22px 0 34px;font-size:13px;color:#465970}footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
-@media(max-width:900px){.facts{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:640px){.facts strong{font-size:18px;overflow-wrap:anywhere}.hero{padding:28px 22px;border-radius:0 32px 0 0}.lead{font-size:16px}.grid,.plans,form,.steps{grid-template-columns:1fr}form{padding:20px}table,tbody,tr,td{display:block;width:100%}thead{display:none}tr{border-top:1px solid #0C2340}td{border:0;padding:8px 16px}td:first-child{width:100%;padding-top:14px}header nav a:first-child{display:none}}
+.error{grid-column:1/-1;margin:0;padding:12px 14px;border-left:4px solid #a32c22;background:#fff3f0;color:#84251e}
+.thanks{background:#fff;border:1px solid #0C2340;border-left:6px solid #4E7A3A;border-radius:0 28px 0 0;padding:26px}.thanks h3{margin:0 0 6px;font-size:22px;font-weight:500}.thanks p{margin:0}
+.next{background:#C3E4F2;border-radius:0 24px 0 0;padding:22px 24px}.next h3{margin:0 0 8px;font-size:18px}.next ol{margin:0;padding-left:20px}.next li{margin:6px 0}.next p{margin:12px 0 0;font-size:14px}
+footer{margin:64px 0 0;border-top:1px solid #0C2340;padding:22px 0 34px;font-size:13px;color:#465970}footer .wrap{display:flex;justify-content:space-between;gap:8px 24px;flex-wrap:wrap}footer p{margin:0}
+@media(max-width:960px){.facts{grid-template-columns:repeat(2,minmax(0,1fr))}.steps{grid-template-columns:repeat(2,minmax(0,1fr))}.cards{grid-template-columns:1fr}.contact{grid-template-columns:1fr}header nav a:not(.button){display:none}}
+@media(max-width:640px){.brand{font-size:21px}header .wrap{gap:12px}header nav .button{padding:8px 12px;font-size:13px}.hero{padding:28px 22px;border-radius:0 32px 0 0}.lead{font-size:16px}.facts,.plans,.split,.steps,form{grid-template-columns:1fr}.plan,.panel,form,.when{padding:20px}.plan h3{overflow-wrap:break-word;max-width:100%}
+table,tbody,tr,th,td{display:block;width:100%}thead{display:none}tr{border-top:1px solid #0C2340}tbody th{width:100%;border:0;padding:14px 16px 2px}td{border:0;padding:4px 16px 14px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}`;
 
 function scanOptions(list, chosen) { return list.map(([value, label]) => `<option value="${value}"${value === chosen ? ' selected' : ''}>${scanEsc(label)}</option>`).join(''); }
+const scanList = items => items.map(i => `<li>${scanEsc(i)}</li>`).join('');
+const scanMail = p => p?.email ? `<a href="mailto:${scanEsc(p.email)}">${scanEsc(p.email)}</a>` : '';
+function scanProviderLine(p) {
+  if (!p?.naam) return '';
+  const parts = [scanEsc(p.naam), p.kvk ? `KvK ${scanEsc(p.kvk)}` : '', scanEsc(p.adres), scanMail(p), scanEsc(p.telefoon)].filter(Boolean);
+  return `<p>Uitgevoerd door ${parts.join(' · ')}</p>`;
+}
 
-// sent: aanvraag ontvangen; errors: lijst met meldingen; values: eerder ingevulde waarden; font: base64 van TASA Orbiter.
-function scanPage({sent = false, errors = [], values = {}, font = ''} = {}) {
+function scanPage({sent = false, errors = [], values = {}, font = '', provider = SCAN.provider} = {}) {
   const v = values;
   const form = sent
-    ? `<div class="thanks" role="status"><h3>Bedankt, je aanvraag is binnen.</h3><p>We nemen snel contact met je op voor de intake. Heb je meetdata of offertes, houd die dan bij de hand.</p></div>`
+    ? `<div class="thanks" role="status"><h3>Je bericht is binnen</h3><p>We nemen per e-mail contact met je op om een vrijblijvende kennismaking te plannen. Houd je planning en de gegevens van je windpark en elektrolyser bij de hand.</p></div>`
     : `<form method="post" action="${SCAN_PATH}#aanvraag" novalidate>
 ${errors.length ? `<p class="error" role="alert">${errors.map(scanEsc).join(' ')}</p>` : ''}
 <label>Naam *<input name="naam" required maxlength="120" autocomplete="name" value="${scanEsc(v.naam)}"></label>
 <label>Organisatie *<input name="organisatie" required maxlength="160" autocomplete="organization" value="${scanEsc(v.organisatie)}"></label>
-<label>E-mail *<input name="email" type="email" required maxlength="200" autocomplete="email" value="${scanEsc(v.email)}"></label>
-<label>Telefoon<input name="telefoon" type="tel" maxlength="40" autocomplete="tel" value="${scanEsc(v.telefoon)}"></label>
+<label>Zakelijk e-mailadres *<input name="email" type="email" required maxlength="200" autocomplete="email" value="${scanEsc(v.email)}"></label>
 <label>Pakket<select name="pakket">${scanOptions(SCAN_PLANS, v.pakket || 'onbekend')}</select></label>
-<label>Voor welke aanvraag?<select name="ronde">${scanOptions(SCAN_ROUNDS, v.ronde || 'anders')}</select></label>
-<label>Locatie of windpark<input name="locatie" maxlength="200" value="${scanEsc(v.locatie)}"></label>
-<label>Gewenst elektrolysevermogen (MW)<input name="vermogen" inputmode="decimal" maxlength="20" value="${scanEsc(v.vermogen)}"></label>
-<label class="full">Toelichting<textarea name="toelichting" maxlength="2000">${scanEsc(v.toelichting)}</textarea></label>
+<label class="full">Deadline of toelichting (optioneel)<textarea name="toelichting" maxlength="2000" placeholder="Bijvoorbeeld: de aanvraagronde, het beoogde vermogen of de modellen die in beeld zijn">${scanEsc(v.toelichting)}</textarea></label>
 <div class="trap" aria-hidden="true"><label>Laat dit veld leeg<input name="website" tabindex="-1" autocomplete="off"></label></div>
-<label class="full check"><input type="checkbox" name="toestemming" value="ja" required${v.toestemming ? ' checked' : ''}><span>Je mag mijn gegevens gebruiken om contact met me op te nemen over de waterstofscan. Ze worden nergens anders voor gebruikt en na hooguit twaalf maanden verwijderd. *</span></label>
-<div class="full"><button class="button" type="submit">Verstuur aanvraag</button></div>
+<label class="full check"><input type="checkbox" name="toestemming" value="ja" required${v.toestemming ? ' checked' : ''}><span>Je mag mijn gegevens gebruiken om contact met me op te nemen over dit project. *</span></label>
+<div class="full"><button class="button" type="submit">Verstuur bericht</button></div>
 </form>`;
+  const featured = p => p.featured ? ' featured' : '';
   return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${scanEsc(SCAN.title)}</title><meta name="description" content="${scanEsc(SCAN.description)}">
-<meta property="og:title" content="Waterstofscan · opbrengstberekening voor je OWE-aanvraag"><meta property="og:description" content="${scanEsc(SCAN.description)}"><meta property="og:type" content="website">
+<meta property="og:title" content="${scanEsc(SCAN.headline)} · Waterstofscan"><meta property="og:description" content="${scanEsc(SCAN.description)}"><meta property="og:type" content="website">
+<link rel="canonical" href="https://mijnwindpark.nl${SCAN_PATH}">
 <link rel="icon" href="/favicon.svg"><style>${font ? `@font-face{font-family:'TASA Orbiter';src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:400 800;font-display:swap}` : ''}${SCAN_STYLE}</style></head><body>
-<header><div class="wrap"><a class="brand" href="${SCAN_PATH}">mijnwindpark<span>.nl</span></a><nav aria-label="Pagina"><a href="#oplevering">Wat je krijgt</a><a href="#prijzen">Prijzen</a><a href="/inloggen">Inloggen</a></nav></div></header>
+<a class="skip" href="#inhoud">Naar de inhoud</a>
+<header><div class="wrap"><a class="brand" href="${SCAN_PATH}">mijnwindpark<span>.nl</span></a><nav aria-label="Pagina"><a href="#prijzen">Pakketten</a><a href="#rvo">RVO-eisen</a><a href="#werkwijze">Werkwijze</a><a href="#vragen">Vragen</a><a class="button" href="#aanvraag">Bespreek je project</a></nav></div></header>
 <main class="wrap" id="inhoud">
-<div class="hero"><span class="eyebrow">WATERSTOFSCAN · VOOR OWE-AANVRAGEN EN WATERSTOFHUBS</span>
-<h1>De waterstofopbrengst van je project, doorgerekend op echte wind.</h1>
-<p class="lead">Voor een OWE-aanvraag moet je onderbouwen hoeveel hernieuwbare waterstof je installatie per jaar maakt: met rendement, beschikbaarheid, het aanbod van je park en degradatie. Wij rekenen dat per tien minuten door op vier echte windjaren, voor de elektrolysers die je overweegt. Je krijgt een rapport en een Excel met formules.</p>
-<div class="cta"><a class="button" href="#aanvraag">Vraag een scan aan →</a><a class="link" href="#prijzen">Bekijk de prijzen</a></div>
-<ul class="facts"><li><strong>4 windjaren</strong>per tien minuten, 2022–2025</li><li><strong>64 elektrolysers</strong>van 26 fabrikanten</li><li><strong>Excel</strong>met echte formules</li><li><strong>Vaste prijs</strong>klaar in 2 tot 3 weken</li></ul></div>
+<div class="hero"><span class="eyebrow">WATERSTOFSCAN · ELEKTROLYSE OP WIND OP LAND</span>
+<h1>${scanEsc(SCAN.headline).replace(/(\S+-\S+)/g, '<span class="nowrap">$1</span>')}</h1>
+<p class="lead">Voor ontwikkelaars van elektrolyseprojecten op Nederlandse wind op land en de subsidieadviseurs die hun dossier opstellen. Je krijgt de verwachte waterstofproductie per kalenderjaar, met de onderbouwing van rendement, beschikbaarheid en degradatie, in een rekenrapport en een Excel die je adviseur, beoordelaar en financier kunnen narekenen.</p>
+<div class="cta"><a class="button" href="#aanvraag">Bespreek je project</a><a class="link" href="#prijzen">Bekijk de pakketten</a></div>
+<dl class="facts">${SCAN_FACTS.map(([a, b]) => `<div><dt>${scanEsc(a)}</dt><dd>${scanEsc(b)}</dd></div>`).join('')}</dl></div>
 
-<section aria-labelledby="rvo-title"><span class="label">WAT RVO VRAAGT</span><h2 id="rvo-title">Alle zes onderdelen van de waterstofopbrengstberekening</h2>
-<p class="intro">De haalbaarheidsstudie bij een OWE-aanvraag moet een opbrengstberekening bevatten. Ontbreekt een verplicht onderdeel, dan is je aanvraag niet volledig. Dit leveren wij per onderdeel.</p>
-<table><thead><tr><th scope="col">RVO vraagt</th><th scope="col">Wij leveren</th></tr></thead><tbody>${SCAN_ROWS.map(([a, b]) => `<tr><td>${scanEsc(a)}</td><td>${scanEsc(b)}</td></tr>`).join('')}</tbody></table>
-<p class="note">Bron: RVO, Handleiding haalbaarheidsstudie OWE 2024, hoofdstuk 2. Controleer de handleiding van de ronde waarin je aanvraagt.</p></section>
+<section id="prijzen" aria-labelledby="price-title"><h2 id="price-title">Twee pakketten, vaste prijs</h2>
+<p class="intro">Per projectlocatie, exclusief btw. Scope, benodigde gegevens en opleverdatum leggen we vast in de offerte; de levertijd gaat in zodra je projectgegevens compleet zijn.</p>
+<div class="plans">${SCAN.packages.map(p => `<article class="plan${featured(p)}"><h3>${scanEsc(p.name)}</h3><p class="price">${scanEsc(p.price)} <small>excl. btw</small></p><p class="fit">${scanEsc(p.fit)}</p><ul>${scanList(p.items)}</ul><a class="button" href="${SCAN_PATH}?pakket=${p.id}#aanvraag" aria-label="Bespreek dit pakket (${scanEsc(p.name)})">Bespreek dit pakket</a></article>`).join('')}</div></section>
 
-<section id="oplevering" aria-labelledby="deliver-title"><span class="label">WAT JE KRIJGT</span><h2 id="deliver-title">Een berekening die RVO, je bank en je adviseur kunnen narekenen</h2>
-<div class="grid">${SCAN_DELIVER.map(([a, b]) => `<div class="card"><h3>${scanEsc(a)}</h3><p>${scanEsc(b)}</p></div>`).join('')}</div></section>
+<section id="waarom" aria-labelledby="stakes-title"><h2 id="stakes-title">Waarom je productieraming zwaar weegt</h2>
+<p class="intro">In de OWE-regeling is de verwachte productie volledig hernieuwbare waterstof geen bijlage, maar de rekenbasis van je subsidie.</p>
+<div class="cards">${SCAN_STAKES.map(([a, b]) => `<div class="card"><h3>${scanEsc(a)}</h3><p>${scanEsc(b)}</p></div>`).join('')}</div>
+<p class="conclusion">Een te hoge raming haal je in de praktijk niet; een te lage laat productie zonder subsidie. Daarom willen adviseurs en beoordelaars zien hoe de raming tot stand komt.</p>
+<p class="note">Bron: de OWE-regeling en het concept voor de derde ronde (<a href="${SCAN_SOURCES.owe3}" rel="noopener noreferrer">internetconsultatie OWE 3</a>, mei–juni 2026). De definitieve voorwaarden van de volgende ronde kunnen afwijken.</p></section>
 
-<section aria-labelledby="how-title"><span class="label">HOE HET WERKT</span><h2 id="how-title">In vier stappen van locatie naar opbrengst</h2>
-<ol class="steps">${SCAN_STEPS.map(([a, b]) => `<li><h3>${scanEsc(a)}</h3><p>${scanEsc(b)}</p></li>`).join('')}</ol></section>
+<section id="rvo" aria-labelledby="rvo-title"><h2 id="rvo-title">Wat RVO vraagt, en wat je van ons krijgt</h2>
+<p class="intro">De haalbaarheidsstudie bij een OWE-aanvraag moet een waterstofopbrengstberekening bevatten. Ontbreekt een verplicht onderdeel, dan is je aanvraag niet volledig. Dit leveren we per onderdeel.</p>
+<table><thead><tr><th scope="col">RVO vraagt</th><th scope="col">De Waterstofscan levert</th></tr></thead><tbody>${SCAN_REQUIREMENTS.map(([a, b]) => `<tr><th scope="row">${scanEsc(a)}</th><td>${scanEsc(b)}</td></tr>`).join('')}</tbody></table>
+<p class="note">Bron: <a href="${SCAN_SOURCES.handleiding}" rel="noopener noreferrer">RVO, Handleiding haalbaarheidsstudie OWE 2024</a>, hoofdstuk 2. Het concept voor OWE 3 vraagt dezelfde onderdelen. Controleer de handleiding van de ronde waarin je aanvraagt.</p></section>
 
-<section id="prijzen" aria-labelledby="price-title"><span class="label">PRIJZEN</span><h2 id="price-title">Twee pakketten, vaste prijs</h2>
-<p class="intro">Prijzen zijn exclusief btw. Meerdere locaties of parken? Dan spreken we vooraf een vaste prijs op maat af.</p>
-<div class="plans">${SCAN.packages.map(p => `<div class="plan${p.featured ? ' featured' : ''}"><h3>${scanEsc(p.name)}</h3><p class="price">${scanEsc(p.price)} <small>excl. btw</small></p><p class="meta">Oplevering binnen ${scanEsc(p.weeks)} na de intake</p><ul>${p.items.map(i => `<li>${scanEsc(i)}</li>`).join('')}</ul><a class="button" href="#aanvraag">Kies ${scanEsc(p.name)}</a></div>`).join('')}</div></section>
+<section id="oplevering" aria-labelledby="deliver-title"><h2 id="deliver-title">Wat je ontvangt</h2>
+<div class="split">${SCAN_DELIVERABLES.map(([a, b, items], i) => `<div class="panel${i ? ' dark' : ''}"><h3>${scanEsc(a)}</h3><p class="sub">${scanEsc(b)}</p><ul>${scanList(items)}</ul></div>`).join('')}</div></section>
 
-<section class="when" aria-labelledby="when-title"><span class="label">WANNEER</span><h2 id="when-title">Begin vóór de volgende aanvraagronde</h2>
-<p>Het kabinet bereidt een derde OWE-ronde voor, met 780 miljoen euro gereserveerd. Daarna volgt de regeling voor kleinschalige, lokale waterstofhubs (125 miljoen euro), naar verwachting in het eerste kwartaal van 2027. Zo staat het in de voortgangsbrief waterstofbeleid van juni 2026. Een onderbouwde opbrengstberekening maak je niet in de laatste week.</p>
-<p>Data kunnen verschuiven: kijk voor de actuele stand op <a href="https://www.rvo.nl/subsidies-financiering/owe" rel="noopener noreferrer">rvo.nl</a>.</p></section>
+<section id="werkwijze" aria-labelledby="how-title"><h2 id="how-title">Werkwijze</h2>
+<ol class="steps">${SCAN_STEPS.map(([a, b]) => `<li><h3>${scanEsc(a)}</h3><p>${scanEsc(b)}</p></li>`).join('')}</ol>
+<div class="panel"><h3>Wat we van je nodig hebben</h3><p class="sub">Heb je nog niet alles? Dan bespreken we in de kennismaking welke aannames we tijdelijk gebruiken.</p><ul>${scanList(SCAN_INPUTS)}</ul></div></section>
 
-<section aria-labelledby="faq-title"><span class="label">VRAGEN</span><h2 id="faq-title">Veelgestelde vragen</h2>${SCAN_FAQ.map(([q, a]) => `<details><summary>${scanEsc(q)}</summary><p>${scanEsc(a)}</p></details>`).join('')}</section>
+<section id="methode" aria-labelledby="method-title"><h2 id="method-title">Methode en afbakening</h2>
+<div class="split"><div class="panel"><h3>Hoe we rekenen</h3><ul>${scanList(SCAN_METHOD)}</ul></div><div class="panel"><h3>Wat buiten de scan valt</h3><ul>${scanList(SCAN_SCOPE)}</ul></div></div></section>
 
-<section id="aanvraag" aria-labelledby="form-title"><span class="label">AANVRAGEN</span><h2 id="form-title">Vraag een waterstofscan aan</h2>
-<p class="intro">Vul in wat je al weet; de rest bespreken we in de intake. Velden met * zijn verplicht.</p>${form}</section>
+<section class="when" aria-labelledby="when-title"><h2 id="when-title">Begin vóór de publicatie van de regeling</h2>
+<p>Volgens RVO opent de aanvraagperiode van de volgende OWE-ronde zes weken na publicatie van de regeling in de Staatscourant, en staat die dan twee weken open. Wie pas na de publicatie begint, heeft weinig tijd voor de rest van het dossier.</p>
+<p class="note">Bekijk de actuele planning op <a href="${SCAN_SOURCES.owe}" rel="noopener noreferrer">rvo.nl/owe</a>.</p></section>
+
+<section id="vragen" aria-labelledby="faq-title"><h2 id="faq-title">Veelgestelde vragen</h2>${SCAN_FAQ.map(([q, a]) => `<details><summary>${scanEsc(q)}</summary><p>${scanEsc(a)}</p></details>`).join('')}</section>
+
+<section id="aanvraag" aria-labelledby="form-title"><h2 id="form-title">Bespreek je project</h2>
+${sent ? '' : `<p class="intro">Laat je gegevens achter voor een vrijblijvende kennismaking. Velden met * zijn verplicht.${provider?.email ? ` Liever direct contact? Mail naar ${scanMail(provider)}.` : ''}</p>`}
+<div class="contact">${form}<aside class="next" aria-labelledby="next-title"><h3 id="next-title">Wat gebeurt er daarna?</h3><ol>${scanList(SCAN_NEXT)}</ol><p>Je zit nergens aan vast tot je de offerte accepteert.</p></aside></div></section>
 </main>
-<footer><div class="wrap"><span>mijnwindpark.nl · Waterstofscan</span><span>Berekeningen met benoemde aannames, geen garantie of financieel advies.</span><a href="/inloggen">Inloggen</a></div></footer>
+<footer><div class="wrap"><div><p>mijnwindpark.nl · Waterstofscan</p>${scanProviderLine(provider)}</div><p>Berekeningen met benoemde aannames, geen garantie of financieel advies.</p><a href="/inloggen">Inloggen voor het team</a></div></footer>
 </body></html>`;
 }
 
 // Aanvragen van de openbare pagina /waterstofscan: controleren, bewaren in R2 (leads/v1/) en tonen op /leads
 // (achter de sitelogin). Er wordt geen IP-adres of browserinformatie bewaard, alleen wat de aanvrager invult.
 const LEAD_PREFIX = 'leads/v1/';
-const LEAD_FIELDS = {naam: 120, organisatie: 160, email: 200, telefoon: 40, pakket: 20, ronde: 20, locatie: 200, vermogen: 20, toelichting: 2000};
-const LEAD_PLAN_IDS = ['opbrengst', 'keuze', 'onbekend'], LEAD_ROUND_IDS = ['owe', 'hubs', 'anders'];
+// Alleen de velden van het huidige formulier (src/scan-page.mjs); andere velden in een inzending worden genegeerd.
+const LEAD_FIELDS = {naam: 120, organisatie: 160, email: 200, pakket: 20, toelichting: 2000};
+const LEAD_PLAN_IDS = ['opbrengst', 'keuze', 'onbekend'];
 const LEAD_EMAIL = /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+\.[^\s@<>()[\]\\,;:"]{2,}$/;
 
 // Uit een formulier (URLSearchParams) naar {lead, errors, values, spam}. Spam (ingevuld lokveld) wordt stil genegeerd.
@@ -2071,8 +2157,6 @@ function parseLead(form) {
   if (!LEAD_EMAIL.test(values.email)) errors.push('Vul een geldig e-mailadres in.');
   if (!values.toestemming) errors.push('Geef toestemming om contact met je op te nemen.');
   if (!LEAD_PLAN_IDS.includes(values.pakket)) values.pakket = 'onbekend';
-  if (!LEAD_ROUND_IDS.includes(values.ronde)) values.ronde = 'anders';
-  if (values.vermogen && !/^\d{1,4}([.,]\d{1,2})?$/.test(values.vermogen)) errors.push('Vul het vermogen in als getal in MW, of laat het leeg.');
   const lead = errors.length || spam ? null : {...values, ontvangen: null};
   return {lead, errors, values, spam};
 }
@@ -2084,23 +2168,29 @@ function leadKey(now, random) {
 }
 
 const leadEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
-const LEAD_COLUMNS = [['ontvangen', 'Ontvangen'], ['naam', 'Naam'], ['organisatie', 'Organisatie'], ['email', 'E-mail'], ['telefoon', 'Telefoon'], ['pakket', 'Pakket'], ['ronde', 'Aanvraag'], ['locatie', 'Locatie'], ['vermogen', 'MW'], ['toelichting', 'Toelichting']];
+const LEAD_COLUMNS = [['ontvangen', 'Ontvangen'], ['naam', 'Naam'], ['organisatie', 'Organisatie'], ['email', 'E-mail'], ['pakket', 'Pakket'], ['toelichting', 'Toelichting']];
+// Velden van het eerste formulier (tot 24 november 2026). Een kolom verschijnt alleen als een bewaarde aanvraag er
+// een waarde in heeft; 'anders' was de standaard van de aanvraagronde en telt niet als waarde.
+const LEAD_LEGACY_COLUMNS = [['telefoon', 'Telefoon'], ['ronde', 'Aanvraag'], ['locatie', 'Locatie'], ['vermogen', 'MW']];
+const leadColumns = leads => [...LEAD_COLUMNS, ...LEAD_LEGACY_COLUMNS.filter(([k]) => leads.some(l => l[k] && !(k === 'ronde' && l[k] === 'anders')))];
 const leadWhen = iso => { const t = Date.parse(iso); return Number.isFinite(t) ? new Intl.DateTimeFormat('nl-NL', {timeZone: 'Europe/Amsterdam', dateStyle: 'medium', timeStyle: 'short'}).format(t) : ''; };
 
 // CSV voor Nederlandse Excel: BOM, puntkomma's; formules in cellen worden onschadelijk gemaakt.
 function leadsCsv(leads) {
   const cell = value => { let s = String(value ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  return '﻿' + [LEAD_COLUMNS.map(c => c[1]).join(';'), ...leads.map(l => LEAD_COLUMNS.map(([k]) => cell(l[k])).join(';'))].join('\r\n') + '\r\n';
+  const columns = leadColumns(leads);
+  return '﻿' + [columns.map(c => c[1]).join(';'), ...leads.map(l => columns.map(([k]) => cell(l[k])).join(';'))].join('\r\n') + '\r\n';
 }
 
 function leadsPage(leads, {error = ''} = {}) {
-  const rows = leads.map(l => `<tr>${LEAD_COLUMNS.map(([k]) => `<td>${k === 'ontvangen' ? leadEsc(leadWhen(l[k])) : k === 'email' ? `<a href="mailto:${leadEsc(l[k])}">${leadEsc(l[k])}</a>` : leadEsc(l[k]).replace(/\n/g, '<br>')}</td>`).join('')}</tr>`).join('');
+  const columns = leadColumns(leads);
+  const rows = leads.map(l => `<tr>${columns.map(([k]) => `<td>${k === 'ontvangen' ? leadEsc(leadWhen(l[k])) : k === 'email' ? `<a href="mailto:${leadEsc(l[k])}">${leadEsc(l[k])}</a>` : leadEsc(l[k]).replace(/\n/g, '<br>')}</td>`).join('')}</tr>`).join('');
   return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Aanvragen waterstofscan</title><style>
 body{margin:0;padding:24px;background:#EFECE6;color:#0C2340;font-family:'Segoe UI',Arial,sans-serif;font-size:14px}h1{font-weight:500;margin:0 0 6px}p{color:#465970}a{color:#0C2340}
 .bar{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 16px}.wrap{overflow-x:auto;background:#fff;border:1px solid #0C2340}table{border-collapse:collapse;min-width:900px;width:100%}th,td{text-align:left;vertical-align:top;padding:8px 10px;border-top:1px solid #e1e6ea}th{background:#C3E4F2}.error{color:#84251e}
-</style></head><body><h1>Aanvragen waterstofscan</h1><p>${leads.length} aanvra${leads.length === 1 ? 'ag' : 'gen'}, nieuwste eerst. Verwijder gegevens na hooguit twaalf maanden; dat is op de openbare pagina beloofd.</p>
+</style></head><body><h1>Aanvragen waterstofscan</h1><p>${leads.length} aanvra${leads.length === 1 ? 'ag' : 'gen'}, nieuwste eerst. Verwijder gegevens uiterlijk twaalf maanden na ontvangst.</p>
 <div class="bar"><a href="/leads.csv">Download CSV</a><a href="/waterstofscan">Openbare pagina</a><a href="/">Terug naar de site</a></div>${error ? `<p class="error">${leadEsc(error)}</p>` : ''}
-${leads.length ? `<div class="wrap"><table><thead><tr>${LEAD_COLUMNS.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` : '<p>Nog geen aanvragen.</p>'}</body></html>`;
+${leads.length ? `<div class="wrap"><table><thead><tr>${columns.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` : '<p>Nog geen aanvragen.</p>'}</body></html>`;
 }
 
 // Alle aanvragen uit R2, nieuwste eerst (de sleutel sorteert al zo); hooguit `limit`.
@@ -2225,7 +2315,12 @@ async function gateRequest(request,env,url){
 const leadAttempts=new Map();
 const scanHeaders=cache=>({...securityHeaders,'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src 'self' data:; form-action 'self'; base-uri 'none'; object-src 'none'",'Content-Type':'text/html; charset=utf-8','Cache-Control':cache});
 async function scanRoute(request,env,url){
- if(request.method==='GET'||request.method==='HEAD'){const sent=url.searchParams.get('verzonden')==='1';return new Response(scanPage({sent,font:brandFont}),{headers:scanHeaders(sent?'no-store':'public, max-age=300')});}
+ if(request.method==='GET'||request.method==='HEAD'){
+  const sent=url.searchParams.get('verzonden')==='1';
+  const requestedPackage=url.searchParams.get('pakket');
+  const pakket=SCAN.packages.find(p=>p.id===requestedPackage)?.id;
+  return new Response(scanPage({sent,values:{pakket},font:brandFont}),{headers:scanHeaders(sent?'no-store':'public, max-age=300')});
+ }
  if(request.method!=='POST')return new Response('Method not allowed',{status:405,headers:{...securityHeaders,Allow:'GET, POST'}});
  const page=(status,options)=>new Response(scanPage({...options,font:brandFont}),{status,headers:scanHeaders('no-store')});
  if(request.headers.get('Origin')!==url.origin)return page(403,{errors:['Ongeldige aanvraag. Laad de pagina opnieuw en probeer het nog eens.']});
