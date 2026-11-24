@@ -346,11 +346,11 @@ De daganalyse gebruikt een samenhangende werkruimte: daggrafiek, tijdschuif en p
 
 ## Openbare verkooppagina: de Waterstofscan
 
-Het product dat we nu verkopen is de **Waterstofscan**: de waterstofopbrengstberekening voor een OWE-aanvraag, doorgerekend op echte wind. Waarom dit product, prijzen, doelgroepen en berichten: [`docs/sales/waterstofscan.md`](docs/sales/waterstofscan.md).
+De **Waterstofscan** is een technische opbrengstanalyse voor de voorbereiding van OWE-aanvragen voor elektrolyseprojecten met wind op land. De pakketten, doelgroepen en berichten staan in het [verkoopplan](docs/sales/waterstofscan.md).
 
 - **`/waterstofscan`** is openbaar (vóór de sitepoort), server-side HTML zonder scripts (`src/scan-page.mjs`), met een strikte CSP en vindbaar (`/robots.txt` staat alleen deze pagina toe). Prijzen en teksten staan in `SCAN` in dat bestand.
 - **Voordeur:** wie zonder login `/` opent (zonder query), gaat naar `/waterstofscan`. Het team logt in via **`/inloggen`**; alle andere pagina's, API's en `/leads` blijven achter het wachtwoord. `/favicon.svg` is openbaar.
-- **Aanvragen:** het formulier post naar `/waterstofscan`. Controle in `parseLead()` (`src/leads.mjs`): verplichte velden, e-mail, vermogen als getal, toestemming; lokveld `website` geldt als spam (zelfde bedankpagina, niets bewaard); Origin moet gelijk zijn; hooguit vijf aanvragen per IP per uur per worker-instantie. Opslag in R2 onder `leads/v1/<omgekeerde tijd>-<id>.json`, zonder IP-adres of browsergegevens. Zonder `BUCKET` krijgt de bezoeker een melding (503) in plaats van stil verlies.
+- **Aanvragen:** pakketlinks openen het intakeformulier met het pakket vooraf geselecteerd. Bij verzending controleert `parseLead()` (`src/leads.mjs`) de vereiste contactgegevens en toestemming. De worker controleert de herkomst en beperkt inzendingen tot vijf per IP per uur per instantie. Inzendingen met een ingevuld lokveld worden genegeerd. R2 bewaart geldige inzendingen onder `leads/v1/<omgekeerde tijd>-<id>.json`. Bij een opslagfout krijgt de bezoeker een melding (503).
 - **`/leads`** en **`/leads.csv`** (achter login): alle aanvragen, nieuwste eerst. De CSV heeft een BOM voor Nederlandse Excel en beveiligt cellen tegen formule-injectie. Wijs één eigenaar aan die het overzicht elke werkdag controleert. Er gaat geen automatische e-mail uit. Verifieer vóór publicatie hoe je aanvragen uiterlijk twaalf maanden na ontvangst verwijdert.
 
 Tests: `tests/scan.test.mjs`.
