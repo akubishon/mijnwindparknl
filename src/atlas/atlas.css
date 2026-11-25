@@ -1,6 +1,7 @@
 /* Atlas (atlas.mijnwindpark.nl). Huisstijl uit brand-style.css; hier alleen de kaartopmaak. */
 html,body.atlas{height:100%;margin:0}
 body.atlas{display:flex;flex-direction:column;overflow:hidden}
+.atlas-concept{margin:0;padding:4px var(--page-gutter);background:#F2C94C;color:var(--ink);font-size:13px;font-weight:600;text-align:center}
 .atlas-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .atlas-top{display:flex;align-items:center;gap:16px;background:var(--ink);color:#fff;padding:12px var(--page-gutter);border-radius:0 0 24px 0;z-index:3}
 .atlas-logo{color:#fff;text-decoration:none;font-weight:700;font-size:22px;letter-spacing:-.5px;white-space:nowrap}

@@ -189,7 +189,8 @@ ${errors.length ? `<p class="error" role="alert">${errors.map(scanEsc).join(' ')
 <title>${scanEsc(SCAN.title)}</title><meta name="description" content="${scanEsc(SCAN.description)}">
 <meta property="og:title" content="${scanEsc(SCAN.headline)} · Waterstofscan"><meta property="og:description" content="${scanEsc(SCAN.description)}"><meta property="og:type" content="website">
 <link rel="canonical" href="https://mijnwindpark.nl${SCAN_PATH}">
-<link rel="icon" href="/favicon.svg"><style>${font ? `@font-face{font-family:'TASA Orbiter';src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:400 800;font-display:swap}` : ''}${SCAN_STYLE}</style></head><body>
+<link rel="icon" href="/favicon.svg"><style>${font ? `@font-face{font-family:'TASA Orbiter';src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:400 800;font-display:swap}` : ''}${SCAN_STYLE}.concept{margin:0;padding:4px 16px;background:#F2C94C;color:#0C2340;font-size:13px;font-weight:600;text-align:center}</style></head><body>
+<p class="concept" role="note">Conceptwebsite · ontwerp, nog geen bestaand bedrijf of aanbod</p>
 <a class="skip" href="#inhoud">Naar de inhoud</a>
 <header><div class="wrap"><a class="brand" href="${SCAN_PATH}">mijnwindpark<span>.nl</span></a><nav aria-label="Pagina"><a href="#prijzen">Pakketten</a><a href="#rvo">RVO-eisen</a><a href="#werkwijze">Werkwijze</a><a href="#vragen">Vragen</a><a class="button" href="#aanvraag">Bespreek je project</a></nav></div></header>
 <main class="wrap" id="inhoud">

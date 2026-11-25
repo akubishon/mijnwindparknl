@@ -29,7 +29,7 @@ Controleer data en voorwaarden van OWE 3 en de hubregeling opnieuw vóór je ze 
 | Stap | Wat de bezoeker doet | Wat hij krijgt | Wat wij krijgen |
 |---|---|---|---|
 | 1. Kaart (gratis, anoniem) | Kiest een perceel en de windparken in de buurt | Windparken, afstand, KNMI-station en gemiddelde wind | Een event in de statistieken |
-| 2. Locatieprofiel (gratis, met e-mail) | Vraagt een profiel van deze locatie aan | Een A4 met perceel, gekozen parken, vermogen, windaanbod 2025 en een **indicatieve klasse** voor de kostprijs (zie § 4.2) | Een lead met locatie, vermogen en bron = Atlas |
+| 2. Locatieprofiel (gratis, met e-mail) | Vraagt een profiel van deze locatie aan | Een A4 met perceel, gekozen parken, vermogen en windaanbod 2025, met een **relatieve klasse voor het windaanbod**; geen kostprijs (zie § 4.2) | Een lead met locatie, vermogen en bron = Atlas |
 | 3. Gesprek (20 min.) | Bespreekt het project | Advies over welk pakket past en welke gegevens nodig zijn | Kwalificatie: OWE, hub of congestie, beslisser en deadline |
 | 4. Waterstofscan (€ 12.000 / € 22.000) | Bestelt | Vier windjaren, tienminutenprofiel, per elektrolyser, rapport en Excel | Omzet |
 
@@ -46,7 +46,11 @@ Het verschil moet eerlijk blijven. De Atlas rekent met één windjaar (KNMI 2025
 4. **Deelbare link.** Zet perceel en gekozen parken in de URL. Adviseurs sturen hun klant dan een kaart in plaats van een uitleg. Elke gedeelde link is gratis bereik.
 
 ### 4.2 Iets van waarde geven vóór het formulier (week 2–4)
-De LCOH staat nu achter het sitewachtwoord. Daardoor krijgt een bezoeker niets wat hij kan doorsturen. **Advies:** toon geen exacte €/kg. Laat wel zien hoe de locatie zich verhoudt tot andere locaties, bijvoorbeeld ‘windaanbod bij deze parken: hoger dan 70 % van de te kiezen locaties’, en vraag een e-mailadres voor het locatieprofiel. Een relatieve klasse is moeilijk te misbruiken als harde raming. Zo blijft er een reden om de scan te bestellen, en we beloven niets wat één windjaar niet kan dragen. De exacte LCOH blijft achter het wachtwoord, voor gebruik in gesprekken.
+**Besluit (25 november 2026): de Atlas toont geen LCOH en geen €/kg,** ook geen klasse of bandbreedte voor de kostprijs. De kostenaannames zijn nog niet vastgesteld, en zolang de site een concept is, staat er geen bedrijf achter zo'n getal. De berekening achter het wachtwoord blijft alleen voor intern gebruik.
+
+Wel kan de Atlas laten zien hoe het **windaanbod** zich verhoudt tot andere locaties, bijvoorbeeld ‘windaanbod bij deze parken: hoger dan 70 % van de te kiezen locaties’. Dat getal komt rechtstreeks uit KNMI-metingen en hangt niet af van kostenaannames. Vraag daarbij een e-mailadres voor het locatieprofiel. De productie en de kostprijs komen pas in de scan.
+
+Zolang er geen echt bedrijf is, staat bovenaan de Atlas en `/waterstofscan` een balk ‘Conceptwebsite’. Stuur in die fase geen prijsofferte namens een bedrijf; gebruik de gesprekken om te valideren.
 
 ### 4.3 Laag per doelgroep (maand 2–3)
 - **Hubfilter:** standaard tussen 2,5 en 25 MW elektrolysevermogen, met de voorwaarden van de hubregeling als checklist in het paneel zodra die definitief zijn.
@@ -88,9 +92,10 @@ De LCOH staat nu achter het sitewachtwoord. Daardoor krijgt een bezoeker niets w
 | Risico | Maatregel |
 |---|---|
 | OWE 3 wordt uitgesteld of geschrapt | De hubregeling en de congestiedoelgroep staan los van OWE 3. Leg geen omzet vast op één regeling. |
-| De Atlas wordt gelezen als harde raming | Laat ‘indicatief, één windjaar’ zichtbaar staan. Toon geen exacte €/kg in het openbare deel. Verwijs voor cijfers die in een dossier komen naar de scan. |
+| De Atlas wordt gelezen als harde raming | Laat ‘indicatief, één windjaar’ zichtbaar staan. Toon geen LCOH of €/kg (zie § 4.2). Verwijs voor cijfers die in een dossier komen naar de scan. |
+| De site lijkt een bestaand bedrijf terwijl het een concept is | Laat de balk ‘Conceptwebsite’ staan tot `SCAN.provider` is ingevuld en er echt geleverd en gefactureerd kan worden. |
 | OSM-gegevens kloppen niet (vermogen, gesloten parken) | Steekproef voor de pagina’s per windpark live gaan. Maak een meldknop ‘klopt dit park niet?’. |
-| Het wachtwoord voor de LCOH is het sitewachtwoord | Gebruik voor gesprekken een apart wachtwoord, of zet de LCOH achter de teamlogin. Als het sitewachtwoord gedeeld wordt, ligt de hele site open. |
+| De verborgen LCOH-berekening gebruikt het sitewachtwoord | Deel dat wachtwoord niet buiten het team: wie het heeft, kan de hele site openen. |
 | Te weinig volume voor de vaste prijzen | Evalueer na twintig gekwalificeerde gesprekken, zoals in `waterstofscan.md` § 5. Pas eerst doelgroep en bewijs aan, niet de prijs. |
 
 ## 9. Eerste vijf acties
