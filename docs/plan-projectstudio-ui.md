@@ -1,6 +1,6 @@
 # Plan: Projectstudio mooier maken (interface)
 
-Status: plan, nog niet gebouwd. Opgesteld op 25 november 2026. Hoort bij `docs/plan-projectstudio.md`; de aanpak en de rekenkern blijven precies zoals daar staat. Dit plan gaat **alleen over de interface**.
+Status: plan, nog niet gebouwd. Opgesteld op 25 november 2026; conceptschermen in `docs/projectstudio-concepten/`. Hoort bij `docs/plan-projectstudio.md`; de aanpak en de rekenkern blijven precies zoals daar staat. Dit plan gaat **alleen over de interface**.
 
 ## Wat er nu mis is
 
@@ -24,6 +24,21 @@ De studio werkt, maar voelt als een formulier met tabellen:
 - Elk scherm begint met wat je moet doen en eindigt met **Volgende stap →**.
 - Getallen die ertoe doen worden **tegels** (zoals `metric` op de hoofdsite); details en aannames gaan in uitklapbare blokken.
 - Iconen uit `lucide-react` (zit al in het project).
+
+## Concepten (schermafbeeldingen)
+
+In `docs/projectstudio-concepten/` staan statische conceptschermen, gemaakt met `maak-concepten.mjs`. Ze gebruiken de echte huisstijl, een echte PDOK-kaart en echte parken uit `windparken.geojson`. De getallen in de grafieken zijn **voorbeeldgegevens**, geen berekening. Elk scherm staat in `screenshots/` op 1600 px (`-breed`) en op 390 px (`-mobiel`).
+
+| Concept | Scherm | Idee |
+|---|---|---|
+| **A · Werkbank** (`concept-a-werkbank`) | Stap 3 Windparken | Stappenrail links met status, werkvlak midden, projectoverzicht rechts. Parkkaarten met groot MW-getal, schuifje en − / +. Op 390 px: samenvattingsbalk, stappenstrook en vaste onderbalk. |
+| **A · Werkbank** (`concept-a-aanbod`) | Stap 5 Beschikbaar vermogen | Kerngetallen als tegels, warmtekaart van het jaar, duurkromme met de vollast van elke variant en een voorbeeld-tooltip, aanbod per maand per park. |
+| **B · Kaart centraal** (`concept-b-kaart`) | Stap 4 KNMI-stations | De kaart vult het scherm; de stap staat in een donker zijpaneel (op 390 px een paneel van onderen). Stappen als pillen boven de kaart, 25 km-cirkel en stations op de kaart. |
+| **C · Projecten** (`concept-c-projecten`) | Startpagina | Lichtblauw introblok met kaart, projecten als kaarten met minikaart, kerngetallen en status. |
+
+**Advies:** bouw **A** als basis voor alle stappen en gebruik het kaartbeeld van **B** alleen voor stap 1 (Locatie) en stap 4 (KNMI-stations), waar de kaart het werk doet. C is de startpagina.
+
+Wat de concepten nog niet laten zien en wat de bouw wel moet regelen: op 390 px zoomt de kaart in op de elektrolyser en de gekozen parken (`fitBounds`), zodat niets buiten beeld valt.
 
 ## Opbouw
 
