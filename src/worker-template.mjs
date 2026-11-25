@@ -113,7 +113,11 @@ async function scanRoute(request,env,url){
   const sent=url.searchParams.get('verzonden')==='1';
   const requestedPackage=url.searchParams.get('pakket');
   const pakket=SCAN.packages.find(p=>p.id===requestedPackage)?.id;
-  return new Response(scanPage({sent,values:{pakket},font:brandFont}),{headers:scanHeaders(sent?'no-store':'public, max-age=300')});
+  // Context uit de Atlas of een campagnelink (?bron=…&locatie=…&vermogen=…): alleen tekst, ingekort, in verborgen velden.
+  const q=name=>String(url.searchParams.get(name)??'').replace(/[\u0000-\u001f]/g,' ').trim();
+  const mw=Number(q('vermogen').replace(',','.'));
+  const values={pakket,bron:leadSource(q('bron')),locatie:q('locatie').slice(0,300),vermogen:Number.isFinite(mw)&&mw>0&&mw<100000?String(Math.round(mw*10)/10):''};
+  return new Response(scanPage({sent,values,font:brandFont}),{headers:scanHeaders(sent?'no-store':'public, max-age=300')});
  }
  if(request.method!=='POST')return new Response('Method not allowed',{status:405,headers:{...securityHeaders,Allow:'GET, POST'}});
  const page=(status,options)=>new Response(scanPage({...options,font:brandFont}),{status,headers:scanHeaders('no-store')});
@@ -159,11 +163,12 @@ export default {
     const gate=await gateRequest(request,env,url);if(gate)return gate;
     if(url.pathname==='/leads'||url.pathname==='/leads.csv'){
       if(request.method!=='GET')return answer({error:'Method not allowed'},405);
-      let leads=[],error='';
+      let leads=[],error='',funnel=null;
       if(!env.BUCKET)error='De opslag is niet gekoppeld; aanvragen kunnen niet worden bewaard of gelezen.';
       else try{leads=await readLeads(env.BUCKET);}catch{error='De aanvragen konden niet worden gelezen. Probeer het opnieuw.';}
       if(url.pathname==='/leads.csv')return new Response(leadsCsv(leads),{status:error?503:200,headers:{...securityHeaders,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="aanvragen-waterstofscan.csv"','Cache-Control':'no-store'}});
-      return new Response(leadsPage(leads,{error}),{status:error?503:200,headers:{...securityHeaders,'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'",'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow'}});
+      if(env.BUCKET)try{funnel=await readAtlasFunnel(env.BUCKET);}catch{funnel=null;}
+      return new Response(leadsPage(leads,{error,funnel}),{status:error?503:200,headers:{...securityHeaders,'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'",'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow'}});
     }
     if(url.pathname==='/opsplitsing'||url.pathname==='/elektrolyser/opsplitsen'){
       // Cloudflare propagates header nonces to its injected JavaScript Detections script.

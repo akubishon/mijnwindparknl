@@ -39,6 +39,8 @@ Het verschil moet eerlijk blijven. De Atlas rekent met één windjaar (KNMI 2025
 
 ## 4. Wat er in de Atlas moet veranderen (op volgorde)
 
+*Stand 25 november 2026: alles uit § 4.1–4.3 is gebouwd (zie README, sectie Atlas). Nog te doen buiten de code: de OSM-gegevens van de windparkpagina's steekproefsgewijs controleren, besluiten of de Atlas al vindbaar mag zijn zolang hij een concept is (`robots.txt` staat indexeren nu toe), en de congestiedoelgroep valideren met vijf gesprekken.*
+
 ### 4.1 Trechter dichten (week 1, klein werk)
 1. **Context meegeven.** De knop in het paneel gaat naar `https://mijnwindpark.nl/waterstofscan?bron=atlas&perceel=<aanduiding>&parken=<namen>&mw=<totaal>#aanvraag`. Het formulier vult de toelichting vooraf in, bijvoorbeeld ‘Locatie: perceel …, windparken …, … MW’.
 2. **Bron bewaren.** Voeg in `LEAD_FIELDS` het veld `bron` toe (kort, uit een vaste lijst: `atlas`, `direct`, `linkedin`, `adviseur`) en toon het op `/leads` en in de CSV. Zonder bron kun je de Atlas niet beoordelen.
