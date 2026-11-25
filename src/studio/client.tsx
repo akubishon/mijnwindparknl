@@ -232,6 +232,13 @@ function DayChart({rows,bands,max}:{rows:{label:string;color:string;points:{t:nu
   {[0,6,12,18].map(h=><text key={h} x={x(t0+h*3600000)} y={H-6} fontSize="11" textAnchor="middle">{h}:00</text>)}
   {rows.map((r,i)=><text key={r.label} x={60+i*170} y="14" fontSize="12" fill={r.color}>■ {r.label}</text>)}</svg>;
 }
+function Forecast({projectId,park,cap}:{projectId:string;park:any;cap:number}){
+ const [f,setF]=useState<any>(null),[error,setError]=useState('');
+ useEffect(()=>{getJSON(`/api/studio/harmonie?${new URLSearchParams({project:projectId,park:park.id})}`).then(setF,e=>setError(e.message));},[park.id]);
+ return <><h2>HARMONIE-voorspelling</h2>{error&&<p className="wind-note">{error}</p>}
+  {f&&<><DayChart max={cap} rows={[{label:'Voorspeld parkvermogen',color:'#0C2340',points:f.rows.map((r:any)=>({t:Date.parse(r.time),v:r.powerMW}))}]}/>
+   <p className="wind-note">{f.source}, run {new Date(f.run).toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short'})}{f.stale?' (ouder dan zes uur)':''}; roosterpunt {nl(f.rows[0].gridLatitude,3)}° N {nl(f.rows[0].gridLongitude,3)}° E, wind op 10 m met {f.hoogtevertaling}, daarna hetzelfde parkmodel als de daggrafiek. Uurwaarden, {f.rows.length} uur vooruit.</p></>}</>;
+}
 function ParkPage({projectId,parkId}:{projectId:string;parkId:string}){
  const [project,setProject]=useState<any>(projectId==='bolsward'?clone(BOLSWARD):null),[error,setError]=useState('');
  const today=new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Amsterdam'});
@@ -253,7 +260,7 @@ function ParkPage({projectId,parkId}:{projectId:string;parkId:string}){
    <table className="studio-table"><thead><tr><th>Uur</th><th>Model (MWh)</th><th>Ontbrekend</th></tr></thead><tbody>{data.hours.map((h:any)=><tr key={h.hour}><td>{h.hour}:00</td><td>{nl(h.modelMWh,2)}</td><td>{h.missingMinutes?h.missingMinutes+' min':''}</td></tr>)}</tbody></table></>}
   {data&&compare&&<><DayChart max={cap} bands={data.combination.map((p:any)=>({t:Date.parse(p.start),lo:p.minMW,hi:p.maxMW}))} rows={[...data.stations.map((s:any,i:number)=>({label:s.naam,color:['#00A6DE','#F5A800','#7A9A01','#A0522D'][i%4],points:pts(s.intervals)})),{label:'Combinatie',color:'#0C2340',points:pts(data.combination)}]}/>
    <p className="wind-note">Elk station apart door hetzelfde parkmodel; de band is het verschil tussen de stations. {data.windSource}{data.unavailable.length?` Niet beschikbaar: ${data.unavailable.join(', ')}.`:''}</p></>}
-  <p className="wind-note">HARMONIE-voorspelling voor projectparken: nog niet gebouwd (zie README, Projectstudio).</p>
+  <Forecast projectId={projectId} park={park} cap={cap}/>
  </section>;
 }
 

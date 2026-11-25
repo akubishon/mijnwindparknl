@@ -56,18 +56,23 @@ export function seriesStats(series) {
   return { dekking: series.length ? n / series.length : 0, gemiddeld_ms: n ? sum / n : null, n };
 }
 
-// Eén windjaar ophalen bij KNMI EDR, per maand (twaalf verzoeken), zoals fetchStation() in knmi.mjs.
+// Eén windjaar ophalen bij KNMI EDR in één verzoek, zoals observations_range() in knmi.py. KNMI telt verzoeken per uur
+// (quotum per sleutel); alleen als het hele jaar niet in één antwoord past, volgen vier kwartalen.
+async function edr(stationId, from, to, key, fetchImpl) {
+  const query = new URLSearchParams({ datetime: `${new Date(from * 1000).toISOString()}/${new Date(to * 1000).toISOString()}`, 'parameter-name': 'ff' });
+  const r = await fetchImpl(EDR + encodeURIComponent(stationId) + '?' + query, { headers: { Authorization: key.trim(), Accept: 'application/json' }, redirect: 'manual', signal: AbortSignal.timeout(60000) });
+  if (r.status === 404 || r.status === 204) return null;   // geen metingen in deze periode
+  if (r.ok) return r.json();
+  const text = await r.text().catch(() => '');
+  throw Error(r.status === 429 || /quota/i.test(text) ? 'KNMI_QUOTA' : r.status === 401 || r.status === 403 ? 'KNMI_AUTH' : r.status === 400 || r.status === 413 ? 'KNMI_TOO_LARGE' : 'KNMI_UNAVAILABLE');
+}
 export async function fetchStationYear(stationId, year, key, fetchImpl = fetch) {
   if (!key) throw Error('KNMI_NOT_CONFIGURED');
-  const axis = yearAxis(year), raws = [];
-  for (let m = 0; m < 12; m++) {
-    const from = Math.max(axis.start - 300, Date.UTC(year, m, 1) / 1000 - 7200), to = Math.min(axis.start - 300 + axis.n * 600 + 600, Date.UTC(year, m + 1, 1) / 1000 + 3600);
-    const query = new URLSearchParams({ datetime: `${new Date(from * 1000).toISOString()}/${new Date(to * 1000).toISOString()}`, 'parameter-name': 'ff' });
-    const r = await fetchImpl(EDR + encodeURIComponent(stationId) + '?' + query, { headers: { Authorization: key.trim(), Accept: 'application/json' }, redirect: 'manual', signal: AbortSignal.timeout(30000) });
-    if (r.status === 404 || r.status === 204) continue;   // geen metingen in deze maand
-    if (!r.ok) throw Error(r.status === 401 || r.status === 403 ? 'KNMI_AUTH' : 'KNMI_UNAVAILABLE');
-    raws.push(await r.json());
-  }
+  const axis = yearAxis(year), from = axis.start - 300, to = axis.start - 300 + axis.n * 600;
+  try { return seriesFromCoverage([await edr(stationId, from, to, key, fetchImpl)].filter(Boolean), stationId, year); }
+  catch (e) { if (e.message !== 'KNMI_TOO_LARGE') throw e; }
+  const raws = [], step = Math.ceil((to - from) / 4 / 600) * 600;
+  for (let a = from; a < to; a += step) { const raw = await edr(stationId, a, Math.min(to, a + step), key, fetchImpl); if (raw) raws.push(raw); }
   return seriesFromCoverage(raws, stationId, year);
 }
 
@@ -101,7 +106,7 @@ export async function windRoute(request, env, url, answer, fetchImpl = fetch) {
   if (stored) return new Response(stored.body, { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'private, max-age=86400' } });
   let series;
   try { series = await fetchStationYear(station, year, env.KNMI_EDR_API_KEY, fetchImpl); }
-  catch (e) { const auth = e.message === 'KNMI_AUTH' || e.message === 'KNMI_NOT_CONFIGURED'; return answer({ error: auth ? 'KNMI EDR is niet ingesteld of weigert de sleutel.' : 'KNMI EDR is tijdelijk niet beschikbaar. Probeer het opnieuw.' }, 502); }
+  catch (e) { const auth = e.message === 'KNMI_AUTH' || e.message === 'KNMI_NOT_CONFIGURED'; return answer({ error: e.message === 'KNMI_QUOTA' ? 'Het uurquotum van KNMI EDR is op. Probeer het over een uur opnieuw.' : auth ? 'KNMI EDR is niet ingesteld of weigert de sleutel.' : 'KNMI EDR is tijdelijk niet beschikbaar. Probeer het opnieuw.' }, e.message === 'KNMI_QUOTA' ? 429 : 502); }
   const file = windFile(station, year, series);
   await env.BUCKET.put(key, JSON.stringify(file), { httpMetadata: { contentType: 'application/json' } });
   try { await env.BUCKET.put(INDEX_KEY, JSON.stringify(updateIndex(await readJSON(env.BUCKET, INDEX_KEY), station, year, seriesStats(series)))); } catch {}

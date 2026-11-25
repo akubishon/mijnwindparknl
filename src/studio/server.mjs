@@ -4,6 +4,7 @@ import windparken from '../atlas/windparken.geojson';
 import { windRoute } from './wind-data.mjs';
 import { validateProject, newProjectId, ID_PATTERN } from './project.mjs';
 import { parkDayRoute } from './park-day.mjs';
+import { harmonieRoute } from './harmonie-points.mjs';
 
 export const STUDIO_HOSTS = ['intern.mijnwindpark.nl', 'intern.localhost'];
 export const PROJECTS = 'studio/v1/projects/', PROJECT_INDEX = PROJECTS + 'index.json', MAX_BODY = 256 * 1024, MAX_PROJECTS = 500;
@@ -75,6 +76,7 @@ export async function studioRoute(request, env, url, assets, shared) {
     if (url.pathname === '/api/studio/parks') return Response.json({ type: 'FeatureCollection', attributie: windparken.attributie, features: studioParks }, { headers: { ...studioHeaders, 'Cache-Control': 'private, max-age=3600' } });
     if (url.pathname.startsWith('/api/studio/wind10/') || url.pathname === '/api/studio/stations') { const r = await windRoute(request, env, url, answer); if (r) return r; }
     if (url.pathname === '/api/studio/park-dag') return await parkDayRoute(request, env, url, answer);
+    if (url.pathname === '/api/studio/harmonie') return await harmonieRoute(request, env, url, answer);
     const sharedResponse = await shared?.(url.pathname);
     if (sharedResponse) return sharedResponse;
     return answer({ error: 'Not found' }, 404);

@@ -50,3 +50,22 @@ test('park zoeken: Bolsward vast, onbekend project geeft null', async () => {
   assert.equal((await findPark({}, 'bolsward', 'fryslan')).aandeel, 0.1);
   assert.equal(await findPark({}, 'onbekend', 'fryslan'), null);
 });
+
+test('HARMONIE: extra roosterpunten apart bewaard, voorspelling per park met het parkmodel', async () => {
+  const { forecastRows, harmonieRoute } = await import('../src/studio/harmonie-points.mjs');
+  const { gribWindPoints } = await import('../src/harmonie.mjs');
+  assert.equal(gribWindPoints.length, 1, 'extra punten zijn optioneel');
+  const park = { ...parkFromFeature({ geometry: { coordinates: [6.9, 53.24] }, properties: { naam: 'Eemshaven', mw: 30, turbines: 10 } }), aandeel: 1, stations: ['0-20000-0-06280'] };
+  const snapshot = { run: '2030-01-01T00:00:00.000Z', source: 'KNMI HARMONIE-AROME Cy43 P1', rows: [0, 1, 2].map(h => ({ time: new Date(Date.parse('2030-01-01T00:00:00Z') + h * 3600000).toISOString(), parks: [{ id: park.id, windSpeedMS: h === 2 ? null : 8 + h, gridLatitude: 53.248, gridLongitude: 6.9 }] })) };
+  const rows = forecastRows(snapshot, park, Date.parse('2030-01-01T00:00:00Z'));
+  assert.equal(rows.length, 3); assert.ok(rows[1].powerMW > rows[0].powerMW); assert.equal(rows[2].powerMW, null);
+  assert.ok(rows[0].hubWindSpeedMS > 8, 'hoogtevertaling met seizoens-α');
+  const store = new Map([['studio/v1/harmonie/p1/latest.json', JSON.stringify({ run: snapshot.run, key: 'studio/v1/harmonie/p1/x.json' })], ['studio/v1/harmonie/p1/x.json', JSON.stringify(snapshot)],
+    ['studio/v1/projects/abcdefghijkl.json', JSON.stringify({ parken: [park] })]]);
+  const bucket = { get: async k => store.has(k) ? { json: async () => JSON.parse(store.get(k)) } : null };
+  const answer = (v, status = 200) => Response.json(v, { status });
+  const ok = await harmonieRoute(null, { BUCKET: bucket }, new URL('https://x/api/studio/harmonie?project=abcdefghijkl&park=' + encodeURIComponent(park.id)), answer);
+  assert.equal(ok.status, 200); assert.match((await ok.json()).hoogtevertaling, /seizoens/);
+  const missing = await harmonieRoute(null, { BUCKET: bucket }, new URL('https://x/api/studio/harmonie?project=bolsward&park=fryslan'), answer);
+  assert.equal(missing.status, 404);
+});

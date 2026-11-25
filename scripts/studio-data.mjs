@@ -31,8 +31,15 @@ for (const station of stations) for (const year of years) {
   let series;
   if (existsSync(local)) series = decodeSeries(JSON.parse(readFileSync(local, 'utf8')));
   else {
-    try { series = await fetchStationYear(station.id, year, key); }
-    catch (e) { console.error(`${station.name} ${year}: ${e.message}`); continue; }
+    // KNMI telt verzoeken per uur: bij een vol quotum tien minuten wachten en opnieuw (hooguit twee uur).
+    for (let attempt = 0; ; attempt++) {
+      try { series = await fetchStationYear(station.id, year, key); break; }
+      catch (e) {
+        if (e.message === 'KNMI_QUOTA' && attempt < 12) { console.error(`${station.name} ${year}: quotum op, over 10 minuten opnieuw`); await new Promise(r => setTimeout(r, 600000)); continue; }
+        console.error(`${station.name} ${year}: ${e.message}`); break;
+      }
+    }
+    if (!series) continue;
     put(objectKey, windFile(station.id, year, series));
   }
   const stats = seriesStats(series);

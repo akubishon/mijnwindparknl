@@ -11,7 +11,8 @@ const u16=(a,p)=>a[p]*256+a[p+1];
 const signed=(v,bits)=>v>=2**(bits-1)?-(v-2**(bits-1)):v;
 const textBytes=a=>new TextDecoder().decode(a);
 const points=[{id:'fryslan',latitude:53.017,longitude:5.367},{id:'beabuorren',latitude:53.052,longitude:5.493}];
-export function gribWindPoints(a){
+// `extra`: extra roosterpunten voor de Projectstudio ({id, latitude, longitude}); een punt buiten het rooster krijgt null.
+export function gribWindPoints(a,extra=[]){
  if(a.length<36||textBytes(a.subarray(0,4))!=='GRIB'||a[7]!==1||u24(a,4)!==a.length||textBytes(a.subarray(-4))!=='7777')throw Error('HARMONIE_FORMAT');
  const p=8,pl=u24(a,p);if(pl<28||p+pl>a.length-4)throw Error('HARMONIE_FORMAT');
  const param=a[p+8],level=u16(a,p+10);
@@ -22,7 +23,7 @@ export function gribWindPoints(a){
  const g=p+pl,gl=u24(a,g);if(gl<32||g+gl>a.length-4||a[g+5]!==0)throw Error('HARMONIE_GRID');
  const nx=u16(a,g+6),ny=u16(a,g+8),lat=signed(u24(a,g+10),24)/1000,lon=signed(u24(a,g+13),24)/1000,dx=u16(a,g+23)/1000,dy=u16(a,g+25)/1000,scan=a[g+27];
  if(!nx||!ny||nx===65535||ny===65535||!dx||!dy||(scan&63))throw Error('HARMONIE_GRID');
- const indexes=points.map(pt=>{const x=Math.round((pt.longitude-lon)/((scan&128)?-dx:dx)),y=Math.round((pt.latitude-lat)/((scan&64)?dy:-dy));if(x<0||x>=nx||y<0||y>=ny)throw Error('HARMONIE_GRID');return {index:y*nx+x,latitude:lat+y*((scan&64)?dy:-dy),longitude:lon+x*((scan&128)?-dx:dx)};});
+ const indexes=[...points,...extra].map((pt,i)=>{const x=Math.round((pt.longitude-lon)/((scan&128)?-dx:dx)),y=Math.round((pt.latitude-lat)/((scan&64)?dy:-dy));if(x<0||x>=nx||y<0||y>=ny){if(i>=points.length)return {index:-1,latitude:null,longitude:null};throw Error('HARMONIE_GRID');}return {index:y*nx+x,latitude:lat+y*((scan&64)?dy:-dy),longitude:lon+x*((scan&128)?-dx:dx)};});
  let b=g+gl;
  // For safety, bitmap-packed fields are explicitly rejected rather than treating missing points as zero.
  if(a[p+7]&64)throw Error('HARMONIE_PACKING');
@@ -30,7 +31,7 @@ export function gribWindPoints(a){
  const exponent=signed(u16(a,b+4),16),decimal=signed(u16(a,p+26),16),bits=a[b+10];
  if(bits>32||nx*ny*bits>(bl-11)*8-(a[b+3]&15))throw Error('HARMONIE_PACKING');
  const ref=(a[b+6]&128?-1:1)*16**((a[b+6]&127)-64)*u24(a,b+7)/16777216;
- const values=indexes.map(pt=>{let n=0;for(let bit=pt.index*bits;bit<(pt.index+1)*bits;bit++)n=n*2+((a[b+11+(bit>>3)]>>(7-(bit&7)))&1);const value=(ref+n*2**exponent)*10**(-decimal);if(!Number.isFinite(value)||Math.abs(value)>200)throw Error('HARMONIE_FORMAT');return {...pt,value};});
+ const values=indexes.map(pt=>{if(pt.index<0)return {...pt,value:null};let n=0;for(let bit=pt.index*bits;bit<(pt.index+1)*bits;bit++)n=n*2+((a[b+11+(bit>>3)]>>(7-(bit&7)))&1);const value=(ref+n*2**exponent)*10**(-decimal);if(!Number.isFinite(value)||Math.abs(value)>200)throw Error('HARMONIE_FORMAT');return {...pt,value};});
  return {run:new Date(run).toISOString(),time:new Date(run+a[p+18]*3600000).toISOString(),component:param===33?'u':'v',values};
 }
 // Archive bytes are streamed, not retained. A full 61-hour run can exceed 900 MB.
@@ -68,7 +69,7 @@ export async function extractHarmonie(body,now=Date.now(),options={}){
      if(textBytes(await r.read(4))!=='7777')throw Error('HARMONIE_FORMAT');
     }else{
      const message=new Uint8Array(length);message.set(lead);message.set(product,8);message.set(await r.read(length-36),36);
-     const decoded=gribWindPoints(message);
+     const decoded=gribWindPoints(message,options.extraPoints||[]);
      if(options.model==='p2b'&&decoded){const identity=gribMember(message);if(member===null)member=identity;if(identity===member)add(decoded);}else add(decoded);
     }
     remaining-=length;
@@ -81,7 +82,11 @@ export async function extractHarmonie(body,now=Date.now(),options={}){
  if(!run||Date.parse(run)>Math.max(options.validationNow??now,options.expectedRun?Date.parse(options.expectedRun):now)+300000||options.expectedRun&&run!==options.expectedRun)throw Error('HARMONIE_FORMAT');
  const complete=forecastWindow([...rows.values()],now,limit,until);
  console.info('HARMONIE_WINDOW',JSON.stringify({run,fields:rows.size,completeFuture:[...rows.values()].filter(x=>x.u&&x.v&&Date.parse(x.time)>=now).length,consecutive:complete.length,first:[...rows.keys()].sort()[0],last:[...rows.keys()].sort().at(-1)}));
- return {run,member,points,rows:complete.map(row=>({time:row.time,parks:points.map((pt,i)=>({id:pt.id,windSpeedMS:Math.hypot(row.u[i].value,row.v[i].value),gridLatitude:row.u[i].latitude,gridLongitude:row.u[i].longitude}))}))};
+ const result={run,member,points,rows:complete.map(row=>({time:row.time,parks:points.map((pt,i)=>({id:pt.id,windSpeedMS:Math.hypot(row.u[i].value,row.v[i].value),gridLatitude:row.u[i].latitude,gridLongitude:row.u[i].longitude}))}))};
+ // Projectstudio: de extra punten apart, zodat de snapshot van Fryslân en Beabuorren gelijk blijft.
+ const extra=options.extraPoints||[];
+ if(extra.length)result.extra={points:extra,rows:complete.map(row=>({time:row.time,parks:extra.map((pt,j)=>{const u=row.u[points.length+j],v=row.v[points.length+j];return {id:pt.id,windSpeedMS:u.value===null||v.value===null?null:Math.hypot(u.value,v.value),gridLatitude:u.latitude,gridLongitude:u.longitude};})}))};
+ return result;
 }
 export function harmonieDayWindow(day){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(day||'')||new Date(Date.parse(day+'T00:00:00Z')).toISOString().slice(0,10)!==day)throw Error('HARMONIE_INVALID_HISTORY');
@@ -134,8 +139,17 @@ export async function readHarmonie(env,selection={}){
 
 // Durable snapshots contain both locations and the complete available run horizon.
 const snapshotKey=(model,run)=>`harmonie/v1/${model}/${run}.json`;
+// Projectstudio: extra parkpunten per run in studio/v1/harmonie/{model}/{run}.json, met een eigen latest-wijzer.
+export const studioSnapshotKey=(model,run)=>`studio/v1/harmonie/${model}/${run}.json`;
+async function studioHas(env,model,run,extra){const o=await env.BUCKET.get(studioSnapshotKey(model,run));if(!o)return false;const ids=new Set((await o.json()).points.map(p=>p.id));return extra.every(p=>ids.has(p.id));}
+async function saveStudioSnapshot(env,model,run,data,filename){
+ await env.BUCKET.put(studioSnapshotKey(model,run),JSON.stringify({run,model,filename,retrievedAt:new Date().toISOString(),source:'KNMI HARMONIE-AROME Cy43 '+model.toUpperCase(),heightM:10,points:data.extra.points,rows:data.extra.rows}),{httpMetadata:{contentType:'application/json'}});
+ const pointerKey=studioSnapshotKey(model,'latest'),previous=await env.BUCKET.get(pointerKey),old=previous?await previous.json():null;
+ if(!old||Date.parse(old.run)<=Date.parse(run))await env.BUCKET.put(pointerKey,JSON.stringify({run,key:studioSnapshotKey(model,run)}));
+}
 export async function updateHarmonieSnapshot(env,model='p1',selection={}){
  model=harmonieModel(model);
+ const extra=(selection.extraPoints||[]).slice(0,50);
  if(!env.BUCKET)throw Error('HARMONIE_STORAGE');
  if(!env.KNMI_OPEN_DATA_API_KEY)throw Error('HARMONIE_NOT_CONFIGURED');
  const base=HARMONIE_BASE.replace('cy43_p1','cy43_'+model);
@@ -152,25 +166,30 @@ export async function updateHarmonieSnapshot(env,model='p1',selection={}){
   const stamp=match[1],run=`${stamp.slice(0,4)}-${stamp.slice(4,6)}-${stamp.slice(6,8)}T${stamp.slice(8,10)}:00:00.000Z`;
   if(!Number.isFinite(Date.parse(run))||Date.parse(run)>Date.now()+300000)throw Error('HARMONIE_FORMAT');
   const key=snapshotKey(model,run);
-  if(await env.BUCKET.head(key)){
+  const stored=!!(await env.BUCKET.head(key));
+  if(stored){
    const pointerKey=snapshotKey(model,'latest'),pointer=await env.BUCKET.get(pointerKey),old=pointer?await pointer.json():null;
    if(!old||Date.parse(old.run)<Date.parse(run))await env.BUCKET.put(pointerKey,JSON.stringify({run,key}));
-   return {model,run,updated:false};
+   // Alleen opnieuw downloaden als projectparken in deze run nog ontbreken; de bestaande snapshot blijft onaangeroerd.
+   if(!extra.length||await studioHas(env,model,run,extra))return {model,run,updated:false};
   }
   const link=await api('/'+encodeURIComponent(filename)+'/url');
   const target=new URL(link.temporaryDownloadUrl);
   if(target.protocol!=='https:'||!(/(^|\.)knmi\.nl$|(^|\.)knmi\.cloud$|(^|\.)amazonaws\.com$|(^|\.)googleapis\.com$|(^|\.)blob\.core\.windows\.net$/.test(target.hostname)))throw Error('HARMONIE_DOWNLOAD_HOST');
   const response=await fetch(target.href,{redirect:'manual',signal:controller.signal});
   if(!response.ok||!response.body)throw Error('HARMONIE_UNAVAILABLE');
-  const data=await extractHarmonie(response.body,Date.parse(run),{limit:61,model,expectedRun:run,validationNow:Date.now()});
+  const data=await extractHarmonie(response.body,Date.parse(run),{limit:61,model,expectedRun:run,validationNow:Date.now(),extraPoints:extra});
   // Never publish a short, partially uploaded archive as a completed run.
   if(data.rows.length<48||Date.parse(data.rows[0].time)!==Date.parse(run))throw Error('HARMONIE_INCOMPLETE');
-  const snapshot={...data,filename,model,retrievedAt:new Date().toISOString(),historical:false,partial:false,ensemble:model==='p2b',ensembleSummary:false,source:'KNMI HARMONIE-AROME Cy43 '+model.toUpperCase(),heightM:10,productionCorrection:false};
+  if(extra.length)await saveStudioSnapshot(env,model,run,data,filename);
+  if(stored)return {model,run,updated:false,studioPoints:extra.length};
+  const {extra:_studio,...main}=data;
+  const snapshot={...main,filename,model,retrievedAt:new Date().toISOString(),historical:false,partial:false,ensemble:model==='p2b',ensembleSummary:false,source:'KNMI HARMONIE-AROME Cy43 '+model.toUpperCase(),heightM:10,productionCorrection:false};
   await env.BUCKET.put(key,JSON.stringify(snapshot),{httpMetadata:{contentType:'application/json'}});
   const pointerKey=snapshotKey(model,'latest'),previous=await env.BUCKET.get(pointerKey);
   const old=previous?await previous.json():null;
   if(!old||Date.parse(old.run)<Date.parse(run))await env.BUCKET.put(pointerKey,JSON.stringify({run,key}));
-  return {model,run,updated:true,hours:data.rows.length};
+  return {model,run,updated:true,hours:data.rows.length,...(extra.length?{studioPoints:extra.length}:{})};
  }finally{clearTimeout(timer);}
 }
 export async function readStoredHarmonie(env,selection={}){

@@ -10,3 +10,4 @@ work/
 .dev.vars*
 __pycache__/
 .~lock.*#
+.cache/

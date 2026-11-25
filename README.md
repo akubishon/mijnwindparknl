@@ -371,7 +371,11 @@ KNMI_EDR_API_KEY=… node scripts/studio-data.mjs wind10 --upload   # en naar R2
 
 Controles: `tests/studio-supply.test.mjs` (pariteit Bolsward 2022–2025 exact gelijk aan de opsplitsing), `tests/studio-wind-data.test.mjs`, `tests/studio-compare.test.mjs` (Bolsward in projectmodus = Vergelijken op mijnwindpark.nl), `tests/studio-park.test.mjs` (parkdag = `/api/wind` voor Fryslân en Beabuorren), `tests/studio-routes.test.mjs` (toegang, noindex, projecten).
 
-Nog niet gebouwd: HARMONIE-voorspelling voor projectparken (extra roosterpunten in de uurlijkse taak, `studio/v1/harmonie/…`) en WINS50 voor elk park (fase 2).
+HARMONIE voor projectparken: de uurlijkse taak (en `/api/internal/harmonie/update`) geeft de parken uit bewaarde projecten (hoogstens 50) als extra roosterpunten mee aan `updateHarmonieSnapshot`. Die komen in `studio/v1/harmonie/{model}/{run}.json` met een eigen `latest.json`; de snapshots in `harmonie/v1/…` blijven byte voor byte gelijk (gecontroleerd tegen productie). Staat een run al opgeslagen maar ontbreekt een nieuw projectpark, dan wordt die run één keer opnieuw gelezen. `/api/studio/harmonie?project=…&park=…` rekent de wind met hetzelfde parkmodel om naar vermogen. Archiefruns op aanvraag zijn er alleen voor Fryslân en Beabuorren (op mijnwindpark.nl).
+
+KNMI EDR telt verzoeken per uur per sleutel (bij een vol quotum: HTTP 403 `Quota exceeded`). Daarom haalt de studio een windjaar in één verzoek op (vier kwartalen als het antwoord te groot is), en wacht het script bij een vol quotum tien minuten.
+
+Nog niet gebouwd: WINS50 voor elk park (fase 2).
 
 ## Openbare site: één menu voor mijnwindpark.nl en de Atlas
 

@@ -192,7 +192,7 @@ export default {
       const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(token))),b=>b.toString(16).padStart(2,'0')).join('');
       if(!env.FORECAST_WRITER_SHA256||digest!==env.FORECAST_WRITER_SHA256)return answer({error:'Unauthorized'},401);
       const model=url.searchParams.get('model')||'p1';if(!['p1','p2b'].includes(model))return answer({error:'Invalid model'},400);
-      try{const selection={model,run:url.searchParams.get('run')||undefined,day:url.searchParams.get('day')||undefined};const result=await updateHarmonieSnapshot(env,model,selection);const saved=await readStoredHarmonie(env,selection);return answer({...result,verifiedRun:saved.run,storedHours:saved.rows.length});}
+      try{let extraPoints=[];try{if(env.BUCKET)extraPoints=await studioServer.projectParks(env,50);}catch{}const selection={model,run:url.searchParams.get('run')||undefined,day:url.searchParams.get('day')||undefined,extraPoints};const result=await updateHarmonieSnapshot(env,model,selection);const saved=await readStoredHarmonie(env,selection);return answer({...result,verifiedRun:saved.run,storedHours:saved.rows.length});}
       catch(error){console.error('HARMONIE_UPDATE_FAILED',error.message);return answer({error:error.message},502);}
     }
     // Openbaar, vóór de sitepoort: de startpagina, de verkooppagina met aanvraagformulier, robots.txt en het icoon.
@@ -323,8 +323,10 @@ export default {
   },
   // Cloudflare Cron Trigger: store the newest HARMONIE run of each model; a stored run is skipped.
   async scheduled(event, env, ctx) {
+    // Projectstudio: ook de roosterpunten van parken in bewaarde projecten (hoogstens 50).
+    let extraPoints=[];try{if(env.BUCKET)extraPoints=await studioServer.projectParks(env,50);}catch(error){console.error('STUDIO_PARKS_FAILED',error.message);}
     for(const model of ['p1','p2b']){
-      try{const result=await updateHarmonieSnapshot(env,model,{});console.info('HARMONIE_SCHEDULED',JSON.stringify({model,run:result?.run}));}
+      try{const result=await updateHarmonieSnapshot(env,model,{extraPoints});console.info('HARMONIE_SCHEDULED',JSON.stringify({model,run:result?.run}));}
       catch(error){console.error('HARMONIE_SCHEDULED_FAILED',model,error.message);}
     }
   },
