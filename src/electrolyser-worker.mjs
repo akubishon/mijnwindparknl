@@ -1,7 +1,7 @@
 // Dedicated worker for /elektrolyser: runs comparison jobs off the main thread and reports progress.
 // Wind years are the /opsplitsing year series; results are cached per input hash for this page session.
 import {runJob} from './electrolyser-run.mjs';
-import {profileSupply, parseProduction} from './electrolyser-wind.mjs';
+import {profileSupply, parseProduction, isStudioProfile} from './electrolyser-wind.mjs';
 
 const years = new Map(), supplies = new Map(), results = new Map();
 let latest = 0, production = null;
@@ -24,8 +24,11 @@ function measured() {
   return parseProduction(new TextDecoder().decode(Uint8Array.from(atob(file), c => c.charCodeAt(0))));
  }).catch(e => { production = null; throw e; });
 }
+// Projectstudio: het aanbod per windjaar komt met de opdrachten mee (data.studio = {profile, supplies: {jaar: {jaar, t, mw}}}).
+const studio = new Map();
 async function supply(y, profile) {
  const key = `${y}|${profile}`;
+ if (isStudioProfile(profile)) { const s = studio.get(profile)?.[y]; if (!s) throw Error(`Het projectaanbod voor ${y} ontbreekt.`); return s; }
  if (!supplies.has(key)) supplies.set(key, (async () => profileSupply(await year(y), profile, profile === 'gemeten_dagproductie' ? await measured() : null))()
   .catch(e => { supplies.delete(key); throw e; }));
  return supplies.get(key);
@@ -33,6 +36,7 @@ async function supply(y, profile) {
 self.onmessage = async ({data}) => {
  const {id, jobs} = data;
  latest = id;
+ if (data.studio) { studio.clear(); studio.set(data.studio.profile, data.studio.supplies); }
  try {
   const out = {};
   for (let i = 0; i < jobs.length; i++) {

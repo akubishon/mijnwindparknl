@@ -25,8 +25,8 @@ const server = http.createServer(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const body = ['GET', 'HEAD'].includes(req.method) ? undefined : Buffer.concat(chunks);
-    // atlas.localhost:<port> opent de Atlas (src/atlas/server.mjs), al het andere de hoofdsite.
-    const host = String(req.headers.host || '').startsWith('atlas.localhost') ? 'atlas.localhost' : 'localhost';
+    // atlas.localhost:<port> opent de Atlas (src/atlas/server.mjs), intern.localhost de Projectstudio, al het andere de hoofdsite.
+    const name = String(req.headers.host || ''), host = name.startsWith('atlas.localhost') ? 'atlas.localhost' : name.startsWith('intern.localhost') ? 'intern.localhost' : 'localhost';
     const request = new Request(`http://${host}:${port}${req.url}`, { method: req.method, headers: req.headers, body });
     const response = await worker.fetch(request, env);
     res.writeHead(response.status, Object.fromEntries(response.headers));

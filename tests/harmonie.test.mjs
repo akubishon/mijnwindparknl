@@ -148,3 +148,24 @@ test('unrelated GRIB fields are skipped but their framing is still validated',as
  assert.equal((await extractHarmonie(input(false),Date.parse('2026-10-22T06:30:00Z'))).rows.length,7);
  await assert.rejects(extractHarmonie(input(true)),/HARMONIE_FORMAT/);
 });
+
+test('Projectstudio: extra parkpunten in een eigen snapshot; de snapshot van Fryslân en Beabuorren blijft gelijk',async()=>{
+ const {updateHarmonieSnapshot}=await import('../src/harmonie.mjs');
+ const oldFetch=globalThis.fetch,oldNow=Date.now;Date.now=()=>Date.parse('2026-10-22T10:30:00Z');let downloads=0;
+ const plain=memoryBucket(),withExtra=memoryBucket(),extraPoints=[{id:'osm:53.0170,5.3670',latitude:53.017,longitude:5.367},{id:'ver',latitude:10,longitude:10}];
+ globalThis.fetch=async url=>url.includes('?maxKeys=')?Response.json({files:[{filename:'HARM43_V1_P1_2026102206.tar'}]}):url.endsWith('/url')?Response.json({temporaryDownloadUrl:'https://storage.googleapis.com/snapshot'}):(downloads++,new Response(tar(49)));
+ try{
+  await updateHarmonieSnapshot({BUCKET:plain,KNMI_OPEN_DATA_API_KEY:'x'});
+  const r=await updateHarmonieSnapshot({BUCKET:withExtra,KNMI_OPEN_DATA_API_KEY:'x'},'p1',{extraPoints});assert.equal(r.studioPoints,2);
+  const key='harmonie/v1/p1/2026-10-22T06:00:00.000Z.json',strip=t=>{const d=JSON.parse(t);delete d.retrievedAt;return d;};
+  assert.deepEqual(strip(withExtra.objects.get(key)),strip(plain.objects.get(key)));
+  const studio=JSON.parse(withExtra.objects.get('studio/v1/harmonie/p1/2026-10-22T06:00:00.000Z.json'));
+  assert.equal(studio.rows.length,49);assert.equal(studio.rows[0].parks[0].windSpeedMS,JSON.parse(plain.objects.get(key)).rows[0].parks[0].windSpeedMS,'zelfde roosterpunt als Fryslân');
+  assert.equal(studio.rows[0].parks[1].windSpeedMS,null,'buiten het rooster');
+  // Hoofdsnapshot al bewaard, nieuw projectpark: één extra download, hoofdsnapshot ongewijzigd.
+  const before=plain.objects.get(key),n=downloads;
+  assert.equal((await updateHarmonieSnapshot({BUCKET:plain,KNMI_OPEN_DATA_API_KEY:'x'},'p1',{extraPoints})).updated,false);
+  assert.equal(downloads,n+1);assert.equal(plain.objects.get(key),before);
+  await updateHarmonieSnapshot({BUCKET:plain,KNMI_OPEN_DATA_API_KEY:'x'},'p1',{extraPoints});assert.equal(downloads,n+1,'daarna niet opnieuw');
+ }finally{globalThis.fetch=oldFetch;Date.now=oldNow;}
+});

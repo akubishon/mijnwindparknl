@@ -4,7 +4,7 @@
 import {TECHNOLOGIES, DEFAULTS, STRATEGIES, KERNEL_VERSION, hoursInYear} from './electrolyser-kernel.mjs';
 import {STATUS, fitPartLoadGain, NM3_PER_KG} from './electrolyser-catalogue.mjs';
 import {formatFixed, formatSigned, sharedDecimals, shownDifference, energyUnit} from './number-format.mjs';
-import {WIND_PROFILES, DEFAULT_WIND_PROFILE, windSeries} from './electrolyser-wind.mjs';
+import {WIND_PROFILES, DEFAULT_WIND_PROFILE, windSeries, isStudioProfile} from './electrolyser-wind.mjs';
 import {COST_KEYS, COST_SETUP_KEYS, generalCosts} from './electrolyser-economics.mjs';
 
 export const WIND_YEARS = [2022, 2023, 2024, 2025];
@@ -214,7 +214,7 @@ export function generalValues(general = defaultGeneral()) {
  const strategy = STRATEGIES[general.strategy] ? general.strategy : 'verdelen';
  const years = WIND_YEARS.filter(y => general.years?.includes(y));
  // Windprofiel: zonder (oude opslag) of onbekend de standaard.
- const windProfile = WIND_PROFILES[general.wind] ? general.wind : DEFAULT_WIND_PROFILE;
+ const windProfile = WIND_PROFILES[general.wind] || isStudioProfile(general.wind) ? general.wind : DEFAULT_WIND_PROFILE;
  return {values, fields, strategy, years: years.length ? years : [...WIND_YEARS], strategyStatus: strategy === 'verdelen' ? STATUS.standaard : STATUS.eigen,
   windProfile, windStatus: windProfile === DEFAULT_WIND_PROFILE ? STATUS.standaard : STATUS.eigen};
 }

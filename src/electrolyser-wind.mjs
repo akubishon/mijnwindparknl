@@ -4,6 +4,11 @@
 import {modelOptions, windPowerModel} from './knmi.mjs';
 
 export const DEFAULT_WIND_PROFILE = 'onafhankelijk';
+// Projectstudio (intern.mijnwindpark.nl): één windprofiel “gekozen stations”, als 'studio:<hash van de projectconfiguratie>'.
+// Het aanbod komt dan kant-en-klaar uit src/studio/supply.mjs; de tekst voor CSV en uitleg zet de studio met describeStudio().
+export const isStudioProfile = profile => typeof profile === 'string' && /^studio:[0-9a-f]{6,32}$/.test(profile);
+const studioTexts = new Map();
+export const describeStudio = (profile, text) => { studioTexts.set(profile, text); };
 // Naam, uitleg en kanttekening zoals wind_meta() in browser-runtime.py; de test bewaakt dat ze gelijk blijven.
 export const WIND_PROFILES = {
  onafhankelijk: {naam: 'Productie-onafhankelijk (standaard)', uitleg: 'Productie-onafhankelijk: gemiddelde van Houtribdijk en Stavoren, hoogtevertaling uit WINS50 (HARMONIE) op de parklocatie', let_op: ''},
@@ -52,6 +57,7 @@ export function parseProduction(text) {
 
 // Aanbod {jaar, t, mw} voor dit profiel: 10 % Fryslân + heel Beabuorren. De standaard is de meegeleverde reeks zelf.
 export function profileSupply(data, profile = DEFAULT_WIND_PROFILE, production = null) {
+ if (isStudioProfile(profile)) return {jaar: data.jaar, t: data.t, mw: data.mw};
  if (!WIND_PROFILES[profile]) throw Error(`Onbekend windprofiel: ${profile}.`);
  if (profile === DEFAULT_WIND_PROFILE) return {jaar: data.jaar, t: data.t, mw: data.mw};
  if (!data.stations?.houtribdijk || !data.stations?.stavoren) throw Error(`Windjaar ${data.jaar} bevat geen stationswind.`);
@@ -83,4 +89,4 @@ export function profileSupply(data, profile = DEFAULT_WIND_PROFILE, production =
 }
 
 // Tekst voor de windreeks in Vergelijken en in de CSV.
-export const windSeries = (profile = DEFAULT_WIND_PROFILE) => `Bruto toegewezen windaanbod uit /opsplitsing: 10 % Windpark Fryslân + 100 % Windpark Beabuorren, KNMI-tienminutenwaarden, jaarreeksen 2022–2025. Windprofiel: ${(WIND_PROFILES[profile] || WIND_PROFILES[DEFAULT_WIND_PROFILE]).uitleg}`;
+export const windSeries = (profile = DEFAULT_WIND_PROFILE) => isStudioProfile(profile) ? `Projectstudio, windprofiel gekozen stations: ${studioTexts.get(profile) || 'aanbod uit de gekozen windparken en KNMI-stations'}` : `Bruto toegewezen windaanbod uit /opsplitsing: 10 % Windpark Fryslân + 100 % Windpark Beabuorren, KNMI-tienminutenwaarden, jaarreeksen 2022–2025. Windprofiel: ${(WIND_PROFILES[profile] || WIND_PROFILES[DEFAULT_WIND_PROFILE]).uitleg}`;
