@@ -66,7 +66,8 @@ export function windPowerModel(day,options,factor=hubFactor(day,options)) {
   };
   return v=>{if(v===null)return null;const hub=v*factor, unperturbed=turbine(hub);return (options.wake&&unperturbed>0?turbine(hub*(1-options.wakePercent/100)):unperturbed)*(options.park==='beabuorren'?8:89)/1000;};
 }
-export function modelHours(raw, day, options=modelOptions(new URLSearchParams()), includeIntervals=false) {
+// `parkPower` (optioneel): eigen parkmodel v10 → MW, zoals de Projectstudio (src/studio/park-day.mjs) dat meegeeft.
+export function modelHours(raw, day, options=modelOptions(new URLSearchParams()), includeIntervals=false, parkPower=null) {
   const coverage=raw.coverages?.[0];
   if(raw.coverages?.length!==1 || coverage?.['eumetnet:locationId']!==options.stationId || raw.parameters?.ff?.unit?.symbol?.value!=='m/s')throw Error('Invalid KNMI data');
   const stamps=coverage.domain?.axes?.t?.values || [], values=coverage.ranges?.ff?.values || [];
@@ -74,7 +75,7 @@ export function modelHours(raw, day, options=modelOptions(new URLSearchParams())
   const samples=stamps.map((stamp,i)=>({t:Date.parse(stamp)-300000,direction:typeof coverage.ranges?.dd?.values?.[i]==='number'&&Number.isFinite(coverage.ranges.dd.values[i])&&coverage.ranges.dd.values[i]>=0&&coverage.ranges.dd.values[i]<=360?coverage.ranges.dd.values[i]:null,v:typeof values[i]==='number'&&Number.isFinite(values[i])&&values[i]>=0?values[i]:null}));
   if(samples.some((s,i)=>!Number.isFinite(s.t)||(i&&s.t<=samples[i-1].t)))throw Error('Invalid KNMI time axis');
   const base=Date.parse(day+'T00:00:00Z');
-  const parkPower=windPowerModel(day,options);
+  parkPower=parkPower||windPowerModel(day,options);
   const buckets=Array.from({length:24},()=>({sum:0,count:0,missing:0}));
   let index=0;
   for(let t=base-3*3600000;t<base+25*3600000;t+=60000){
@@ -99,7 +100,7 @@ function cached(key,make) {
   if(windCache.size>100)windCache.delete(windCache.keys().next().value);
   return promise;
 }
-function fetchStation(day,env,stationId) {
+export function fetchStation(day,env,stationId) {
   return cached('raw|'+day+'|'+stationId,async()=>{
     // The UTC interval includes both possible Dutch day boundaries, including DST.
     const base=Date.parse(day+'T00:00:00Z');

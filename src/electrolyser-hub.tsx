@@ -60,8 +60,10 @@ function Shell({tab,go,children}:{tab:Tab;go:(t:Tab)=>void;children:ReactNode}){
 // Worker-backed calculation with progress and a cache per input hash. A whole Atlas shortlist is many jobs (one per setup
 // and wind year), so they are spread over several workers, one per spare processor core.
 const MAX_WORKERS=6;
-function useCalculator(){
- const workers=useRef<Worker[]>([]),cache=useRef(new Map<string,any>()),serial=useRef(0);
+// Projectstudio: `studio` = {profile, supplies}; elk rekenwerkje krijgt het projectaanbod één keer mee.
+export function useCalculator(studio:{profile:string;supplies:any}|null=null){
+ const workers=useRef<Worker[]>([]),cache=useRef(new Map<string,any>()),serial=useRef(0),sent=useRef(new WeakMap<Worker,string>()),project=useRef(studio);
+ project.current=studio;
  const [state,setState]=useState({running:false,done:0,total:0,fromCache:0,error:'',version:0,label:''});
  const run=useCallback((jobs:any[])=>{
   const missing=jobs.filter(j=>!cache.current.has(j.key));
@@ -84,7 +86,8 @@ function useCalculator(){
     else fail(data.error||'De berekening is mislukt.');
    };
    worker.onerror=()=>{workers.current=workers.current.filter(x=>x!==worker);fail('Het rekenmodel kon niet worden geladen. Controleer de verbinding en probeer opnieuw.');};
-   worker.postMessage({id,jobs:missing.filter((_,i)=>i%pool.length===w)});
+   const p=project.current,extra=p&&sent.current.get(worker)!==p.profile?{studio:p}:{};if(p)sent.current.set(worker,p.profile);
+   worker.postMessage({id,jobs:missing.filter((_,i)=>i%pool.length===w),...extra});
   });
  },[]);
  return {state,cache:cache.current,run};
@@ -301,7 +304,7 @@ function FieldList({model,resolved,choices,set}:{model:Model;resolved:Resolved;c
 
 // ---------------------------------------------------------------- Vergelijken
 
-function CompareTab({setups,resolved,byId,general,setGeneral,reference,setReference,calc,catalogue,target,setTarget,update,go,setActive,limit,setLimit,fillOpen}:{setups:Setup[];resolved:Resolved[];byId:Map<string,Model>;general:General;setGeneral:(f:(g:General)=>General)=>void;reference:number;setReference:(n:number)=>void;calc:ReturnType<typeof useCalculator>;catalogue:Catalogue|null;target:number;setTarget:(n:number)=>void;update:UpdateFn;go:(t:Tab)=>void;setActive:(id:string)=>void;limit:Limit;setLimit:(l:Limit)=>void;fillOpen:(ids?:string[])=>void}){
+export function CompareTab({setups,resolved,byId,general,setGeneral,reference,setReference,calc,catalogue,target,setTarget,update,go,setActive,limit,setLimit,fillOpen,studio}:{studio?:{lead:string;wind:string};setups:Setup[];resolved:Resolved[];byId:Map<string,Model>;general:General;setGeneral:(f:(g:General)=>General)=>void;reference:number;setReference:(n:number)=>void;calc:ReturnType<typeof useCalculator>;catalogue:Catalogue|null;target:number;setTarget:(n:number)=>void;update:UpdateFn;go:(t:Tab)=>void;setActive:(id:string)=>void;limit:Limit;setLimit:(l:Limit)=>void;fillOpen:(ids?:string[])=>void}){
  const g=generalValues(general);
  const ready=setups.map((s,i)=>({setup:s,label:letter(i),resolved:resolved[i],model:byId.get(s.modelId)})).filter(x=>x.resolved.ready&&x.model);
  const ref=Math.min(reference,Math.max(0,ready.length-1));
@@ -335,7 +338,7 @@ function CompareTab({setups,resolved,byId,general,setGeneral,reference,setRefere
  const settingsOpen=ready.length<2;
  return <section className="production-panel electrolyser-panel" aria-labelledby="compare-title">
   <div className="panel-heading"><div><span className="eyebrow">ZELFDE WIND · ZELFDE ALGEMENE AANNAMES</span><h2 id="compare-title">Vergelijken</h2></div></div>
-  <p className="wind-note compare-lead">Alle opstellingen draaien op dezelfde vier windjaren van Windpark Fryslân (10 %) en Beabuorren, met dezelfde aannames. Bovenaan staat de conclusie; de details en instellingen staan eronder.</p>
+  <p className="wind-note compare-lead">{studio?studio.lead:'Alle opstellingen draaien op dezelfde vier windjaren van Windpark Fryslân (10 %) en Beabuorren, met dezelfde aannames.'} Bovenaan staat de conclusie; de details en instellingen staan eronder.</p>
   {outside.length>0&&<div className="live-error capacity-warning" role="status">{outside.map(x=><div key={x.label}><p><strong>Opstelling {x.label}</strong> valt buiten de modulelimiet maar wordt wel meegerekend:</p><ul>{x.limit!.problems.map(p=><li key={p}>{p}</li>)}</ul></div>)}</div>}
   {ready.length<2?<div className="live-error" role="status"><p><strong>Nog geen vergelijking mogelijk.</strong> Er zijn minstens 2 opstellingen nodig die klaar zijn om te rekenen. Nu klaar: {ready.length}.</p>{setups.some((s,i)=>byId.get(s.modelId)&&!resolved[i].ready)&&<div className="model-actions"><button type="button" className="primary-button" onClick={()=>fillOpen()}>Vul alle open punten in en reken</button><span className="wind-note">Met voorzichtige aannames (bij een bereik de ongunstige kant). Ze blijven zichtbaar en aanpasbaar in Samenstellen.</span></div>}<p>Of los de punten zelf op:</p><ul>{setups.map((s,i)=>resolved[i].ready?null:<li key={s.id}>Opstelling {letter(i)}: {resolved[i].problems[0]||'kies een model'} <button type="button" className="text-button" onClick={()=>{setActive(s.id);go('samenstellen');}}>Aanpassen</button></li>)}</ul></div>:<>
    {setups.some((s,i)=>!resolved[i].ready)&&<p className="wind-note">Niet meegerekend: {setups.map((s,i)=>resolved[i].ready?null:`opstelling ${letter(i)} (${notCounted(resolved[i])})`).filter(Boolean).join(', ')}. <button type="button" className="text-button" onClick={()=>fillOpen()}>Open punten invullen</button></p>}
@@ -353,7 +356,7 @@ function CompareTab({setups,resolved,byId,general,setGeneral,reference,setRefere
    <fieldset className="year-picker"><legend>Windjaren</legend>{WIND_YEARS.map(y=><label key={y} className="inline-check"><input type="checkbox" checked={g.years.includes(y)} onChange={ev=>setGeneral(x=>{const years=ev.target.checked?[...new Set([...g.years,y])].sort():g.years.filter(v=>v!==y);return {...x,years:years.length?years:g.years};})}/> {y}</label>)}</fieldset></div>
   <LimitPanel limit={limit} setLimit={setLimit} target={target}/>
   <div className="model-grid compare-controls"><label>Besturing<select value={g.strategy} onChange={e=>setGeneral(x=>({...x,strategy:e.target.value}))}>{Object.keys(STRATEGIES).map(k=><option key={k} value={k}>{k}{k==='verdelen'?' (standaard)':''}</option>)}</select><small>{STRATEGIES[g.strategy as keyof typeof STRATEGIES]} <StatusChip field={{status:g.strategyStatus}}/></small></label>
-   <label>Windprofiel<select value={g.windProfile} onChange={e=>setGeneral(x=>({...x,wind:e.target.value}))}>{Object.entries(WIND_PROFILES).map(([k,p])=><option key={k} value={k}>{p.naam}</option>)}</select><small>{WIND_PROFILES[g.windProfile as keyof typeof WIND_PROFILES].uitleg}. {WIND_PROFILES[g.windProfile as keyof typeof WIND_PROFILES].let_op} <StatusChip field={{status:g.windStatus}}/></small></label>
+   {studio?<label>Windprofiel<input type="text" readOnly value="Gekozen stations" aria-label="Windprofiel"/><small>{studio.wind} <StatusChip field={{status:g.windStatus}}/></small></label>:<label>Windprofiel<select value={g.windProfile} onChange={e=>setGeneral(x=>({...x,wind:e.target.value}))}>{Object.entries(WIND_PROFILES).map(([k,p])=><option key={k} value={k}>{p.naam}</option>)}</select><small>{WIND_PROFILES[g.windProfile as keyof typeof WIND_PROFILES].uitleg}. {WIND_PROFILES[g.windProfile as keyof typeof WIND_PROFILES].let_op} <StatusChip field={{status:g.windStatus}}/></small></label>}
    <label>Referentieopstelling<select value={ref} onChange={e=>setReference(Number(e.target.value))}>{ready.map((x,i)=><option key={x.setup.id} value={i}>Opstelling {x.label} · {x.model!.name}</option>)}</select><small>Verschillen gelden ten opzichte van deze opstelling.</small></label>
    <label>Toon<select value={String(period)} onChange={e=>setPeriod(e.target.value==='mean'?'mean':Number(e.target.value))}><option value="mean">Gemiddelde {g.years.join(', ')}</option>{g.years.map(y=><option key={y} value={y}>Windjaar {y}</option>)}</select><small>De spreiding tussen jaren is geen betrouwbaarheidsinterval.</small></label></div>
   <details className="model-settings"><summary>Algemene aannames, gelijk voor alle opstellingen</summary><p>Standaard zijn dit de waarden van <code>Aannames()</code> in opsplitsing.py; de meeste zijn plaatshouders. Storingen zijn een vaste beschikbaarheidsafslag: elke module is (storingen × hersteltijd) / 8.760 uur minder beschikbaar, zonder toeval en voor elke opstelling hetzelfde.</p><ul className="field-list">{g.fields.map((f:any)=><li key={f.key} className="field-row"><div className="field-main"><span className="field-label">{f.label}<small> · {f.unit}</small></span><span className="field-value">{fmt(f.value*f.scale,3)}</span><StatusChip field={f}/></div><p className="field-rule">{f.rule}</p><div className="field-controls"><label className="inline-input">Eigen waarde<NumberInput label={`${f.label}, eigen waarde`} value={general.values[f.key]??null} scale={f.scale} onCommit={v=>setValue(f.key,v)}/></label>{general.values[f.key]!==undefined&&<button type="button" className="text-button" onClick={()=>setValue(f.key,null)}>Terug naar standaard</button>}</div></li>)}</ul></details>

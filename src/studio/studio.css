@@ -1,0 +1,29 @@
+/* Projectstudio (intern.mijnwindpark.nl). Gebruikt de opmaak van de hoofdsite en Vergelijken; dit vult alleen de studio aan. */
+.studio-body{background:#f4f6f9;margin:0}
+.studio-shell{max-width:1180px;margin:0 auto;padding:0 16px 48px;box-sizing:border-box}
+.studio-header{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:2px solid #0C2340;margin-bottom:16px;flex-wrap:wrap}
+.studio-brand{font-weight:700;font-size:1.25rem;color:#0C2340;text-decoration:none}
+.studio-tag{font-size:.8rem;color:#55657a;flex:1}
+.studio-header form{margin:0}
+.studio-panel{background:#fff;border:1px solid #dde3ea;border-radius:8px;padding:16px;margin:0 0 16px;overflow-x:auto}
+.studio-panel h1,.studio-panel h2{margin-top:0;color:#0C2340}
+.studio-steps{margin:0 0 16px}
+.studio-map-wrap{position:relative;margin:8px 0}
+.studio-map{width:100%;border-radius:6px;border:1px solid #dde3ea}
+.studio-search{display:flex;gap:8px;margin-bottom:8px;position:relative;flex-wrap:wrap}
+.studio-search input{flex:1;min-width:180px;padding:6px 8px}
+.studio-hits{position:absolute;top:100%;left:0;right:0;z-index:5;list-style:none;margin:2px 0 0;padding:0;background:#fff;border:1px solid #dde3ea;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.studio-hits button{display:block;width:100%;text-align:left;padding:8px;border:0;background:none;cursor:pointer}
+.studio-hits button:hover{background:#eef6fb}
+.studio-table{width:100%;border-collapse:collapse;margin:8px 0;font-size:.9rem}
+.studio-table th,.studio-table td{padding:6px 8px;border-bottom:1px solid #e6eaef;text-align:left;vertical-align:top}
+.studio-table th{background:#f4f6f9;font-weight:600}
+.studio-park{border:1px solid #dde3ea;border-radius:6px;margin:12px 0;padding:12px}
+.studio-park legend{font-weight:600;padding:0 6px}
+.studio-variants{padding-left:0;list-style:none}
+.studio-variants>li{border:1px solid #dde3ea;border-radius:6px;padding:12px;margin:0 0 12px}
+.studio-variant-head{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.studio-chart{width:100%;height:auto;max-height:320px;color:#0C2340;margin:8px 0}
+.studio-project-head .model-grid{margin-bottom:8px}
+.status-bron{background:#e3f4ea;color:#1d5c34}
+@media (max-width:600px){.studio-panel{padding:12px}.studio-table{font-size:.8rem}.studio-table th,.studio-table td{padding:4px}}

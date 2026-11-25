@@ -2,6 +2,7 @@
 /* __WIND_CLIENT__ */
 /* __SCAN__ */
 /* __ATLAS__ */
+/* __STUDIO__ */
 const opsAssets = /* __OPS_ASSETS__ */;
 const opsPage = /* __OPS_PAGE__ */;
 const opsPolicy = /* __OPS_POLICY__ */;
@@ -141,10 +142,48 @@ async function scanRoute(request,env,url){
  return done;
 }
 
+// Waterstofatlas-catalogus, voor /elektrolyser en de Projectstudio.
+async function catalogueResponse(env){
+        const valid=data=>data&&data.schemaVersion===1&&Array.isArray(data.models)&&data.models.length<=500;
+        // Preferred: the live Waterstofatlas (includes the Atlas additions). Any failure falls back to the R2 copy below.
+        if(env.WINDPARK_CATALOG_TOKEN){
+          try{
+            const live=await fetch(atlasLiveCatalogueUrl,{headers:{Authorization:'Bearer '+env.WINDPARK_CATALOG_TOKEN,Accept:'application/json'},signal:AbortSignal.timeout(5000)});
+            if(live.ok){const data=await live.json();if(valid(data))return answer(data);}
+          }catch{/* use the R2 copy */}
+        }
+        if(!env.BUCKET)return answer({error:'De opslag voor de Waterstofatlas is niet gekoppeld.'},503);
+        const object=await env.BUCKET.get(atlasCatalogueKey);
+        if(!object)return answer({error:'De Waterstofatlas-catalogus is nog niet geüpload.'},503);
+        const data=await object.json();
+        if(!valid(data))return answer({error:'Onbekend catalogusformaat.'},502);
+        return answer(data);
+}
+// Projectstudio (intern.mijnwindpark.nl, src/studio/server.mjs): de hele host achter het sitewachtwoord, nooit indexeren.
+// De sessiecookie geldt per host: op intern. log je apart in, met hetzelfde wachtwoord.
+const noindex=r=>{const h=new Headers(r.headers);h.set('X-Robots-Tag','noindex, nofollow');return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h});};
+async function studioFetch(request,env,url){
+ if(url.pathname==='/robots.txt'&&request.method==='GET')return noindex(new Response('User-agent: *\nDisallow: /\n',{headers:{...securityHeaders,'Content-Type':'text/plain; charset=utf-8'}}));
+ if(url.pathname==='/favicon.svg'&&request.method==='GET')return noindex(new Response(favicon,{headers:{...securityHeaders,'Content-Type':'image/svg+xml','Cache-Control':'public, max-age=86400'}}));
+ if(url.pathname.startsWith('/auth/')){const gate=await gateRequest(request,env,url);if(gate)return noindex(gate);}
+ if(!(await siteAllowed(request,env))){
+  if(url.pathname.startsWith('/api/'))return noindex(answer({error:'Voer eerst het websitewachtwoord in.'},401));
+  const secret=siteSecret(env);
+  return noindex(loginPage(secret?'':'Toegang is nog niet ingesteld. Neem contact op met de beheerder.',safeNext(url.pathname+url.search),secret?401:503,'nl'));
+ }
+ const shared=async path=>{
+  if(path==='/api/atlas/catalogue')return catalogueResponse(env).catch(()=>answer({error:'De Waterstofatlas-catalogus kon niet uit de opslag worden gelezen. Probeer opnieuw.'},502));
+  if(path==='/assets/elektrolyser-rekenkern.js')return new Response(calculatorWorker,{headers:{...securityHeaders,'Content-Security-Policy':"default-src 'none'; connect-src 'self'",'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'no-cache'}});
+  if(path==='/fonts/tasa-orbiter.ttf')return new Response(Uint8Array.from(atob(brandFont),c=>c.charCodeAt(0)),{headers:{...securityHeaders,'Content-Type':'font/ttf','Cache-Control':'public, max-age=604800'}});
+  return null;
+ };
+ return noindex(await studioServer.studioRoute(request,env,url,studioAssets,shared));
+}
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     // Atlas: eigen host, openbaar (buiten de sitepoort); src/atlas/server.mjs geeft 404 voor alle andere paden.
+    if(studioServer.STUDIO_HOSTS.includes(url.hostname))return studioFetch(request,env,url);
     if(atlasServer.ATLAS_HOSTS.includes(url.hostname))return atlasServer.atlasRoute(request,env,url,{...atlasAssets,font:brandFont,favicon});
     // The unattended writer has separate authorization and never opens visitor routes.
     if(url.pathname==='/api/internal/harmonie/update'){
@@ -216,22 +255,7 @@ export default {
         return answer({...forecast,rows:forecast.rows.map(row=>{const day=dutchDay(Date.parse(row.time));const parks=row.parks.map(park=>{const options=forecastOptions?.park===park.id?forecastOptions:modelOptions(new URLSearchParams({park:park.id})),heightFactor=forecastFactor(day,options);return {...park,heightFactor,powerMW:windPowerModel(day,options,heightFactor)(park.windSpeedMS)};});return {...row,parks,allocatedMW:parks.find(p=>p.id==='fryslan').powerMW*.1+parks.find(p=>p.id==='beabuorren').powerMW};})});
       }
       // akubishon/datasheetextract uploads data.json and its datasheets to R2 (atlas/v1/...).
-      if(url.pathname==='/api/atlas/catalogue'){
-        const valid=data=>data&&data.schemaVersion===1&&Array.isArray(data.models)&&data.models.length<=500;
-        // Preferred: the live Waterstofatlas (includes the Atlas additions). Any failure falls back to the R2 copy below.
-        if(env.WINDPARK_CATALOG_TOKEN){
-          try{
-            const live=await fetch(atlasLiveCatalogueUrl,{headers:{Authorization:'Bearer '+env.WINDPARK_CATALOG_TOKEN,Accept:'application/json'},signal:AbortSignal.timeout(5000)});
-            if(live.ok){const data=await live.json();if(valid(data))return answer(data);}
-          }catch{/* use the R2 copy */}
-        }
-        if(!env.BUCKET)return answer({error:'De opslag voor de Waterstofatlas is niet gekoppeld.'},503);
-        const object=await env.BUCKET.get(atlasCatalogueKey);
-        if(!object)return answer({error:'De Waterstofatlas-catalogus is nog niet geüpload.'},503);
-        const data=await object.json();
-        if(!valid(data))return answer({error:'Onbekend catalogusformaat.'},502);
-        return answer(data);
-      }
+      if(url.pathname==='/api/atlas/catalogue')return await catalogueResponse(env);
       if(url.pathname.startsWith(atlasDatasheetRoute)){
         let path;try{path=decodeURIComponent(url.pathname.slice(atlasDatasheetRoute.length));}catch{return answer({error:'Ongeldige datasheet.'},400);}
         if(!atlasDatasheetPath.test(path))return answer({error:'Ongeldige datasheet.'},400);
