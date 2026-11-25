@@ -51,7 +51,7 @@ test('projecten bewaren, lezen, wijzigen en in de lijst zien', async () => {
   const saved = await created.json();
   assert.match(saved.id, /^[a-z2-7]{12}$/); assert.ok(store.has(`studio/v1/projects/${saved.id}.json`));
   const read = await (await get('/api/studio/projects/' + saved.id)).json();
-  assert.equal(read.naam, 'Test Sneek'); assert.deepEqual(read.jaren, [2024, 2025]);
+  assert.equal(read.naam, 'Test Sneek'); assert.deepEqual(read.jaren, [2025], 'alleen windjaar 2025');
   const put = await get('/api/studio/projects/' + saved.id, true, { method: 'PUT', headers: { Origin: host, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...read, naam: 'Test Sneek 2' }) });
   assert.equal((await put.json()).gemaakt, saved.gemaakt);
   const list = await (await get('/api/studio/projects')).json();

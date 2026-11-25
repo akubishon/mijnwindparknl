@@ -28,10 +28,10 @@ for (const year of [2022, 2025]) test(`Houtribdijk en Stavoren ${year} gelijk aa
 });
 
 test('index: dekking en gemiddelde per station bijwerken', () => {
-  const n = yearAxis(2024).n, series = new Float64Array(n).fill(5); series.fill(NaN, 0, n / 2);
-  const index = updateIndex(emptyIndex(), HOUTRIBDIJK, 2024, seriesStats(series));
+  const n = yearAxis(2025).n, series = new Float64Array(n).fill(5); series.fill(NaN, 0, n / 2);
+  const index = updateIndex(emptyIndex(), HOUTRIBDIJK, 2025, seriesStats(series));
   const entry = index.stations.find(s => s.id === HOUTRIBDIJK);
-  assert.equal(entry.dekking[2024], 0.5); assert.equal(entry.gemiddeld_ms, 5); assert.equal(index.voorlopig, true);
+  assert.equal(entry.dekking[2025], 0.5); assert.deepEqual(index.jaren, [2025]); assert.equal(entry.gemiddeld_ms, 5); assert.equal(index.voorlopig, true);
   assert.ok(!emptyIndex().stations.some(s => s.lat < 50), 'geen Caribische stations');
 });
 
@@ -50,7 +50,8 @@ test('API: haalt eenmalig op bij KNMI, bewaart in R2 en leest daarna uit R2', as
   const index = await (await windRoute(null, env, new URL('https://x/api/studio/stations'), answer)).json();
   assert.ok(index.stations.find(s => s.id === STAVOREN).dekking[2025] > 0.9);
   assert.equal((await windRoute(null, env, new URL('https://x/api/studio/wind10/0-20000-0-99999/2025'), answer)).status, 400);
-  assert.equal((await windRoute(null, { BUCKET: bucket }, new URL('https://x/api/studio/wind10/' + HOUTRIBDIJK + '/2024'), answer, fake)).status, 502);
+  assert.equal((await windRoute(null, env, new URL('https://x/api/studio/wind10/' + HOUTRIBDIJK + '/2024'), answer, fake)).status, 400, 'alleen 2025');
+  assert.equal((await windRoute(null, { BUCKET: bucket }, new URL('https://x/api/studio/wind10/' + HOUTRIBDIJK + '/2025'), answer, fake)).status, 502);
   await assert.rejects(fetchStationYear(STAVOREN, 2025, '', fake), /KNMI_NOT_CONFIGURED/);
   // Te groot voor één antwoord: vier kwartalen, zelfde reeks. Quotum op: eigen foutmelding en 429.
   let parts = 0;
@@ -58,6 +59,6 @@ test('API: haalt eenmalig op bij KNMI, bewaart in R2 en leest daarna uit R2', as
   const quarters = await fetchStationYear(STAVOREN, 2025, 'x', split);
   assert.equal(parts, 4); assert.equal(windFile(STAVOREN, 2025, quarters).data, first.data);
   await assert.rejects(fetchStationYear(STAVOREN, 2024, 'x', async () => new Response('{"error":"Quota exceeded"}', { status: 403 })), /KNMI_QUOTA/);
-  const quota = await windRoute(null, { BUCKET: bucket, KNMI_EDR_API_KEY: 'x' }, new URL('https://x/api/studio/wind10/' + HOUTRIBDIJK + '/2024'), answer, async () => new Response('{"error":"Quota exceeded"}', { status: 403 }));
+  const quota = await windRoute(null, { BUCKET: bucket, KNMI_EDR_API_KEY: 'x' }, new URL('https://x/api/studio/wind10/' + HOUTRIBDIJK + '/2025'), answer, async () => new Response('{"error":"Quota exceeded"}', { status: 403 }));
   assert.equal(quota.status, 429);
 });

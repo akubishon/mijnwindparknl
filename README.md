@@ -348,32 +348,27 @@ De daganalyse gebruikt een samenhangende werkruimte: daggrafiek, tijdschuif en p
 
 Interne tool voor het team, volgens `docs/plan-projectstudio.md`. De hele host `intern.mijnwindpark.nl` (lokaal `intern.localhost:8787`) staat achter het sitewachtwoord en elke response heeft `X-Robots-Tag: noindex, nofollow`. De sessiecookie geldt per host: op `intern.` log je apart in, met hetzelfde wachtwoord.
 
-Stroom: projectenlijst → locatie (kaart, adres zoeken, percelen vanaf zoom 16) → elektrolyservarianten uit de catalogus van de Waterstofatlas (één model × n units) → windparken uit `windparken.geojson` met MW voor de elektrolyser (aandeel = MW ÷ parkvermogen) → KNMI-stations (voorstel, zelf kiezen) → beschikbaar vermogen 2022–2025 (vollasturen, dekking, duurkromme) → Vergelijken in projectmodus (dezelfde weergave, rekenkern, kosten, CSV en *Resultaat naar Waterstofatlas*) → windparkpagina per park (daggrafiek en stationsvergelijking). Startinstelling **Bolsward** staat vast in de code; *Kopie maken* bewaart een eigen versie.
+Stroom: projectenlijst → locatie (kaart, adres zoeken, percelen vanaf zoom 16) → elektrolyservarianten uit de catalogus van de Waterstofatlas (één model × n units) → windparken uit `windparken.geojson` met MW voor de elektrolyser (aandeel = MW ÷ parkvermogen) → KNMI-stations (voorstel, zelf kiezen) → beschikbaar vermogen in windjaar 2025 (vollasturen, dekking, duurkromme) → Vergelijken in projectmodus (dezelfde weergave, rekenkern, kosten, CSV en *Resultaat naar Waterstofatlas*) → windparkpagina per park (daggrafiek en stationsvergelijking). Startinstelling **Bolsward** staat vast in de code; *Kopie maken* bewaart een eigen versie.
 
 | Onderdeel | Bestand |
 |---|---|
 | Parkmodel (Fryslân/Beabuorren exact; andere parken standaardcurve + seizoens-α, aanname) | `src/studio/park-model.mjs` |
 | Aanbod per tien minuten, zelfde vorm als `src/opsplitsing/data/20xx.json` | `src/studio/supply.mjs` |
 | Stationsvoorstel en waarschuwingen | `src/studio/stations.mjs` |
-| Winddata per station en jaar in R2 (`studio/v1/wind10/…`), API en ophalen bij KNMI EDR | `src/studio/wind-data.mjs`, `scripts/studio-data.mjs` |
+| Winddata 2025 per station in R2 (`studio/v1/wind10/…`), op aanvraag opgehaald bij KNMI EDR | `src/studio/wind-data.mjs` |
 | Project (C4), opslag in R2 (`studio/v1/projects/…`) | `src/studio/project.mjs`, `src/studio/server.mjs` |
 | Parkdag-API (`/api/studio/park-dag`) | `src/studio/park-day.mjs` |
 | Interface | `src/studio/client.tsx`, `src/studio/studio.css`, `src/studio/page.html` |
 
 Vergelijken in projectmodus: het windprofiel heet `studio:<hash van de parkkeuze>` (`isStudioProfile` in `src/electrolyser-wind.mjs`); de rekenworker krijgt het projectaanbod met de opdrachten mee. De andere windprofielen blijven alleen voor mijnwindpark.nl.
 
-Winddata vooraf ophalen (aanbevolen; op aanvraag haalt de worker een ontbrekend station-jaar eenmalig zelf op):
-
-```bash
-KNMI_EDR_API_KEY=… node scripts/studio-data.mjs wind10            # naar .cache/studio/
-KNMI_EDR_API_KEY=… node scripts/studio-data.mjs wind10 --upload   # en naar R2 (wrangler)
-```
+Winddata: alleen windjaar 2025, en alleen op aanvraag. Vraagt de studio een station op dat nog niet in R2 staat, dan haalt de worker het jaar in één KNMI-verzoek op, bewaart het in `studio/v1/wind10/<station>/2025.json` en werkt de index (dekking, gemiddelde wind) bij. Er is geen bulkdownload. De bestaande pariteitstest blijft wel alle vier de bundeljaren 2022–2025 controleren.
 
 Controles: `tests/studio-supply.test.mjs` (pariteit Bolsward 2022–2025 exact gelijk aan de opsplitsing), `tests/studio-wind-data.test.mjs`, `tests/studio-compare.test.mjs` (Bolsward in projectmodus = Vergelijken op mijnwindpark.nl), `tests/studio-park.test.mjs` (parkdag = `/api/wind` voor Fryslân en Beabuorren), `tests/studio-routes.test.mjs` (toegang, noindex, projecten).
 
 HARMONIE voor projectparken: de uurlijkse taak (en `/api/internal/harmonie/update`) geeft de parken uit bewaarde projecten (hoogstens 50) als extra roosterpunten mee aan `updateHarmonieSnapshot`. Die komen in `studio/v1/harmonie/{model}/{run}.json` met een eigen `latest.json`; de snapshots in `harmonie/v1/…` blijven byte voor byte gelijk (gecontroleerd tegen productie). Staat een run al opgeslagen maar ontbreekt een nieuw projectpark, dan wordt die run één keer opnieuw gelezen. `/api/studio/harmonie?project=…&park=…` rekent de wind met hetzelfde parkmodel om naar vermogen. Archiefruns op aanvraag zijn er alleen voor Fryslân en Beabuorren (op mijnwindpark.nl).
 
-KNMI EDR telt verzoeken per uur per sleutel (bij een vol quotum: HTTP 403 `Quota exceeded`). Daarom haalt de studio een windjaar in één verzoek op (vier kwartalen als het antwoord te groot is), en wacht het script bij een vol quotum tien minuten.
+KNMI EDR telt verzoeken per uur per sleutel (bij een vol quotum: HTTP 403 `Quota exceeded`). Daarom haalt de studio een windjaar in één verzoek op (vier kwartalen als het antwoord te groot is); bij een vol quotum geeft de API 429 met de melding het over een uur opnieuw te proberen.
 
 Nog niet gebouwd: WINS50 voor elk park (fase 2).
 

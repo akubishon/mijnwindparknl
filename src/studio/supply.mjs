@@ -2,7 +2,8 @@
 // Zelfde vorm als src/opsplitsing/data/20xx.json, zodat de rekenkern het zonder aanpassing leest.
 import { parkPowerAt, parkMW, KNOWN, HOUTRIBDIJK, STAVOREN } from './park-model.mjs';
 
-export const YEARS = [2022, 2023, 2024, 2025];
+// Windjaren van de Projectstudio: alleen 2025. Winddata komt per station op aanvraag (zie wind-data.mjs).
+export const YEARS = [2025];
 const round = (v, digits) => Number(v.toFixed(digits));
 
 // Tijdas van een windjaar: KNMI-tijdstempels −5 minuten over het Nederlandse kalenderjaar (zoals knmi.py).

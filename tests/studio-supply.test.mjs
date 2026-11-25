@@ -14,7 +14,7 @@ function windFromBundle(data) {
   return { axis, wind: { [HOUTRIBDIJK]: h, [STAVOREN]: s } };
 }
 
-for (const year of YEARS) test(`pariteit Bolsward ${year}: exact dezelfde mw als de opsplitsing`, () => {
+for (const year of [2022, 2023, 2024, 2025]) test(`pariteit Bolsward ${year}: exact dezelfde mw als de opsplitsing`, () => {
   const data = bundle(year), { axis, wind } = windFromBundle(data);
   assert.equal((data.t[0] - axis.start) % 600, 0);
   const supply = buildSupply({ jaar: year, parks: bolswardParks(), wind, axis });
@@ -64,7 +64,7 @@ test('stationsvoorstel: dichtstbijzijnde met dekking, paar binnen 25 km, waarsch
   const index = { stations: [
     { id: HOUTRIBDIJK, naam: 'Houtribdijk', lat: 52.6481, lon: 5.4006, dekking, gemiddeld_ms: 6 },
     { id: STAVOREN, naam: 'Stavoren', lat: 52.8967, lon: 5.3833, dekking, gemiddeld_ms: 6 },
-    { id: 'x', naam: 'Slecht', lat: 52.8, lon: 5.35, dekking: { ...dekking, 2023: 0.5 }, gemiddeld_ms: 5 },
+    { id: 'x', naam: 'Slecht', lat: 52.8, lon: 5.35, dekking: { ...dekking, 2025: 0.5 }, gemiddeld_ms: 5 },
   ] };
   const r = suggestStations({ lat: 52.78, lon: 5.39 }, index);
   assert.equal(r.lijst[0].id, 'x');

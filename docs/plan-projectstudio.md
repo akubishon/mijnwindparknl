@@ -26,7 +26,7 @@ Een tweede ingang naast de openbare site: **Projectstudio** op **`intern.mijnwin
 | Vermogen per windpark | De gebruiker vult in hoeveel **MW** de elektrolyser van het park mag pakken. Dat is een **deel van het park**: aandeel = MW ÷ parkvermogen, op elk moment hetzelfde percentage van de productie (Bolsward: Fryslân 10 % = 38,3 van 382,7 MW, Beabuorren 100 % = 10,4 MW). Geen aftopping. |
 | Windparken | Alleen **bestaande parken** van de kaart (`windparken.geojson`, OpenStreetMap). **Geen afstandsgrens**: elk park in Nederland is te kiezen; de afstand tot de elektrolyser staat erbij als informatie, en het voorstel begint bij de dichtstbijzijnde parken. |
 | KNMI-meetpunten | De tool **stelt voor**, de gebruiker **kiest** één of meer stations per park. Bij meer stations het gemiddelde per tien minuten, alleen op momenten dat alle gekozen stations meten, zoals Houtribdijk + Stavoren bij Bolsward. |
-| Windjaren | 2022, 2023, 2024 en 2025. |
+| Windjaren | Alleen **2025** (bijgesteld bij de bouw). Winddata per station op aanvraag, geen bulkdownload. |
 | Ashoogte | Fryslân en Beabuorren houden WINS50. Andere parken krijgen eerst de bestaande seizoens-α (geijkt op Fryslân), duidelijk gemarkeerd als **aanname**. WINS50 voor elk park volgt in fase 2. |
 | Turbinecurve | Andere parken krijgen een **standaardcurve**: de genormaliseerde SWT-DD-130-curve van Fryslân, geschaald naar het turbinevermogen. Ashoogte en zogverlies zijn aan te passen. |
 | Windparkpagina's | Per gekozen park: **daggrafiek van het model**, **stationsvergelijking** en **HARMONIE-voorspelling**. Gemeten productie blijft alleen op de bestaande Fryslân-pagina. |
@@ -119,7 +119,7 @@ Deze afspraken liggen vast vóór de agents starten, zodat ze tegelijk kunnen we
 - API (achter het wachtwoord, alleen op `intern.`):
   - `GET /api/studio/stations`: de index.
   - `GET /api/studio/wind10/<stationId>/<jaar>`: het bestand uit R2. Staat het er nog niet, dan haalt de worker het eenmalig op bij KNMI EDR (`KNMI_EDR_API_KEY`), bewaart het en geeft het terug.
-- Script `node scripts/studio-data.mjs wind10 [--upload]` haalt alle stations vooraf op.
+- Geen script om alles vooraf op te halen: de worker haalt een station-jaar op het moment dat de studio erom vraagt (KNMI telt verzoeken per uur).
 
 ### C2. Park en aanbod (`src/studio/park-model.mjs`, `src/studio/supply.mjs`; browser en worker)
 
