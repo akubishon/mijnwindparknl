@@ -17,9 +17,12 @@ let options = [];           // windparken die in het paneel te kiezen zijn
 const selected = new Set(); // id's van de aangevinkte windparken
 let focus = null;           // omgekeerde route: windpark waarbij een perceel wordt gezocht
 let profileView = null;     // laatst opgehaald locatieprofiel (zolang de keuze niet verandert)
+let stationKm = 25;         // afstandsgrens park → KNMI-station (uit /api/atlas/stations), voor de legenda
 const FOCUS_KM = 5;         // omgekeerde route: percelen binnen deze afstand van het park
 const HUB_MIN = 2.5, HUB_MAX = 25; // hubregeling (interessepeiling RVO): elektrisch inputvermogen in MW
-const SCAN = 'https://mijnwindpark.nl/waterstofscan';
+// De Waterstofscan staat op de hoofdsite; het logo in de gedeelde kop wijst daarheen (lokaal naar localhost).
+const SITE = (() => { try { return new URL($('logo').href).origin; } catch { return 'https://mijnwindpark.nl'; } })();
+const SCAN = SITE + '/waterstofscan';
 const CAPACITEITSKAART = 'https://capaciteitskaart.netbeheernederland.nl/';
 const params = new URLSearchParams(location.search);
 // Campagnebron uit de link (?bron=adviseur-x); de Atlas zelf is 'atlas'.
@@ -36,9 +39,9 @@ function track(e) {
 track('kaart');
 
 // ---------------------------------------------------------------- windparken (één keer laden; ook voor gedeelde links)
-const parksData = fetch('/windparken.geojson?v=knmi1').then(r => r.json()).catch(() => ({type: 'FeatureCollection', features: []}));
+const parksData = fetch('/windparken.geojson?v=plaats1').then(r => r.json()).catch(() => ({type: 'FeatureCollection', features: []}));
 const parkById = async id => (await parksData).features.find(f => f.properties.id === id);
-const parkOption = (f, at) => ({id: f.properties.id, naam: f.properties.naam, mw: f.properties.mw, station: {naam: f.properties.knmi},
+const parkOption = (f, at) => ({id: f.properties.id, naam: f.properties.naam, plaats: f.properties.plaats, mw: f.properties.mw, station: {naam: f.properties.knmi},
  afstand_km: at ? km(at.lat, at.lon, f.geometry.coordinates[1], f.geometry.coordinates[0]) : 0});
 
 // ---------------------------------------------------------------- deelbare link: perceel en parken in het adres
@@ -100,7 +103,7 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
 map.on('mouseenter', 'windparken', () => { map.getCanvas().style.cursor = 'pointer'; });
 map.on('mouseleave', 'windparken', () => { map.getCanvas().style.cursor = ''; });
-const hint = () => { $('hint').hidden = map.getZoom() >= PERCEEL_ZOOM; };
+const hint = () => { $('hinttekst').textContent = map.getZoom() >= PERCEEL_ZOOM ? 'Klik op een perceel om het als locatie te kiezen.' : 'Zoek een adres of zoom in en klik op een perceel.'; };
 map.on('zoomend', hint); hint();
 
 // ---------------------------------------------------------------- KNMI-dekking: windparken binnen max_km van een station met data zijn te kiezen
@@ -122,7 +125,7 @@ map.on('load', async () => {
   if (!d.stations?.length) return;
   map.getSource('dekking').setData({type: 'FeatureCollection', features: d.stations.map(s => ({type: 'Feature', properties: {}, geometry: {type: 'Polygon', coordinates: [circle(s.lon, s.lat, d.max_km)]}}))});
   map.getSource('stations').setData({type: 'FeatureCollection', features: d.stations.map(s => ({type: 'Feature', properties: {naam: s.naam, wind: s.wind_gem_ms}, geometry: {type: 'Point', coordinates: [s.lon, s.lat]}}))});
-  $('hint').textContent = `Klik op de kaart om een perceel te kiezen. Blauwe windparken liggen binnen ${d.max_km} km van een KNMI-station (groen gebied) en zijn te selecteren; grijze niet.`;
+  if (Number.isFinite(d.max_km)) stationKm = d.max_km;
  } catch { /* zonder stations blijft de kaart bruikbaar; de server bewaakt de afstanden */ }
 });
 
@@ -132,12 +135,12 @@ map.on('click', async event => {
  if (park) {
   const p = park.properties;
   if (!p.knmi) {
-   new maplibregl.Popup({offset: 10}).setLngLat(park.geometry.coordinates).setHTML(`<strong>${esc(p.naam)}</strong><br>${nl(p.mw)} MW<br><span class="atlas-muted">Geen KNMI-station dicht genoeg bij dit park; niet te kiezen.</span>`).addTo(map);
+   new maplibregl.Popup({offset: 10}).setLngLat(park.geometry.coordinates).setHTML(`<strong>${esc(p.naam)}</strong><br>${p.plaats ? `bij ${esc(p.plaats)} · ` : ''}${nl(p.mw)} MW<br><span class="atlas-muted">Geen KNMI-station dicht genoeg bij dit park; niet te kiezen.</span>`).addTo(map);
    return;
   }
-  if (chosen && !$('paneel').hidden) { togglePark({id: p.id, naam: p.naam, mw: p.mw, station: {naam: p.knmi}, afstand_km: km(chosen.lat, chosen.lon, park.geometry.coordinates[1], park.geometry.coordinates[0])}); return; }
+  if (chosen && !$('paneel').hidden) { togglePark({id: p.id, naam: p.naam, plaats: p.plaats, mw: p.mw, station: {naam: p.knmi}, afstand_km: km(chosen.lat, chosen.lon, park.geometry.coordinates[1], park.geometry.coordinates[0])}); return; }
   const box = document.createElement('div');
-  box.innerHTML = `<strong>${esc(p.naam)}</strong><br>${nl(p.mw)} MW · KNMI ${esc(p.knmi)}<br><button type="button" class="atlas-link">Zoek een locatie bij dit park</button>`;
+  box.innerHTML = `<strong>${esc(p.naam)}</strong><br>${p.plaats ? `bij ${esc(p.plaats)} · ` : ''}${nl(p.mw)} MW · KNMI ${esc(p.knmi)}<br><button type="button" class="atlas-link">Zoek een locatie bij dit park</button>`;
   const popup = new maplibregl.Popup({offset: 10}).setLngLat(park.geometry.coordinates).setDOMContent(box).addTo(map);
   box.querySelector('button').addEventListener('click', () => { popup.remove(); focusPark({id: p.id, naam: p.naam, mw: p.mw, knmi: p.knmi, lon: park.geometry.coordinates[0], lat: park.geometry.coordinates[1]}); });
   return;
@@ -250,7 +253,7 @@ function renderParks() {
  const list = $('parken');
  if (!list) return;
  list.innerHTML = options.length ? options.map(p => `<li><label><input type="checkbox" data-id="${p.id}"${selected.has(p.id) ? ' checked' : ''}>
-  <span><strong>${esc(p.naam)}</strong><small>${nl(p.afstand_km)} km van het perceel · ${nl(p.mw)} MW</small>
+  <span><strong>${esc(p.naam)}</strong><small>${p.plaats ? `bij ${esc(p.plaats)} · ` : ''}${nl(p.afstand_km)} km van het perceel · ${nl(p.mw)} MW</small>
   <small>KNMI ${esc(p.station.naam)}${p.station.afstand_km === undefined ? '' : ` (${nl(p.station.afstand_km)} km van het park, ${nl(p.station.wind_gem_ms)} m/s in 2025)`}</small></span></label></li>`).join('') : '<li class="atlas-muted">Geen windparken gevonden.</li>';
  const chosenParks = options.filter(p => selected.has(p.id)), total = chosenParks.reduce((sum, p) => sum + p.mw, 0);
  $('parktotaal').textContent = selected.size ? `${selected.size} ${selected.size === 1 ? 'windpark' : 'windparken'} gekozen · ${nl(total)} MW` : 'Nog geen windpark gekozen.';
@@ -316,6 +319,7 @@ $('teaser').addEventListener('click', async event => {
  if (!target) return;
  if (target.id === 'cta') track('cta');
  if (target.id === 'print') window.print();
+ if (target.id === 'begin') { markIntroSeen(); if (chosen) render(); else { $('paneel').hidden = true; $('zoek').focus(); } }
  if (target.id === 'terug') { profileView = null; render(); }
  if (target.id === 'deel') {
   syncUrl();
@@ -339,7 +343,32 @@ $('teaser').addEventListener('submit', async event => {
  } catch { status.textContent = 'Mislukt. Probeer opnieuw.'; }
 });
 function show(html) { $('teaser').innerHTML = html; $('paneel').hidden = false; }
-$('sluit').addEventListener('click', () => { $('paneel').hidden = true; });
+$('sluit').addEventListener('click', () => { $('paneel').hidden = true; markIntroSeen(); });
+
+// ---------------------------------------------------------------- uitleg en legenda: bij het eerste bezoek en via 'Hoe werkt de kaart?'
+const INTRO_KEY = 'mwp-kaart-uitleg';
+function introSeen() { try { return localStorage.getItem(INTRO_KEY) === 'gezien'; } catch { return false; } }
+function markIntroSeen() { try { localStorage.setItem(INTRO_KEY, 'gezien'); } catch { /* geen opslag: de uitleg komt volgende keer terug */ } }
+function showIntro() {
+ show(`<p class="atlas-kicker">Zo werkt de kaart</p>
+  <h2>Vind een locatie voor een elektrolyser</h2>
+  <ol class="atlas-steps">
+   <li><strong>Zoek een plek</strong> met het zoekveld bovenaan, of zoom in op de kaart.</li>
+   <li><strong>Klik op een perceel.</strong> Je ziet welke windparken in de buurt liggen en wat het dichtstbijzijnde KNMI-station aan wind meet.</li>
+   <li><strong>Vink de windparken aan</strong> die de elektrolyser stroom geven. Vraag gratis een locatieprofiel aan, of laat met de Waterstofscan de productie uitrekenen.</li>
+  </ol>
+  <p class="atlas-actions"><button id="begin" type="button" class="atlas-cta">${chosen ? 'Terug naar je keuze' : 'Begin met zoeken'}</button><a href="/windparken">Of zoek een windpark op naam</a></p>
+  <h3>Wat zie je op de kaart?</h3>
+  <ul class="atlas-legend">
+   <li><span class="atlas-key atlas-key-park" aria-hidden="true"></span>Windpark dat je kunt kiezen; hoe groter, hoe meer vermogen</li>
+   <li><span class="atlas-key atlas-key-grey" aria-hidden="true"></span>Windpark zonder KNMI-station binnen ${nl(stationKm, 0)} km; niet te kiezen</li>
+   <li><span class="atlas-key atlas-key-station" aria-hidden="true"></span>KNMI-weerstation met winddata</li>
+   <li><span class="atlas-key atlas-key-area" aria-hidden="true"></span>Binnen ${nl(stationKm, 0)} km van zo’n station</li>
+  </ul>`);
+}
+$('uitleg').addEventListener('click', showIntro);
+// Zonder gedeelde link of gekozen park: de uitleg tonen, tot de bezoeker hem een keer heeft gesloten.
+if (!params.has('p') && !params.has('park') && !introSeen()) showIntro();
 
 // ---------------------------------------------------------------- gedeelde link of windparkpagina openen
 async function restore() {

@@ -6,9 +6,10 @@ import {modelOptions, windPowerModel} from '../knmi.mjs';
 import {DEFAULTS, STEP_H, simulate_with_replacements, summarise, cleanSupply} from '../electrolyser-kernel.mjs';
 import {COST_DEFAULTS, economics} from '../electrolyser-economics.mjs';
 import {parseLead, leadKey, ATLAS_EVENTS, atlasEventKey} from '../leads.mjs';
+import {publicFooter, publicHeader, publicLinks} from '../public-site.mjs';
 
 export const ATLAS_HOSTS = ['atlas.mijnwindpark.nl', 'atlas.localhost'];
-const ATLAS_ORIGIN = 'https://atlas.mijnwindpark.nl', SCAN_URL = 'https://mijnwindpark.nl/waterstofscan';
+const ATLAS_ORIGIN = 'https://atlas.mijnwindpark.nl';
 // Conceptfase: zoekmachines mogen de Atlas niet indexeren (robots.txt sluit alles af, elke response krijgt noindex).
 // Zet op true zodra de site geen concept meer is; dan gaan robots.txt en de sitemap open.
 export const ATLAS_INDEXABLE = false;
@@ -22,7 +23,9 @@ export const MAX_PARK_KM = 30;
 // Windparken die bij een perceel te kiezen zijn: de dichtstbijzijnde, en hoogstens zoveel tegelijk in de LCOH.
 const PARK_CHOICES = 8, MAX_SELECTED_PARKS = 10;
 // Vaste id per park (volgorde van src/atlas/windparken.geojson), zodat de browser parken kan aanwijzen.
-const parks = windparken.features.map((f, id) => ({id, naam: f.properties.naam, mw: f.properties.mw, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1]}));
+// Plaats, gemeente en provincie komen uit de PDOK Locatieserver (scripts/atlas-data.mjs plaatsen).
+const parks = windparken.features.map((f, id) => ({id, naam: f.properties.naam, mw: f.properties.mw, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1],
+ plaats: f.properties.plaats || null, gemeente: f.properties.gemeente || null, provincie: f.properties.provincie || null}));
 const encoder = new TextEncoder();
 
 const toRad = d => d * Math.PI / 180;
@@ -92,7 +95,10 @@ export function selectedParks(index, ids) {
 }
 const parkGeojson = index => {
  const stations = index ? parkStations(index) : [];
- return JSON.stringify({...windparken, features: windparken.features.map((f, id) => ({...f, properties: {...f.properties, id, knmi: stations[id]?.name ?? null}}))});
+ return JSON.stringify({...windparken, features: windparken.features.map((f, id) => {
+  const {naam, mw, turbines, plaats} = f.properties;
+  return {...f, properties: {naam, mw, turbines, plaats: plaats ?? null, id, knmi: stations[id]?.name ?? null}};
+ })});
 };
 
 // ---------------------------------------------------------------- LCOH (alleen server-side)
@@ -175,41 +181,87 @@ async function countEvent(env, name, now = Date.now()) {
 
 // ---------------------------------------------------------------- pagina per windpark (vindbaar, zonder scripts)
 // Alleen parken met een echte naam en een vermogen: OSM-namen als 'Windturbines (3)' of 'WT' krijgen geen pagina.
+// En alleen parken op de kaart: OSM rekent ook windparken in het Caribisch deel van het Koninkrijk tot NL.
 const genericName = n => /^windturbines?\s*\(\d+\)$/i.test(n) || /^(wt|windturbine|windmolen)s?$/i.test(n) || /-$/.test(n) || n.trim().length < 3;
 export const slug = n => String(n).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'windpark';
-export const pageParks = parks.filter(p => p.mw > 0 && !genericName(p.naam)).sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+// Sorteren op het eigen deel van de naam: 'Windpark Zuidwal' staat bij de Z, niet tussen tweehonderd keer 'Windpark'.
+const sortName = n => String(n).replace(/^(windpark(en)?|windplan|windturbinepark|windturbines?|energiepark)\s+/i, '').toLocaleLowerCase('nl');
+const byName = (a, b) => sortName(a.naam).localeCompare(sortName(b.naam), 'nl') || String(a.plaats).localeCompare(String(b.plaats), 'nl');
+export const pageParks = parks.filter(p => p.mw > 0 && !genericName(p.naam) && validPoint(p.lat, p.lon)).sort(byName);
 const parkPath = p => `/windpark/${p.id}-${slug(p.naam)}`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const nl = (v, d = 1) => Number(v).toLocaleString('nl-NL', {minimumFractionDigits: d, maximumFractionDigits: d});
-const CONCEPT = '<p class="atlas-concept" role="note">Conceptwebsite · ontwerp, nog geen bestaand bedrijf of aanbod</p>';
-function docPage({title, description, canonical, body}) {
+// Provincies op alfabet; parken op zee als laatste groep.
+const SEA = 'Noordzee';
+const groupLabel = g => g === SEA ? 'Op zee' : g;
+const parkGroups = list => {
+ const groups = new Map();
+ for (const p of list) { const g = p.provincie || SEA; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(p); }
+ return [...groups].sort(([a], [b]) => (a === SEA) - (b === SEA) || a.localeCompare(b, 'nl')).map(([naam, items]) => ({naam, id: slug(groupLabel(naam)), items}));
+};
+const where = p => p.provincie === SEA ? `voor de kust bij ${p.plaats}` : p.plaats ? `bij ${p.plaats}` : '';
+// Locatie voor het aanvraagformulier van de Waterstofscan, bijvoorbeeld 'Bij Windpark Zeewolde (Zeewolde, Flevoland)'.
+const scanLocation = p => `Bij ${/^wind/i.test(p.naam) ? '' : 'windpark '}${p.naam}${!p.plaats ? '' : p.provincie === SEA ? ` (${where(p)})` : ` (${p.plaats}, ${p.provincie})`}`;
+function location(p) {
+ if (!p.provincie) return '';
+ if (p.provincie === SEA) return `Noordzee, voor de kust bij ${esc(p.plaats)} (gemeente ${esc(p.gemeente)})`;
+ return `bij ${esc(p.plaats)}${p.plaats === p.gemeente ? '' : `, gemeente ${esc(p.gemeente)}`} (${esc(p.provincie)})`;
+}
+// Zoeken zonder hoofdletters en accenten, op naam, plaats, gemeente en provincie; elk woord moet voorkomen.
+const plain = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function findParks(query, list = pageParks) {
+ const words = plain(query).split(/[^a-z0-9]+/).filter(Boolean);
+ if (!words.length) return list;
+ return list.filter(p => { const text = plain([p.naam, p.plaats, p.gemeente, p.provincie === SEA ? 'noordzee op zee' : p.provincie].join(' ')); return words.every(w => text.includes(w)); });
+}
+
+function docPage({title, description, canonical, body, links, current = ''}) {
  return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(description)}"><link rel="canonical" href="${ATLAS_ORIGIN}${canonical}">
-<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/atlas.css?v=profiel1"></head>
-<body class="brand-style atlas-doc">${CONCEPT}
-<header class="atlas-top"><a class="atlas-logo" href="/"><span>mijnwindpark.nl</span> <small>Atlas</small></a><nav class="atlas-nav"><a href="/">Kaart</a><a href="/windparken">Windparken</a></nav></header>
-<main class="atlas-page">${body}</main>
-<footer class="atlas-foot"><p>Windparken © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-bijdragers · wind © <a href="https://www.knmi.nl">KNMI</a> · indicatief, geen garantie of financieel advies.</p></footer>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/atlas.css?v=${ASSET_VERSION}"></head>
+<body class="brand-style atlas-doc">
+${publicHeader(links, {current})}
+<main class="atlas-page" id="inhoud">${body}</main>
+${publicFooter(links, {extra: '<p>Windparken © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-bijdragers · plaatsnamen © <a href="https://www.pdok.nl">Kadaster / PDOK</a> · wind © <a href="https://www.knmi.nl">KNMI</a>. Indicatief.</p>'})}
 </body></html>`;
 }
-function parkPage(p, station) {
+function parkPage(p, station, links) {
  const osm = `https://www.openstreetmap.org/?mlat=${p.lat.toFixed(5)}&mlon=${p.lon.toFixed(5)}#map=14/${p.lat.toFixed(5)}/${p.lon.toFixed(5)}`;
- const scan = `${SCAN_URL}?${new URLSearchParams({bron: 'windparkpagina', locatie: `Bij windpark ${p.naam}`, vermogen: String(round(p.mw, 1))})}#aanvraag`;
- const facts = [['Vermogen (OSM)', `${nl(p.mw)} MW`], ['Ligging', `${nl(p.lat, 3)}° N, ${nl(p.lon, 3)}° O`],
+ const scan = links.href('site', `/waterstofscan?${new URLSearchParams({bron: 'windparkpagina', locatie: scanLocation(p), vermogen: String(round(p.mw, 1))})}#aanvraag`);
+ const group = p.provincie || SEA;
+ const facts = [['Vermogen (OSM)', `${nl(p.mw)} MW`], ...(p.provincie ? [['Ligging', location(p)]] : []), ['Coördinaten', `${nl(p.lat, 3)}° N, ${nl(p.lon, 3)}° O`],
   ['KNMI-station', station ? `${esc(station.name)}, ${nl(station.km)} km van het park` : `geen station met uurdata binnen ${MAX_STATION_KM} km`],
   ...(station ? [['Gemiddelde wind 2025', `${nl(station.mean)} m/s op 10 m hoogte (${esc(station.name)})`]] : [])];
- const body = `<p class="atlas-kicker">Windpark op de kaart</p><h1>Waterstof bij ${esc(p.naam)}</h1>
-<p class="atlas-lead">Kan een elektrolyser naast ${esc(p.naam)} waterstof maken met de stroom van dit park? De Atlas laat zien welke percelen in de buurt liggen en welke windgegevens erbij horen. De Waterstofscan rekent de verwachte productie uit.</p>
+ const near = pageParks.filter(x => x.id !== p.id).map(x => ({...x, km: haversineKm(p.lat, p.lon, x.lat, x.lon)})).filter(x => x.km <= 20).sort((a, b) => a.km - b.km).slice(0, 6);
+ const body = `<nav class="atlas-crumbs" aria-label="Kruimelpad"><a href="/windparken">Windparken</a> › <a href="/windparken#${slug(groupLabel(group))}">${esc(groupLabel(group))}</a> › <span aria-current="page">${esc(p.naam)}</span></nav>
+<h1>Waterstof bij ${esc(p.naam)}</h1>
+<p class="atlas-lead">Kan een elektrolyser naast ${esc(p.naam)} waterstof maken met de stroom van dit park? Op de kaart zie je welke percelen in de buurt liggen en welke windgegevens erbij horen. De Waterstofscan rekent de verwachte productie uit.</p>
 <dl class="atlas-facts">${facts.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>
 <p class="atlas-actions">${station ? `<a class="atlas-cta" href="/?park=${p.id}">Kies een locatie bij dit park</a>` : ''}<a class="atlas-cta atlas-cta-alt" href="${esc(scan)}">Vraag een Waterstofscan aan</a></p>
+${near.length ? `<h2>Windparken in de buurt</h2><ul class="atlas-list atlas-near">${near.map(x => `<li><a href="${parkPath(x)}">${esc(x.naam)}</a> <small>${nl(x.km)} km · ${nl(x.mw)} MW</small></li>`).join('')}</ul>` : ''}
 <h2>Wat je hier wel en niet ziet</h2>
 <p>De gegevens van het park komen uit OpenStreetMap en kunnen verouderd zijn. <a href="${esc(osm)}">Klopt er iets niet? Bekijk en verbeter het park in OpenStreetMap.</a> De wind is één jaar (2025) van het dichtstbijzijnde KNMI-station. De Atlas toont geen kostprijs van waterstof.</p>`;
- return docPage({title: `Waterstof bij ${p.naam} · Atlas · Mijn Windpark`, description: `${p.naam}: ${nl(p.mw)} MW windvermogen. Bekijk percelen voor een elektrolyser in de buurt en de windgegevens van het dichtstbijzijnde KNMI-station.`, canonical: parkPath(p), body});
+ return docPage({title: `Waterstof bij ${p.naam} · mijnwindpark.nl`, description: `${p.naam}${p.plaats ? ' ' + where(p) : ''}: ${nl(p.mw)} MW windvermogen. Bekijk percelen voor een elektrolyser in de buurt en de windgegevens van het dichtstbijzijnde KNMI-station.`, canonical: parkPath(p), body, links, current: 'windparken'});
 }
-function parkIndexPage() {
- const items = pageParks.map(p => `<li><a href="${parkPath(p)}">${esc(p.naam)}</a> <small>${nl(p.mw)} MW</small></li>`).join('');
- return docPage({title: 'Windparken · Atlas · Mijn Windpark', description: 'Windparken in Nederland met een pagina in de Atlas: vermogen, ligging en windgegevens voor waterstof uit wind.', canonical: '/windparken',
-  body: `<p class="atlas-kicker">Atlas</p><h1>Windparken</h1><p class="atlas-lead">${pageParks.length} windparken met een naam en vermogen in OpenStreetMap. Losse turbines zonder naam staan alleen op de kaart.</p><ul class="atlas-list">${items}</ul>`});
+// Lijst met zoekveld (?q=, ook zonder scripts) en per provincie een kopje met sprongmenu. Op zee staat ingeklapt.
+function parkIndexPage(links, query = '') {
+ const q = String(query).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 60), found = findParks(q), groups = parkGroups(found);
+ const item = p => `<li><a href="${parkPath(p)}">${esc(p.naam)}</a> <small>${esc(where(p))}${where(p) ? ' · ' : ''}${nl(p.mw)} MW</small></li>`;
+ const section = g => {
+  const head = `${esc(groupLabel(g.naam))} <small>${g.items.length}</small>`, list = `<ul class="atlas-list">${g.items.map(item).join('')}</ul>`;
+  return g.naam === SEA
+   ? `<details class="atlas-group" id="${g.id}"${q ? ' open' : ''}><summary><h2>${head}</h2><span>Windparken voor de kust. De Waterstofscan gaat over wind op land.</span></summary>${list}</details>`
+   : `<section class="atlas-group" id="${g.id}" aria-label="${esc(groupLabel(g.naam))}"><h2>${head}</h2>${list}</section>`;
+ };
+ const result = q ? `<p class="atlas-found" role="status">${found.length ? `${found.length} ${found.length === 1 ? 'windpark' : 'windparken'} gevonden voor ‘${esc(q)}’.` : `Geen windpark gevonden voor ‘${esc(q)}’. Probeer een plaats of gemeente, of <a href="/">zoek een adres op de kaart</a>.`} <a href="/windparken">Toon alle windparken</a></p>` : '';
+ const body = `<h1>Windparken</h1>
+<p class="atlas-lead">${pageParks.length} windparken met een naam en vermogen. Zoek op naam, plaats of gemeente, of kies een provincie. Per park zie je vermogen, ligging en windgegevens, en kies je een locatie in de buurt.</p>
+<form class="atlas-find" role="search" action="/windparken" method="get"><label for="q">Zoek een windpark</label><span><input id="q" name="q" type="search" value="${esc(q)}" maxlength="60" placeholder="Bijvoorbeeld Zeewolde, Eemshaven of Krammer"><button type="submit">Zoek</button></span></form>
+${result}
+${groups.length > 1 ? `<nav class="atlas-jump" aria-label="Provincies">${groups.map(g => `<a href="#${g.id}">${esc(groupLabel(g.naam))} <small>${g.items.length}</small></a>`).join('')}</nav>` : ''}
+${groups.map(section).join('\n')}
+<p class="atlas-muted">Losse turbines zonder naam staan alleen op de <a href="/">kaart</a>. Klopt een park niet? Op de pagina van het park staat hoe je het in OpenStreetMap verbetert.</p>`;
+ return docPage({title: `${q ? `Zoeken: ${q} · ` : ''}Windparken · mijnwindpark.nl`, description: 'Windparken in Nederland per provincie: vermogen, ligging en windgegevens, en een locatie voor waterstof uit wind in de buurt.', canonical: '/windparken', body, links, current: 'windparken'});
 }
 
 // ---------------------------------------------------------------- wachtwoord en pogingen
@@ -230,8 +282,16 @@ function tooMany(ip, store = attempts, max = 5, windowMs = 60000) {
  return list.length > max;
 }
 
+// ---------------------------------------------------------------- kaartpagina
+// Versie in de adressen van stijl en script (ook in src/atlas/page.html), zodat browsers na een wijziging geen oude kopie gebruiken.
+const ASSET_VERSION = 'menu1';
+const ATLAS_SEARCH = `<form id="zoekform" class="atlas-search" role="search"><label for="zoek" class="atlas-sr">Zoek een adres</label>
+<input id="zoek" type="search" placeholder="Zoek adres, postcode of plaats" autocomplete="off"><ul id="resultaten" class="atlas-results" hidden></ul></form>`;
+// De kaart krijgt dezelfde kop en hetzelfde menu als de rest van de site, met het zoekveld erin.
+const mapPage = (page, links) => page.replace('<!--KOP-->', () => publicHeader(links, {current: 'kaart', extra: ATLAS_SEARCH, logoId: 'logo', wide: true}));
+
 // ---------------------------------------------------------------- routes
-const CSP = "default-src 'none'; script-src 'self'; worker-src blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://service.pdok.nl; connect-src 'self' https://service.pdok.nl https://api.pdok.nl; font-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'; frame-ancestors 'none'";
+const CSP = "default-src 'none'; script-src 'self'; worker-src blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://service.pdok.nl; connect-src 'self' https://service.pdok.nl https://api.pdok.nl; font-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; frame-ancestors 'none'";
 const baseHeaders = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=()', ...(ATLAS_INDEXABLE ? {} : {'X-Robots-Tag': 'noindex, nofollow'})};
 const json = (value, status = 200, cache = 'no-store') => Response.json(value, {status, headers: {...baseHeaders, 'Cache-Control': cache}});
 const file = (body, type, cache = 'public, max-age=3600') => new Response(body, {headers: {...baseHeaders, 'Content-Type': type, 'Cache-Control': cache}});
@@ -239,9 +299,9 @@ const notFound = () => new Response('Niet gevonden', {status: 404, headers: {...
 const lcohCache = new Map();
 
 export async function atlasRoute(request, env, url, assets) {
- const path = url.pathname, method = request.method;
+ const path = url.pathname, method = request.method, links = publicLinks(url);
  if (method === 'GET') {
-  if (path === '/') return file(assets.page, 'text/html; charset=utf-8', 'public, max-age=300');
+  if (path === '/') return file(mapPage(assets.page, links), 'text/html; charset=utf-8', 'public, max-age=300');
   if (path === '/atlas.js') return file(assets.script, 'text/javascript; charset=utf-8');
   if (path === '/atlas.css') return file(assets.style, 'text/css; charset=utf-8');
   if (path === '/windparken.geojson') {
@@ -260,7 +320,7 @@ export async function atlasRoute(request, env, url, assets) {
   }
   if (path === '/robots.txt') return file(ATLAS_INDEXABLE ? `User-agent: *\nDisallow: /api/\nAllow: /\nSitemap: ${ATLAS_ORIGIN}/sitemap.xml\n` : 'User-agent: *\nDisallow: /\n', 'text/plain; charset=utf-8');
   if (path === '/sitemap.xml') return file(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['/', '/windparken', ...pageParks.map(parkPath)].map(u => `<url><loc>${ATLAS_ORIGIN}${u}</loc></url>`).join('')}</urlset>\n`, 'application/xml; charset=utf-8');
-  if (path === '/windparken') return file(parkIndexPage(), 'text/html; charset=utf-8');
+  if (path === '/windparken') return file(parkIndexPage(links, url.searchParams.get('q') || ''), 'text/html; charset=utf-8');
   const parkMatch = path.match(/^\/windpark\/(\d{1,5})(?:-([a-z0-9-]*))?$/);
   if (parkMatch) {
    const p = pageParks.find(x => x.id === Number(parkMatch[1]));
@@ -268,7 +328,7 @@ export async function atlasRoute(request, env, url, assets) {
    if (parkMatch[2] !== slug(p.naam)) return new Response(null, {status: 301, headers: {...baseHeaders, Location: parkPath(p), 'Cache-Control': 'public, max-age=86400'}});
    let station = null;
    try { station = parkStations(await windIndex(env))[p.id]; } catch (e) { console.error('ATLAS_PARK_PAGE_DATA', e.message); }
-   return file(parkPage(p, station), 'text/html; charset=utf-8', station ? 'public, max-age=3600' : 'no-store');
+   return file(parkPage(p, station, links), 'text/html; charset=utf-8', station ? 'public, max-age=3600' : 'no-store');
   }
   if (path === '/favicon.svg') return file(assets.favicon, 'image/svg+xml', 'public, max-age=86400');
   if (path === '/assets/tasa-orbiter.ttf') return file(Uint8Array.from(atob(assets.font), c => c.charCodeAt(0)), 'font/ttf', 'public, max-age=604800');
@@ -283,7 +343,7 @@ export async function atlasRoute(request, env, url, assets) {
    const near = nearestParks(index, lat, lon);
    if (!near.length) return json({error: `Binnen ${MAX_PARK_KM} km van dit perceel ligt geen windpark met een KNMI-station binnen ${MAX_STATION_KM} km.`, max_km: MAX_STATION_KM, max_park_km: MAX_PARK_KM}, 422, 'public, max-age=3600');
    return json({
-    windparken: near.map(p => ({id: p.id, naam: p.naam, mw: round(p.mw, 1), afstand_km: round(p.km, 1),
+    windparken: near.map(p => ({id: p.id, naam: p.naam, plaats: p.plaats, mw: round(p.mw, 1), afstand_km: round(p.km, 1),
      station: {naam: p.station.name, afstand_km: round(p.station.km, 1), wind_gem_ms: round(p.station.mean, 1)}})),
    }, 200, 'public, max-age=3600');
   }

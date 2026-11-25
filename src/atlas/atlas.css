@@ -1,13 +1,9 @@
-/* Atlas (atlas.mijnwindpark.nl). Huisstijl uit brand-style.css; hier alleen de kaartopmaak. */
+/* Atlas (atlas.mijnwindpark.nl). Huisstijl uit brand-style.css, kop/menu/voettekst uit src/public-site.mjs (pub-); hier de kaart en de windparkpagina's. */
 html,body.atlas{height:100%;margin:0}
 body.atlas{display:flex;flex-direction:column;overflow:hidden}
-.atlas-concept{margin:0;padding:4px var(--page-gutter);background:#F2C94C;color:var(--ink);font-size:13px;font-weight:600;text-align:center}
 .atlas-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.atlas-top{display:flex;align-items:center;gap:16px;background:var(--ink);color:#fff;padding:12px var(--page-gutter);border-radius:0 0 24px 0;z-index:3}
-.atlas-logo{color:#fff;text-decoration:none;font-weight:700;font-size:22px;letter-spacing:-.5px;white-space:nowrap}
-.atlas-logo small{color:#C3E4F2;font-weight:400;font-size:15px}
-.atlas-search{position:relative;flex:1;max-width:460px;margin-left:auto}
-.atlas-search input{width:100%;box-sizing:border-box;font:inherit;padding:9px 12px;border:1px solid #C3E4F2;border-radius:0 12px 0 0;background:#fff;color:var(--ink)}
+.atlas-search{position:relative}
+.atlas-search input{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:9px 12px;border:1px solid #C3E4F2;border-radius:0 12px 0 0;background:#fff;color:var(--ink)}
 .atlas-results{position:absolute;left:0;right:0;top:100%;margin:4px 0 0;padding:0;list-style:none;background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:0 8px 24px rgba(12,35,64,.18);z-index:5}
 .atlas-results button{display:block;width:100%;text-align:left;font:inherit;padding:8px 12px;border:0;background:none;color:inherit;cursor:pointer}
 .atlas-results button:hover,.atlas-results button:focus{background:#C3E4F2}
@@ -18,8 +14,9 @@ body.atlas{display:flex;flex-direction:column;overflow:hidden}
 .atlas-lock button{font:inherit;padding:6px 14px;border:0;background:var(--ink);color:#fff;cursor:pointer}
 .atlas-main{position:relative;flex:1;min-height:0;padding:0}
 .atlas-map{position:absolute;inset:0}
-.atlas-hint{position:absolute;left:12px;bottom:28px;margin:0;padding:6px 12px;background:rgba(255,255,255,.92);border-left:4px solid var(--green);font-size:14px;z-index:2}
-.atlas-panel{position:absolute;top:12px;left:12px;width:340px;max-height:calc(100% - 24px);overflow:auto;box-sizing:border-box;background:var(--paper);border-top:4px solid var(--green);padding:18px 20px;box-shadow:0 10px 30px rgba(12,35,64,.25);border-radius:0 18px 0 0;z-index:2}
+.atlas-hint{position:absolute;left:12px;bottom:28px;margin:0;padding:6px 12px;background:rgba(255,255,255,.94);border-left:4px solid var(--green);font-size:14px;z-index:2;box-shadow:0 4px 12px rgba(12,35,64,.12)}
+.atlas-panel:not([hidden])~.atlas-hint{left:364px}
+.atlas-panel{position:absolute;top:12px;left:12px;width:340px;max-height:calc(100% - 24px);overflow:auto;box-sizing:border-box;background:var(--paper);border-top:4px solid var(--green);padding:18px 20px;box-shadow:0 10px 30px rgba(12,35,64,.25);border-radius:0 18px 0 0;z-index:2;line-height:1.5}
 .atlas-panel h2{margin:0 0 2px;font-size:21px;line-height:1.25}
 .atlas-panel h3{margin:16px 0 6px;font-size:15px}
 .atlas-close{position:absolute;top:6px;right:10px;border:0;background:none;font-size:24px;color:var(--ink);cursor:pointer}
@@ -36,6 +33,12 @@ body.atlas{display:flex;flex-direction:column;overflow:hidden}
 .atlas-total{margin:8px 0 0;font-weight:600}
 .atlas-lcoh{margin:14px 0 0;padding:8px 10px;background:#fff;border-left:4px solid var(--ink);font-weight:700}
 .atlas-cta{display:inline-block;margin-top:16px;padding:10px 18px;background:var(--ink);color:#fff;text-decoration:none;font-weight:700;border-radius:0 12px 0 0}
+button.atlas-cta{border:0;font:inherit;font-weight:700;cursor:pointer}
+.atlas-steps{margin:10px 0 0;padding-left:22px}.atlas-steps li{margin:0 0 6px}
+.atlas-legend{margin:6px 0 0;padding:0;list-style:none;font-size:14px}.atlas-legend li{display:flex;align-items:center;gap:10px;margin:0 0 6px}
+.atlas-key{flex:none;display:inline-block;width:14px;height:14px;border-radius:50%;box-sizing:border-box}
+.atlas-key-park{background:#00A6DE;border:1.5px solid #0C2340}.atlas-key-grey{background:#A7B1BC;border:1.5px solid #7C8896}
+.atlas-key-station{background:#fff;border:2.5px solid #0C2340;width:12px;height:12px}.atlas-key-area{width:18px;height:14px;border-radius:0 6px 0 0;background:rgba(122,184,0,.3)}
 .atlas-cta:hover{background:var(--green)}
 .maplibregl-popup-content{font-family:inherit;border-radius:0 10px 0 0}
 .atlas-actions{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:16px 0 0}.atlas-actions .atlas-cta{margin-top:0}
@@ -50,22 +53,30 @@ body.atlas{display:flex;flex-direction:column;overflow:hidden}
 .atlas-profile-form button,.atlas-profile button#print{justify-self:start;font:inherit;padding:8px 14px;border:0;background:var(--ink);color:#fff;cursor:pointer}
 .atlas-trap{position:absolute;left:-9999px}.atlas-status{font-size:14px;color:var(--muted)}
 .atlas-profile .atlas-parks small{display:block}
-/* Pagina's per windpark (zonder kaart) */
-body.atlas-doc{min-height:100vh;display:flex;flex-direction:column}
-.atlas-nav{display:flex;gap:16px;margin-left:auto}.atlas-nav a{color:#fff}
-body.atlas-doc main.atlas-page{flex:1;width:100%;max-width:760px;box-sizing:border-box;margin:0 auto;padding:28px 16px 40px}
-.atlas-page h1{font-size:clamp(26px,5vw,36px);line-height:1.2;margin:4px 0 10px}.atlas-page h2{font-size:20px;margin:28px 0 6px}
-.atlas-lead{font-size:17px}.atlas-cta-alt{background:var(--green);color:var(--ink)}
-.atlas-list{columns:2 260px;padding-left:18px}.atlas-list small{color:var(--muted)}
-.atlas-foot{padding:12px 16px;font-size:13px;color:var(--muted);border-top:1px solid var(--line)}
+/* Windparken en de pagina per windpark (zonder kaart) */
+body.atlas-doc{min-height:100vh;margin:0;display:flex;flex-direction:column}
+.atlas-page a:not(.atlas-cta),.atlas-panel a:not(.atlas-cta){color:var(--ink)}.atlas-page a:not(.atlas-cta):hover,.atlas-panel a:not(.atlas-cta):hover{color:#00739a}
+body.atlas-doc main.atlas-page{flex:1;width:100%;max-width:1160px;box-sizing:border-box;margin:0 auto;padding:24px 20px 8px}
+body.atlas-doc .pub-foot{margin-top:40px}
+.atlas-page h1{font-size:clamp(28px,5vw,40px);font-weight:500;letter-spacing:-.8px;line-height:1.15;margin:8px 0 10px}.atlas-page h2{font-size:21px;margin:30px 0 8px}
+.atlas-lead,.atlas-page>p,.atlas-facts{max-width:780px}.atlas-lead{font-size:17px}.atlas-cta-alt{background:var(--green);color:var(--ink)}
+.atlas-list{columns:3 250px;column-gap:28px;margin:0;padding-left:18px}.atlas-list li{break-inside:avoid;margin:0 0 4px}.atlas-list small{color:var(--muted)}
+.atlas-crumbs{font-size:14px;color:var(--muted)}.atlas-crumbs a{color:var(--ink)}
+.atlas-find{display:grid;gap:6px;max-width:620px;margin:18px 0 0}.atlas-find label{font-weight:600}
+.atlas-find span{display:flex;gap:8px}.atlas-find input{flex:1;min-width:0;font:inherit;font-size:16px;padding:10px 12px;border:1px solid #788b9f;border-radius:0 10px 0 0}
+.atlas-find button{font:inherit;font-weight:700;padding:10px 20px;border:0;background:var(--ink);color:#fff;border-radius:0 10px 0 0;cursor:pointer}.atlas-find button:hover{background:#193a5d}
+.atlas-found{margin:14px 0 0;padding:10px 14px;background:#fff;border-left:4px solid var(--green)}.atlas-found a{margin-left:6px}
+.atlas-jump{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 6px}.atlas-jump a{padding:6px 12px;background:#fff;border:1px solid var(--line);border-radius:0 10px 0 0;color:var(--ink);text-decoration:none}.atlas-jump a:hover{background:#C3E4F2}.atlas-jump small{color:var(--muted)}
+.atlas-group{margin:26px 0 0;scroll-margin-top:12px}.atlas-group h2{display:inline;margin:0;font-size:22px}.atlas-group>h2{display:block;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}.atlas-group h2 small{color:var(--muted);font-size:15px;font-weight:400}
+details.atlas-group summary{cursor:pointer;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:0 12px 0 0}details.atlas-group summary span{display:block;color:var(--muted);font-size:14px}details.atlas-group[open] summary{margin-bottom:10px}
 @media print{
- .atlas-top,.atlas-map,.atlas-hint,.atlas-close,.atlas-noprint,.atlas-lock,.maplibregl-control-container{display:none!important}
+ .atlas-map,.atlas-hint,.atlas-close,.atlas-noprint,.atlas-lock,.maplibregl-control-container{display:none!important}
  html,body.atlas{height:auto;overflow:visible;display:block}.atlas-main{position:static}
  .atlas-panel{position:static;width:auto;max-height:none;box-shadow:none;border:0}
 }
 @media (max-width:640px){
- .atlas-top{flex-wrap:wrap;gap:8px;padding:10px 16px}
- .atlas-search{max-width:none;flex-basis:100%}
  .atlas-panel{top:auto;bottom:0;left:0;right:0;width:auto;max-height:55%;border-radius:18px 18px 0 0}
- .atlas-hint{bottom:auto;top:10px;right:56px}
+ .atlas-hint,.atlas-panel:not([hidden])~.atlas-hint{bottom:auto;top:10px;left:12px;right:56px}
+ .atlas-list{columns:1}
+ .atlas-jump{gap:6px}.atlas-jump a{padding:4px 9px;font-size:14px}
 }

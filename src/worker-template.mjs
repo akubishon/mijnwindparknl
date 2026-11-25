@@ -42,8 +42,8 @@ async function siteAllowed(request,env){
 const escapeHtml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function safeNext(value){if(typeof value!=='string'||!value.startsWith('/')||value.startsWith('//')||value.includes('\\')||/[\r\n]/.test(value))return '/';const u=new URL(value,'https://site.invalid');return u.origin==='https://site.invalid'&&!u.pathname.startsWith('/auth/')?u.pathname+u.search:'/';}
 const loginText={
- nl:{title:'Welkom · Mijn Windpark',welcome:'Welkom!',intro:'Voer je wachtwoord in.',password:'Wachtwoord',submit:'Inloggen',other:'English',otherLang:'en',otherLabel:'Show this page in English',offer:'Op zoek naar een waterstofopbrengstberekening voor je OWE-aanvraag?',offerLink:'Bekijk de waterstofscan'},
- en:{title:'Welcome · Mijn Windpark',welcome:'Welcome!',intro:'Enter your password.',password:'Password',submit:'Log in',other:'Nederlands',otherLang:'nl',otherLabel:'Toon deze pagina in het Nederlands',offer:'Looking for a hydrogen yield calculation for an OWE subsidy application?',offerLink:'View the hydrogen scan (Dutch)'},
+ nl:{title:'Welkom · Mijn Windpark',welcome:'Welkom!',intro:'Voer je wachtwoord in.',password:'Wachtwoord',submit:'Inloggen',other:'English',otherLang:'en',otherLabel:'Show this page in English',offer:'Geen teamlid? De kaart, de windparken en de Waterstofscan staan op de startpagina.',offerLink:'Naar de startpagina'},
+ en:{title:'Welcome · Mijn Windpark',welcome:'Welcome!',intro:'Enter your password.',password:'Password',submit:'Log in',other:'Nederlands',otherLang:'nl',otherLabel:'Toon deze pagina in het Nederlands',offer:'Not on the team? The map, the wind farms and the hydrogen scan are on the home page.',offerLink:'Go to the home page (Dutch)'},
 };
 const loginMessages={'Toegang is nog niet ingesteld. Neem contact op met de beheerder.':'Access has not been set up yet. Please contact the administrator.','Te veel pogingen. Probeer over 15 minuten opnieuw.':'Too many attempts. Try again in 15 minutes.','Probeer het later opnieuw.':'Please try again later.','Ongeldige aanvraag.':'Invalid request.','Onjuist wachtwoord.':'Incorrect password.'};
 // Taalkeuze uit de cookie die de taalknop zet; de loginpagina heeft geen scripts en wordt daarom op de server vertaald.
@@ -61,7 +61,7 @@ function loginPage(message='',next='/',status=401,lang='nl'){
  .error{margin:18px 0 0;padding:12px 14px;border-left:3px solid #a32c22;background:#fff3f0;font-size:16px;color:#84251e}input[aria-invalid=true]{border-color:#a32c22}
  .offer{margin:28px 0 0;padding:14px 16px;background:#C3E4F2;border-left:4px solid #00A6DE;font-size:15px}.offer a{color:#0C2340;font-weight:600}
  @media(max-width:520px){body{padding:20px}main{padding:32px 26px}h1{font-size:36px}.brand{margin-bottom:24px}}
- </style></head><body><main aria-labelledby="welcome-title"><p class="brand"><span>mijnwindpark.nl</span><a href="${escapeHtml(withLanguage(safeNext(next),text.otherLang))}" lang="${text.otherLang}" aria-label="${text.otherLabel}">${text.other}</a></p><h1 id="welcome-title">${text.welcome}</h1><p class="intro">${text.intro}</p><form method="post" action="/auth/site"><input type="hidden" name="next" value="${escapeHtml(safeNext(next))}"><label for="password">${text.password}</label><input id="password" type="password" name="password" required maxlength="1024" autocomplete="current-password" autofocus${message?' aria-describedby="password-error" aria-invalid="true"':''}>${message?`<p class="error" id="password-error" role="alert">${escapeHtml(message)}</p>`:''}<button type="submit">${text.submit}</button></form><p class="offer">${text.offer} <a href="/waterstofscan">${text.offerLink} →</a></p></main></body></html>`;
+ </style></head><body><main aria-labelledby="welcome-title"><p class="brand"><span>mijnwindpark.nl</span><a href="${escapeHtml(withLanguage(safeNext(next),text.otherLang))}" lang="${text.otherLang}" aria-label="${text.otherLabel}">${text.other}</a></p><h1 id="welcome-title">${text.welcome}</h1><p class="intro">${text.intro}</p><form method="post" action="/auth/site"><input type="hidden" name="next" value="${escapeHtml(safeNext(next))}"><label for="password">${text.password}</label><input id="password" type="password" name="password" required maxlength="1024" autocomplete="current-password" autofocus${message?' aria-describedby="password-error" aria-invalid="true"':''}>${message?`<p class="error" id="password-error" role="alert">${escapeHtml(message)}</p>`:''}<button type="submit">${text.submit}</button></form><p class="offer">${text.offer} <a href="${HOME_PATH}">${text.offerLink} →</a></p></main></body></html>`;
  const policy="default-src 'none'; style-src 'unsafe-inline'; font-src data:; form-action 'self'; base-uri 'none'; object-src 'none'";
  return new Response(html,{status,headers:{...securityHeaders,'Content-Security-Policy':policy,'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow'}});
 }
@@ -97,8 +97,8 @@ async function gateRequest(request,env,url){
  // Teamtoegang: /inloggen toont het inlogformulier, of stuurt wie al is ingelogd door naar de site.
  if(url.pathname==='/inloggen'&&request.method==='GET'){if(signedIn)return new Response(null,{status:303,headers:{...securityHeaders,Location:'/','Cache-Control':'no-store'}});if(secret)return login('','/',200);}
  if(signedIn)return null;
- // Bezoekers zonder login op de voordeur zien het aanbod; het team logt in via /inloggen.
- if(url.pathname==='/'&&!url.search&&request.method==='GET'&&secret)return new Response(null,{status:302,headers:{...securityHeaders,Location:SCAN_PATH,'Cache-Control':'no-store'}});
+ // Bezoekers zonder login op de voordeur gaan naar de openbare startpagina; het team logt in via /inloggen.
+ if(url.pathname==='/'&&!url.search&&request.method==='GET'&&secret)return new Response(null,{status:302,headers:{...securityHeaders,Location:HOME_PATH,'Cache-Control':'no-store'}});
  if(url.pathname.startsWith('/api/'))return answer({error:'Voer eerst het websitewachtwoord in.'},401);
  return login(secret?'':'Toegang is nog niet ingesteld. Neem contact op met de beheerder.',url.pathname+url.search,secret?401:503);
 }
@@ -117,10 +117,10 @@ async function scanRoute(request,env,url){
   const q=name=>String(url.searchParams.get(name)??'').replace(/[\u0000-\u001f]/g,' ').trim();
   const mw=Number(q('vermogen').replace(',','.'));
   const values={pakket,bron:leadSource(q('bron')),locatie:q('locatie').slice(0,300),vermogen:Number.isFinite(mw)&&mw>0&&mw<100000?String(Math.round(mw*10)/10):''};
-  return new Response(scanPage({sent,values,font:brandFont}),{headers:scanHeaders(sent?'no-store':'public, max-age=300')});
+  return new Response(scanPage({sent,values,font:brandFont,links:publicLinks(url)}),{headers:scanHeaders(sent?'no-store':'public, max-age=300')});
  }
  if(request.method!=='POST')return new Response('Method not allowed',{status:405,headers:{...securityHeaders,Allow:'GET, POST'}});
- const page=(status,options)=>new Response(scanPage({...options,font:brandFont}),{status,headers:scanHeaders('no-store')});
+ const page=(status,options)=>new Response(scanPage({...options,font:brandFont,links:publicLinks(url)}),{status,headers:scanHeaders('no-store')});
  if(request.headers.get('Origin')!==url.origin)return page(403,{errors:['Ongeldige aanvraag. Laad de pagina opnieuw en probeer het nog eens.']});
  const ip=request.headers.get('CF-Connecting-IP')||'unknown',now=Date.now();
  const previous=leadAttempts.get(ip);const attempts=previous&&previous.until>now?previous:{count:0,until:now+3600000};
@@ -156,9 +156,10 @@ export default {
       try{const selection={model,run:url.searchParams.get('run')||undefined,day:url.searchParams.get('day')||undefined};const result=await updateHarmonieSnapshot(env,model,selection);const saved=await readStoredHarmonie(env,selection);return answer({...result,verifiedRun:saved.run,storedHours:saved.rows.length});}
       catch(error){console.error('HARMONIE_UPDATE_FAILED',error.message);return answer({error:error.message},502);}
     }
-    // Openbaar, vóór de sitepoort: de verkooppagina met aanvraagformulier, robots.txt en het icoon.
+    // Openbaar, vóór de sitepoort: de startpagina, de verkooppagina met aanvraagformulier, robots.txt en het icoon.
+    if(url.pathname===HOME_PATH&&(request.method==='GET'||request.method==='HEAD'))return new Response(homePage({font:brandFont,links:publicLinks(url),parks:atlasServer.pageParks.length}),{headers:scanHeaders('public, max-age=300')});
     if(url.pathname===SCAN_PATH)return scanRoute(request,env,url);
-    if(url.pathname==='/robots.txt'&&request.method==='GET')return new Response(SCAN.indexable?'User-agent: *\nAllow: '+SCAN_PATH+'\nDisallow: /\n':'User-agent: *\nDisallow: /\n',{headers:{...securityHeaders,'Content-Type':'text/plain; charset=utf-8','Cache-Control':'public, max-age=3600'}});
+    if(url.pathname==='/robots.txt'&&request.method==='GET')return new Response(SCAN.indexable?'User-agent: *\nAllow: '+HOME_PATH+'\nAllow: '+SCAN_PATH+'\nDisallow: /\n':'User-agent: *\nDisallow: /\n',{headers:{...securityHeaders,'Content-Type':'text/plain; charset=utf-8','Cache-Control':'public, max-age=3600'}});
     if(url.pathname==='/favicon.svg'&&request.method==='GET')return new Response(favicon,{headers:{...securityHeaders,'Content-Type':'image/svg+xml','Cache-Control':'public, max-age=86400'}});
     const gate=await gateRequest(request,env,url);if(gate)return gate;
     if(url.pathname==='/leads'||url.pathname==='/leads.csv'){

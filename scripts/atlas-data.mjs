@@ -1,7 +1,8 @@
 // Eenmalige data voor de Atlas (atlas.mijnwindpark.nl). Nooit live per klik.
 //   node scripts/atlas-data.mjs wind [--upload]   KNMI-uurwind 2025 → work/atlas-data/wind-2025/*.json (+ naar R2 met --upload)
 //   node scripts/atlas-data.mjs windparken         OSM Overpass → src/atlas/windparken.geojson (committen; andere server via OVERPASS_URL)
-// Zonder argument: beide stappen.
+//   node scripts/atlas-data.mjs plaatsen           PDOK Locatieserver → plaats, gemeente en provincie per park in dezelfde geojson
+// Zonder argument: alle stappen. Na 'windparken' volgt 'plaatsen' altijd, zodat de plaatsnamen niet wegvallen.
 import {mkdirSync, writeFileSync, readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 
@@ -93,5 +94,42 @@ async function windparken() {
  console.log(`Windparken: ${features.length} parken, ${(text.length / 1024).toFixed(0)} kB in src/atlas/windparken.geojson.`);
 }
 
+// Plaats, gemeente en provincie per park uit de PDOK Locatieserver (omgekeerd zoeken), zodat bezoekers een park op
+// plaatsnaam en per provincie vinden. Ligt een park meer dan 500 m buiten elke gemeente, dan ligt het op zee:
+// provincie 'Noordzee', met de dichtstbijzijnde gemeente en plaats aan de kust. Parken buiten Europees Nederland
+// (OSM rekent ook de eilanden in het Caribisch gebied tot NL) staan niet op de kaart en krijgen geen plaats.
+const inEuropeanNL = ([lon, lat]) => lat >= 50.5 && lat <= 54 && lon >= 3 && lon <= 7.5;
+const REVERSE = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1/reverse';
+async function reverse(lon, lat, type, fl) {
+ for (let attempt = 0; attempt < 5; attempt++) {
+  const r = await fetch(`${REVERSE}?${new URLSearchParams({lat: String(lat), lon: String(lon), type, rows: '1', fl})}`);
+  if (r.ok) return (await r.json()).response?.docs?.[0] || null;
+  if (r.status !== 429 && r.status < 500) throw Error(`PDOK ${r.status}`);
+  await new Promise(done => setTimeout(done, 1000 * 2 ** attempt));
+ }
+ throw Error('PDOK Locatieserver niet bereikbaar');
+}
+async function plaatsen() {
+ const file = 'src/atlas/windparken.geojson', geo = JSON.parse(readFileSync(file, 'utf8'));
+ let next = 0;
+ const work = async () => {
+  while (next < geo.features.length) {
+   const f = geo.features[next++], [lon, lat] = f.geometry.coordinates;
+   if (!inEuropeanNL(f.geometry.coordinates)) { Object.assign(f.properties, {plaats: null, gemeente: null, provincie: null}); continue; }
+   const g = await reverse(lon, lat, 'gemeente', 'gemeentenaam,provincienaam,afstand');
+   const w = await reverse(lon, lat, 'woonplaats', 'woonplaatsnaam,afstand');
+   const opZee = !g || g.afstand > 500;
+   Object.assign(f.properties, {plaats: w?.woonplaatsnaam || null, gemeente: g?.gemeentenaam || null, provincie: opZee ? 'Noordzee' : g.provincienaam});
+  }
+ };
+ await Promise.all([work(), work(), work()]);
+ const text = JSON.stringify(geo);
+ writeFileSync(file, text + '\n');
+ const counts = {};
+ for (const f of geo.features) counts[f.properties.provincie] = (counts[f.properties.provincie] || 0) + 1;
+ console.log(`Plaatsen: ${geo.features.length} parken, ${(text.length / 1024).toFixed(0)} kB.`, counts);
+}
+
 if (want('wind')) await wind();
 if (want('windparken')) await windparken();
+if (want('windparken') || want('plaatsen')) await plaatsen();
