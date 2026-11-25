@@ -13,7 +13,6 @@ const empty = {type: 'FeatureCollection', features: []};
 const rad = d => d * Math.PI / 180;
 const km = (lat1, lon1, lat2, lon2) => 2 * 6371.0088 * Math.asin(Math.min(1, Math.sqrt(Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lon2 - lon1) / 2) ** 2)));
 let chosen = null;          // gekozen perceel
-let coverage = null;        // {max_km, stations} van /api/atlas/stations; null = onbekend (de server beslist)
 let options = [];           // windparken die in het paneel te kiezen zijn
 const selected = new Set(); // id's van de aangevinkte windparken
 
@@ -38,7 +37,10 @@ const map = new maplibregl.Map({
    {id: 'perceel-vlak', type: 'fill', source: 'perceel', paint: {'fill-color': '#00A6DE', 'fill-opacity': 0.25}},
    {id: 'perceel-rand', type: 'line', source: 'perceel', paint: {'line-color': '#0C2340', 'line-width': 3}},
    {id: 'windparken', type: 'circle', source: 'windparken', paint: {
-    'circle-color': '#00A6DE', 'circle-stroke-color': '#0C2340', 'circle-stroke-width': 1.5, 'circle-opacity': 0.85,
+    // Grijs: geen KNMI-station binnen de afstandsgrens van dit park, dus niet te kiezen.
+    'circle-color': ['case', ['to-boolean', ['get', 'knmi']], '#00A6DE', '#A7B1BC'],
+    'circle-stroke-color': ['case', ['to-boolean', ['get', 'knmi']], '#0C2340', '#7C8896'],
+    'circle-stroke-width': 1.5, 'circle-opacity': ['case', ['to-boolean', ['get', 'knmi']], 0.85, 0.6],
     'circle-radius': ['interpolate', ['linear'], ['coalesce', ['get', 'mw'], 3], 3, 4, 50, 8, 300, 14, 1000, 20],
    }},
    {id: 'windparken-gekozen', type: 'circle', source: 'windparken', filter: ['in', ['get', 'id'], ['literal', []]], paint: {
@@ -55,7 +57,7 @@ map.on('mouseleave', 'windparken', () => { map.getCanvas().style.cursor = ''; })
 const hint = () => { $('hint').hidden = map.getZoom() >= PERCEEL_ZOOM; };
 map.on('zoomend', hint); hint();
 
-// ---------------------------------------------------------------- KNMI-dekking: alleen percelen binnen max_km van een station met data
+// ---------------------------------------------------------------- KNMI-dekking: windparken binnen max_km van een station met data zijn te kiezen
 function circle(lon, lat, radiusKm, steps = 64) {
  const ring = [];
  for (let i = 0; i <= steps; i++) {
@@ -64,21 +66,16 @@ function circle(lon, lat, radiusKm, steps = 64) {
  }
  return ring;
 }
-const nearestStation = (lat, lon) => coverage?.stations.reduce((best, s) => {
- const d = km(lat, lon, s.lat, s.lon);
- return !best || d < best.km ? {...s, km: d} : best;
-}, null);
 map.on('load', async () => {
  try {
   const r = await fetch('/api/atlas/stations');
   if (!r.ok) return;
   const d = await r.json();
   if (!d.stations?.length) return;
-  coverage = d;
   map.getSource('dekking').setData({type: 'FeatureCollection', features: d.stations.map(s => ({type: 'Feature', properties: {}, geometry: {type: 'Polygon', coordinates: [circle(s.lon, s.lat, d.max_km)]}}))});
   map.getSource('stations').setData({type: 'FeatureCollection', features: d.stations.map(s => ({type: 'Feature', properties: {naam: s.naam, wind: s.wind_gem_ms}, geometry: {type: 'Point', coordinates: [s.lon, s.lat]}}))});
-  $('hint').textContent = `Klik in het groene gebied (binnen ${d.max_km} km van een KNMI-station) om een kadastraal perceel te kiezen.`;
- } catch { coverage = null; }
+  $('hint').textContent = `Klik op de kaart om een perceel te kiezen. Blauwe windparken liggen binnen ${d.max_km} km van een KNMI-station (groen gebied) en zijn te selecteren; grijze niet.`;
+ } catch { /* zonder stations blijft de kaart bruikbaar; de server bewaakt de afstanden */ }
 });
 
 // ---------------------------------------------------------------- klikken: windpark (kiezen of popup), station (popup) of perceel (teaser)
@@ -86,8 +83,12 @@ map.on('click', async event => {
  const park = map.queryRenderedFeatures(event.point, {layers: ['windparken-gekozen', 'windparken']})[0];
  if (park) {
   const p = park.properties;
-  if (chosen && !$('paneel').hidden) { togglePark({id: p.id, naam: p.naam, mw: p.mw, afstand_km: km(chosen.lat, chosen.lon, park.geometry.coordinates[1], park.geometry.coordinates[0])}); return; }
-  new maplibregl.Popup({offset: 10}).setLngLat(park.geometry.coordinates).setHTML(`<strong>${esc(p.naam)}</strong><br>${nl(p.mw)} MW<br><span class="atlas-muted">Kies eerst een perceel om dit park te selecteren.</span>`).addTo(map);
+  if (!p.knmi) {
+   new maplibregl.Popup({offset: 10}).setLngLat(park.geometry.coordinates).setHTML(`<strong>${esc(p.naam)}</strong><br>${nl(p.mw)} MW<br><span class="atlas-muted">Geen KNMI-station dicht genoeg bij dit park; niet te kiezen.</span>`).addTo(map);
+   return;
+  }
+  if (chosen && !$('paneel').hidden) { togglePark({id: p.id, naam: p.naam, mw: p.mw, station: {naam: p.knmi}, afstand_km: km(chosen.lat, chosen.lon, park.geometry.coordinates[1], park.geometry.coordinates[0])}); return; }
+  new maplibregl.Popup({offset: 10}).setLngLat(park.geometry.coordinates).setHTML(`<strong>${esc(p.naam)}</strong><br>${nl(p.mw)} MW · KNMI ${esc(p.knmi)}<br><span class="atlas-muted">Kies eerst een perceel om dit park te selecteren.</span>`).addTo(map);
   return;
  }
  const station = map.queryRenderedFeatures(event.point, {layers: ['stations']})[0];
@@ -114,17 +115,7 @@ function reset() {
  map.getSource('perceel').setData(empty);
  chosen = null; options = []; selected.clear(); markSelected();
 }
-function noStation(text) {
- reset();
- show(`<p class="atlas-kicker">Geen KNMI-station in de buurt</p><p>${text}</p>`);
-}
-
 async function choose(lon, lat) {
- const near = nearestStation(lat, lon);
- if (near && near.km > coverage.max_km) {
-  noStation(`Dit punt ligt ${nl(near.km)} km van het dichtstbijzijnde KNMI-station (${esc(near.naam)}). Kies een perceel in het groene gebied, binnen ${coverage.max_km} km van een station, zodat de winddata bij de locatie past.`);
-  return;
- }
  show('<p class="atlas-muted">Perceel ophalen…</p>');
  const d = 0.0002, bbox = [lon - d, lat - d, lon + d, lat + d].map(v => v.toFixed(6)).join(',');
  let perceel = null;
@@ -140,8 +131,12 @@ async function choose(lon, lat) {
   status = r.status;
   teaser = await r.json();
  } catch { teaser = null; }
- if (status === 422) { noStation(`${esc(teaser?.error)} Kies een perceel dichter bij een station.`); return; }
- if (status !== 200 || !teaser?.station) { reset(); show('<p>Winddata is nu niet beschikbaar. Probeer het later opnieuw.</p>'); return; }
+ if (status === 422) {
+  reset();
+  show(`<p class="atlas-kicker">Geen geschikt windpark in de buurt</p><p>${esc(teaser?.error)} Kies een perceel dichter bij een blauw windpark.</p>`);
+  return;
+ }
+ if (status !== 200 || !teaser?.windparken) { reset(); show('<p>Winddata is nu niet beschikbaar. Probeer het later opnieuw.</p>'); return; }
  map.getSource('perceel').setData(perceel);
  const p = perceel.properties;
  chosen = {lat, lon, aanduiding: `${p.kadastrale_gemeente_waarde} ${p.sectie} ${p.perceelnummer}`, m2: p.kadastrale_grootte_waarde};
@@ -150,15 +145,12 @@ async function choose(lon, lat) {
  render(teaser);
 }
 
-function render(t) {
+function render() {
  show(`<p class="atlas-kicker">Elektrolyserlocatie</p>
   <h2>Perceel ${esc(chosen.aanduiding)}</h2>
   <p class="atlas-area">${Number(chosen.m2).toLocaleString('nl-NL')} m²</p>
-  <dl class="atlas-facts">
-   <dt>KNMI-station</dt><dd>${esc(t.station.naam)} (${nl(t.station.afstand_km)} km)</dd>
-   <dt>Gemiddelde wind 2025</dt><dd>${nl(t.station.wind_gem_ms)} m/s op 10 m hoogte</dd></dl>
   <h3>Kies windparken</h3>
-  <p class="atlas-muted atlas-help">Vink de parken aan die deze locatie voeden, of klik een windpark op de kaart.</p>
+  <p class="atlas-muted atlas-help">Vink de parken aan die deze locatie voeden, of klik een blauw windpark op de kaart. Elk park rekent met de wind van het KNMI-station bij dat park.</p>
   <ul id="parken" class="atlas-parks"></ul>
   <p id="parktotaal" class="atlas-total"></p>
   <p id="lcoh" class="atlas-lcoh" hidden></p>
@@ -169,7 +161,8 @@ function renderParks() {
  const list = $('parken');
  if (!list) return;
  list.innerHTML = options.length ? options.map(p => `<li><label><input type="checkbox" data-id="${p.id}"${selected.has(p.id) ? ' checked' : ''}>
-  <span><strong>${esc(p.naam)}</strong><small>${nl(p.afstand_km)} km · ${nl(p.mw)} MW</small></span></label></li>`).join('') : '<li class="atlas-muted">Geen windparken gevonden.</li>';
+  <span><strong>${esc(p.naam)}</strong><small>${nl(p.afstand_km)} km van het perceel · ${nl(p.mw)} MW</small>
+  <small>KNMI ${esc(p.station.naam)}${p.station.afstand_km === undefined ? '' : ` (${nl(p.station.afstand_km)} km van het park, ${nl(p.station.wind_gem_ms)} m/s in 2025)`}</small></span></label></li>`).join('') : '<li class="atlas-muted">Geen windparken gevonden.</li>';
  const total = options.filter(p => selected.has(p.id)).reduce((sum, p) => sum + p.mw, 0);
  $('parktotaal').textContent = selected.size ? `${selected.size} ${selected.size === 1 ? 'windpark' : 'windparken'} gekozen · ${nl(total)} MW` : 'Nog geen windpark gekozen.';
 }
@@ -236,6 +229,6 @@ $('slot').addEventListener('submit', async event => {
   if (!r.ok) { status.textContent = d.error || 'Mislukt.'; return; }
   status.textContent = '';
   const line = $('lcoh');
-  if (line) { line.textContent = `LCOH ${d.lcoh_eur_kg === null ? '–' : '€ ' + nl(d.lcoh_eur_kg, 2)}/kg · ${d.windparken.join(', ')} (${nl(d.P_mw)} MW samen)`; line.hidden = false; }
+  if (line) { line.textContent = `LCOH ${d.lcoh_eur_kg === null ? '–' : '€ ' + nl(d.lcoh_eur_kg, 2)}/kg · ${d.windparken.join(', ')} (${nl(d.P_mw)} MW samen, wind van ${d.stations.join(', ')})`; line.hidden = false; }
  } catch { status.textContent = 'Mislukt. Probeer opnieuw.'; }
 });

@@ -9,13 +9,15 @@ import {COST_DEFAULTS, economics} from '../electrolyser-economics.mjs';
 export const ATLAS_HOSTS = ['atlas.mijnwindpark.nl', 'atlas.localhost'];
 const WIND_PREFIX = 'atlas/v1/wind-2025/';
 const MODULE_MW = 5, MAX_MODULES = 20, MISSING = 255;
-// Een perceel is alleen te kiezen als er een KNMI-station met uurdata 2025 binnen deze afstand ligt.
+// Een windpark is alleen te kiezen als er een KNMI-station met uurdata 2025 binnen deze afstand van het park ligt:
+// de wind van dat station staat dan model voor het park.
 export const MAX_STATION_KM = 25;
+// Een perceel is alleen te kiezen als er zo'n windpark binnen deze afstand ligt.
+export const MAX_PARK_KM = 30;
 // Windparken die bij een perceel te kiezen zijn: de dichtstbijzijnde, en hoogstens zoveel tegelijk in de LCOH.
 const PARK_CHOICES = 8, MAX_SELECTED_PARKS = 10;
 // Vaste id per park (volgorde van src/atlas/windparken.geojson), zodat de browser parken kan aanwijzen.
 const parks = windparken.features.map((f, id) => ({id, naam: f.properties.naam, mw: f.properties.mw, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1]}));
-const parkGeojson = JSON.stringify({...windparken, features: windparken.features.map((f, id) => ({...f, properties: {...f.properties, id}}))});
 const encoder = new TextEncoder();
 
 const toRad = d => d * Math.PI / 180;
@@ -53,7 +55,7 @@ export function dataStations(index) {
   return s && {id: s.id, name: s.name, lat: s.latitude, lon: s.longitude, mean: entry.mean_ms};
  }).filter(Boolean);
 }
-// Dichtstbijzijnde station met data, maar alleen binnen MAX_STATION_KM; anders null (perceel niet kiesbaar).
+// Dichtstbijzijnde station met data, maar alleen binnen MAX_STATION_KM; anders null.
 export function nearestStation(index, lat, lon, maxKm = MAX_STATION_KM) {
  let best = null;
  for (const s of dataStations(index)) {
@@ -62,16 +64,31 @@ export function nearestStation(index, lat, lon, maxKm = MAX_STATION_KM) {
  }
  return best;
 }
-export function nearestParks(lat, lon, count = PARK_CHOICES) {
- return parks.map(p => ({...p, km: haversineKm(lat, lon, p.lat, p.lon)})).sort((a, b) => a.km - b.km).slice(0, count);
+// Per park het KNMI-station dat erbij past (of null), per versie van de index één keer berekend.
+const parkStationCache = new WeakMap();
+export function parkStations(index) {
+ if (!parkStationCache.has(index)) parkStationCache.set(index, parks.map(p => nearestStation(index, p.lat, p.lon)));
+ return parkStationCache.get(index);
 }
-// Gekozen park-id's uit de browser → parken; null bij een ongeldige keuze.
-export function selectedParks(ids, lat, lon) {
+// Dichtstbijzijnde windparken bij een perceel, alleen parken met een passend KNMI-station en binnen MAX_PARK_KM.
+export function nearestParks(index, lat, lon, count = PARK_CHOICES) {
+ const stations = parkStations(index);
+ return parks.map(p => ({...p, station: stations[p.id], km: haversineKm(lat, lon, p.lat, p.lon)}))
+  .filter(p => p.station && p.km <= MAX_PARK_KM).sort((a, b) => a.km - b.km).slice(0, count);
+}
+// Gekozen park-id's uit de browser → parken met hun station; null bij een ongeldige keuze,
+// 'geen-station' als een gekozen park geen KNMI-station binnen MAX_STATION_KM heeft.
+export function selectedParks(index, ids) {
  if (!Array.isArray(ids) || !ids.length || ids.length > MAX_SELECTED_PARKS) return null;
  const unique = [...new Set(ids)];
  if (unique.some(id => !Number.isInteger(id) || id < 0 || id >= parks.length)) return null;
- return unique.map(id => ({...parks[id], km: haversineKm(lat, lon, parks[id].lat, parks[id].lon)}));
+ const stations = parkStations(index), chosen = unique.map(id => ({...parks[id], station: stations[id]}));
+ return chosen.some(p => !p.station) ? 'geen-station' : chosen;
 }
+const parkGeojson = index => {
+ const stations = index ? parkStations(index) : [];
+ return JSON.stringify({...windparken, features: windparken.features.map((f, id) => ({...f, properties: {...f.properties, id, knmi: stations[id]?.name ?? null}}))});
+};
 
 // ---------------------------------------------------------------- LCOH (alleen server-side)
 // Uurreeks 2025 (0,1 m/s, 255 = ontbrekend) → 10-minutenaanbod in MW voor een park van P MW:
@@ -90,11 +107,16 @@ export function supplyFromSeries(series, P) {
  }
  return {jaar: Number(series.start.slice(0, 4)), t, mw};
 }
-export function lcohFor(series, P) {
+// groups: [{series, P}], één groep per KNMI-station; het aanbod van de groepen wordt per tijdstap opgeteld
+// (ontbreekt een station op een tijdstap, dan ontbreekt het totaal daar ook).
+export function lcohFor(groups) {
+ const P = groups.reduce((sum, g) => sum + g.P, 0);
  const capaciteit = 0.5 * P;
  const n = Math.min(MAX_MODULES, Math.max(1, Math.ceil(capaciteit / MODULE_MW - 1e-9)));
  const a = {...DEFAULTS, ...COST_DEFAULTS, capaciteit_mw: capaciteit};
- const result = summarise([simulate_with_replacements(cleanSupply(supplyFromSeries(series, P)), n, a, 'verdelen')]);
+ const supplies = groups.map(g => supplyFromSeries(g.series, g.P));
+ const supply = {...supplies[0], mw: supplies[0].mw.map((_, i) => supplies.some(s => s.mw[i] === null || s.mw[i] === undefined) ? null : supplies.reduce((sum, s) => sum + s.mw[i], 0))};
+ const result = summarise([simulate_with_replacements(cleanSupply(supply), n, a, 'verdelen')]);
  return economics(result, a).lcoh_eur_kg;
 }
 
@@ -129,7 +151,11 @@ export async function atlasRoute(request, env, url, assets) {
   if (path === '/') return file(assets.page, 'text/html; charset=utf-8', 'public, max-age=300');
   if (path === '/atlas.js') return file(assets.script, 'text/javascript; charset=utf-8');
   if (path === '/atlas.css') return file(assets.style, 'text/css; charset=utf-8');
-  if (path === '/windparken.geojson') return file(parkGeojson, 'application/geo+json', 'public, max-age=86400');
+  if (path === '/windparken.geojson') {
+   let index = null;
+   try { index = await windIndex(env); } catch (e) { console.error('ATLAS_PARKS_DATA', e.message); }
+   return file(parkGeojson(index), 'application/geo+json', index ? 'public, max-age=3600' : 'no-store');
+  }
   if (path === '/api/atlas/stations') {
    try {
     const stations = dataStations(await windIndex(env)).map(s => ({naam: s.name, lat: s.lat, lon: s.lon, wind_gem_ms: round(s.mean, 1)}));
@@ -144,16 +170,17 @@ export async function atlasRoute(request, env, url, assets) {
   if (path === '/api/atlas/teaser') {
    const lat = Number(url.searchParams.get('lat')), lon = Number(url.searchParams.get('lon'));
    if (!url.searchParams.has('lat') || !url.searchParams.has('lon') || !validPoint(lat, lon)) return json({error: 'Kies een punt in Nederland.'}, 400);
-   let station = null;
-   try { station = nearestStation(await windIndex(env), lat, lon); } catch (e) {
+   let index;
+   try { index = await windIndex(env); } catch (e) {
     console.error('ATLAS_TEASER_DATA', e.message);
     return json({error: 'Winddata is nu niet beschikbaar.'}, 503);
    }
-   if (!station) return json({error: `Geen KNMI-station binnen ${MAX_STATION_KM} km van dit perceel.`, max_km: MAX_STATION_KM}, 422, 'public, max-age=86400');
+   const near = nearestParks(index, lat, lon);
+   if (!near.length) return json({error: `Binnen ${MAX_PARK_KM} km van dit perceel ligt geen windpark met een KNMI-station binnen ${MAX_STATION_KM} km.`, max_km: MAX_STATION_KM, max_park_km: MAX_PARK_KM}, 422, 'public, max-age=3600');
    return json({
-    station: {naam: station.name, afstand_km: round(station.km, 1), wind_gem_ms: round(station.mean, 1)},
-    windparken: nearestParks(lat, lon).map(p => ({id: p.id, naam: p.naam, mw: round(p.mw, 1), afstand_km: round(p.km, 1)})),
-   }, 200, 'public, max-age=86400');
+    windparken: near.map(p => ({id: p.id, naam: p.naam, mw: round(p.mw, 1), afstand_km: round(p.km, 1),
+     station: {naam: p.station.name, afstand_km: round(p.station.km, 1), wind_gem_ms: round(p.station.mean, 1)}})),
+   }, 200, 'public, max-age=3600');
   }
   return notFound();
  }
@@ -165,25 +192,30 @@ export async function atlasRoute(request, env, url, assets) {
   if (!env.SITE_PASSWORD || typeof body?.password !== 'string' || !await sameSecret(body.password, env.SITE_PASSWORD)) return json({error: 'Onjuist wachtwoord.'}, 401);
   const lat = Number(body.lat), lon = Number(body.lon);
   if (!validPoint(lat, lon)) return json({error: 'Kies een punt in Nederland.'}, 400);
-  const chosenParks = selectedParks(body.parken, lat, lon);
-  if (!chosenParks) return json({error: `Kies 1 tot ${MAX_SELECTED_PARKS} windparken.`}, 400);
-  const P = chosenParks.reduce((sum, p) => sum + (p.mw > 0 ? p.mw : 0), 0);
-  if (!(P > 0)) return json({error: 'De gekozen windparken hebben geen bekend vermogen.'}, 400);
   let index;
   try { index = await windIndex(env); } catch (e) {
    console.error('ATLAS_LCOH_FAILED', e.message);
    return json({error: 'De berekening is nu niet beschikbaar.'}, 503);
   }
-  const station = nearestStation(index, lat, lon);
-  if (!station) return json({error: `Geen KNMI-station binnen ${MAX_STATION_KM} km van dit perceel.`}, 422);
+  const chosenParks = selectedParks(index, body.parken);
+  if (!chosenParks) return json({error: `Kies 1 tot ${MAX_SELECTED_PARKS} windparken.`}, 400);
+  if (chosenParks === 'geen-station') return json({error: `Een gekozen windpark heeft geen KNMI-station binnen ${MAX_STATION_KM} km.`}, 422);
+  // Per station het opgetelde vermogen van de gekozen parken die bij dat station horen.
+  const byStation = new Map();
+  for (const p of chosenParks) if (p.mw > 0) byStation.set(p.station.id, {station: p.station, P: (byStation.get(p.station.id)?.P || 0) + p.mw});
+  const groups = [...byStation.values()].sort((a, b) => a.station.id.localeCompare(b.station.id));
+  if (!groups.length) return json({error: 'De gekozen windparken hebben geen bekend vermogen.'}, 400);
+  const P = groups.reduce((sum, g) => sum + g.P, 0);
   try {
-   const key = station.id + '|' + round(P, 3);
+   const key = groups.map(g => g.station.id + ':' + round(g.P, 3)).join('|');
    if (!lcohCache.has(key)) {
-    lcohCache.set(key, lcohFor(await windSeries(env, station.id), P));
+    const withSeries = [];
+    for (const g of groups) withSeries.push({series: await windSeries(env, g.station.id), P: g.P});
+    lcohCache.set(key, lcohFor(withSeries));
     if (lcohCache.size > 200) lcohCache.delete(lcohCache.keys().next().value);
    }
    const lcoh = lcohCache.get(key);
-   return json({lcoh_eur_kg: lcoh === null ? null : round(lcoh, 2), windparken: chosenParks.map(p => p.naam), P_mw: round(P, 1), station: station.name});
+   return json({lcoh_eur_kg: lcoh === null ? null : round(lcoh, 2), windparken: chosenParks.map(p => p.naam), P_mw: round(P, 1), stations: groups.map(g => g.station.name)});
   } catch (e) {
    console.error('ATLAS_LCOH_FAILED', e.message);
    return json({error: 'De berekening is nu niet beschikbaar.'}, 503);
