@@ -36,7 +36,7 @@ function track(e) {
 track('kaart');
 
 // ---------------------------------------------------------------- windparken (één keer laden; ook voor gedeelde links)
-const parksData = fetch('/windparken.geojson').then(r => r.json()).catch(() => ({type: 'FeatureCollection', features: []}));
+const parksData = fetch('/windparken.geojson?v=knmi1').then(r => r.json()).catch(() => ({type: 'FeatureCollection', features: []}));
 const parkById = async id => (await parksData).features.find(f => f.properties.id === id);
 const parkOption = (f, at) => ({id: f.properties.id, naam: f.properties.naam, mw: f.properties.mw, station: {naam: f.properties.knmi},
  afstand_km: at ? km(at.lat, at.lon, f.geometry.coordinates[1], f.geometry.coordinates[0]) : 0});

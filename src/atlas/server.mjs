@@ -185,7 +185,7 @@ const CONCEPT = '<p class="atlas-concept" role="note">Conceptwebsite · ontwerp,
 function docPage({title, description, canonical, body}) {
  return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(description)}"><link rel="canonical" href="${ATLAS_ORIGIN}${canonical}">
-<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/atlas.css"></head>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/atlas.css?v=profiel1"></head>
 <body class="brand-style atlas-doc">${CONCEPT}
 <header class="atlas-top"><a class="atlas-logo" href="/"><span>mijnwindpark.nl</span> <small>Atlas</small></a><nav class="atlas-nav"><a href="/">Kaart</a><a href="/windparken">Windparken</a></nav></header>
 <main class="atlas-page">${body}</main>
