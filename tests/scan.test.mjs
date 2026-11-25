@@ -24,7 +24,7 @@ test('de openbare pagina staat vóór de login, zonder scripts, en noemt geen wi
  assert.equal(r.status, 200);
  const csp = r.headers.get('Content-Security-Policy');
  assert.match(csp, /default-src 'none'/); assert.doesNotMatch(csp, /script-src/);
- assert.equal(r.headers.get('X-Robots-Tag'), null);
+ assert.equal(r.headers.get('X-Robots-Tag'), 'noindex, nofollow', 'conceptfase: niet indexeren');
  const html = await r.text();
  assert.match(html, /<h1>Technische opbrengstanalyse voor de voorbereiding van je <span class="nowrap">OWE-aanvraag<\/span><\/h1>/);
  assert.match(html, /<form method="post" action="\/waterstofscan#aanvraag"/);
@@ -43,7 +43,7 @@ test('de openbare pagina staat vóór de login, zonder scripts, en noemt geen wi
  assert.ok(html.indexOf('/inloggen') > html.indexOf('<footer'), 'inloggen alleen in de voettekst');
  assert.doesNotMatch(html, /<script/i);
  assert.doesNotMatch(html, /Fryslân|Beabuorren|44 MW/);
- assert.equal((await (await worker.fetch(new Request(ORIGIN + '/robots.txt'), {})).text()), 'User-agent: *\nAllow: /waterstofscan\nDisallow: /\n');
+ assert.equal((await (await worker.fetch(new Request(ORIGIN + '/robots.txt'), {})).text()), 'User-agent: *\nDisallow: /\n');
 });
 
 test('de leverancier verschijnt in de voettekst en bij het formulier zodra die is ingevuld', () => {

@@ -39,7 +39,7 @@ Het verschil moet eerlijk blijven. De Atlas rekent met één windjaar (KNMI 2025
 
 ## 4. Wat er in de Atlas moet veranderen (op volgorde)
 
-*Stand 25 november 2026: alles uit § 4.1–4.3 is gebouwd (zie README, sectie Atlas). Nog te doen buiten de code: de OSM-gegevens van de windparkpagina's steekproefsgewijs controleren, besluiten of de Atlas al vindbaar mag zijn zolang hij een concept is (`robots.txt` staat indexeren nu toe), en de congestiedoelgroep valideren met vijf gesprekken.*
+*Stand 25 november 2026: alles uit § 4.1–4.3 is gebouwd (zie README, sectie Atlas). Nog te doen buiten de code: de OSM-gegevens van de windparkpagina's steekproefsgewijs controleren, indexeren aanzetten zodra de site geen concept meer is (`ATLAS_INDEXABLE` en `SCAN.indexable` op `true`; tot die tijd staat het uit), en de congestiedoelgroep valideren met vijf gesprekken.*
 
 ### 4.1 Trechter dichten (week 1, klein werk)
 1. **Context meegeven.** De knop in het paneel gaat naar `https://mijnwindpark.nl/waterstofscan?bron=atlas&perceel=<aanduiding>&parken=<namen>&mw=<totaal>#aanvraag`. Het formulier vult de toelichting vooraf in, bijvoorbeeld ‘Locatie: perceel …, windparken …, … MW’.
@@ -77,7 +77,7 @@ Zolang er geen echt bedrijf is, staat bovenaan de Atlas en `/waterstofscan` een 
   > *‘Ik heb uw locatie in [plaats] op de kaart gezet met de windparken eromheen: [link]. Voor de OWE-aanvraag bepaalt de productieraming uw subsidieplafond. Zullen we twintig minuten kijken hoe we die voor dit project onderbouwen?’*
 - **LinkedIn, twee keer per maand,** met één kaart per bericht. Bijvoorbeeld: ‘Tien bedrijventerreinen naast windparken op land die binnen de hubregeling vallen’, of ‘Waarom twee windparken op 20 km meer waterstof geven dan één park van dezelfde grootte’ (het effect van spreiding, dat de Atlas al optelt per KNMI-station). Elk bericht linkt naar de Atlas, niet naar de prijs.
 - **Regiosessies** met provinciale waterstofprogramma’s, ROM’s en de kennissessies van het Nationaal Waterstof Programma. Bied een gratis sessie van 45 minuten aan met de Atlas live op het scherm.
-- **Vindbaarheid:** de pagina’s per windpark (§ 4.3) en de bestaande `/waterstofscan`. Zet de Atlas in `robots.txt` en de sitemap.
+- **Vindbaarheid:** de pagina’s per windpark (§ 4.3) en de bestaande `/waterstofscan`. Indexeren staat uit zolang de site een concept is; zet het daarna aan.
 
 ## 7. Ritme en doelen
 

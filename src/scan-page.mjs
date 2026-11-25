@@ -12,6 +12,8 @@ export const SCAN = {
   // Wie levert en factureert. Zolang dit null is, toont de pagina geen bedrijfsgegevens. Vul vóór livegang in, bijvoorbeeld:
   // {naam: 'Bedrijf B.V.', kvk: '12345678', adres: 'Straat 1, 1234 AB Plaats', email: 'scan@voorbeeld.nl', telefoon: '+31 …'}
   provider: null,
+  // Conceptfase: niet indexeren (noindex op de pagina, robots.txt sluit alles af). Zet op true zodra de site geen concept meer is.
+  indexable: false,
   packages: [
     {id: 'opbrengst', name: 'Opbrengstberekening', price: '€ 12.000', fit: 'Je hebt een voorkeursmodel en hebt de opbrengstberekening voor je dossier nodig.', items: [
       'Aanbodprofiel van je windpark per tien minuten, op historische windjaren',

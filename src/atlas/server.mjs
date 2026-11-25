@@ -9,6 +9,9 @@ import {parseLead, leadKey, ATLAS_EVENTS, atlasEventKey} from '../leads.mjs';
 
 export const ATLAS_HOSTS = ['atlas.mijnwindpark.nl', 'atlas.localhost'];
 const ATLAS_ORIGIN = 'https://atlas.mijnwindpark.nl', SCAN_URL = 'https://mijnwindpark.nl/waterstofscan';
+// Conceptfase: zoekmachines mogen de Atlas niet indexeren (robots.txt sluit alles af, elke response krijgt noindex).
+// Zet op true zodra de site geen concept meer is; dan gaan robots.txt en de sitemap open.
+export const ATLAS_INDEXABLE = false;
 const WIND_PREFIX = 'atlas/v1/wind-2025/';
 const MODULE_MW = 5, MAX_MODULES = 20, MISSING = 255;
 // Een windpark is alleen te kiezen als er een KNMI-station met uurdata 2025 binnen deze afstand van het park ligt:
@@ -229,7 +232,7 @@ function tooMany(ip, store = attempts, max = 5, windowMs = 60000) {
 
 // ---------------------------------------------------------------- routes
 const CSP = "default-src 'none'; script-src 'self'; worker-src blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://service.pdok.nl; connect-src 'self' https://service.pdok.nl https://api.pdok.nl; font-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'; frame-ancestors 'none'";
-const baseHeaders = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'};
+const baseHeaders = {'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=()', ...(ATLAS_INDEXABLE ? {} : {'X-Robots-Tag': 'noindex, nofollow'})};
 const json = (value, status = 200, cache = 'no-store') => Response.json(value, {status, headers: {...baseHeaders, 'Cache-Control': cache}});
 const file = (body, type, cache = 'public, max-age=3600') => new Response(body, {headers: {...baseHeaders, 'Content-Type': type, 'Cache-Control': cache}});
 const notFound = () => new Response('Niet gevonden', {status: 404, headers: {...baseHeaders, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store'}});
@@ -255,7 +258,7 @@ export async function atlasRoute(request, env, url, assets) {
     return json({error: 'Winddata is nu niet beschikbaar.'}, 503);
    }
   }
-  if (path === '/robots.txt') return file(`User-agent: *\nDisallow: /api/\nAllow: /\nSitemap: ${ATLAS_ORIGIN}/sitemap.xml\n`, 'text/plain; charset=utf-8');
+  if (path === '/robots.txt') return file(ATLAS_INDEXABLE ? `User-agent: *\nDisallow: /api/\nAllow: /\nSitemap: ${ATLAS_ORIGIN}/sitemap.xml\n` : 'User-agent: *\nDisallow: /\n', 'text/plain; charset=utf-8');
   if (path === '/sitemap.xml') return file(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${['/', '/windparken', ...pageParks.map(parkPath)].map(u => `<url><loc>${ATLAS_ORIGIN}${u}</loc></url>`).join('')}</urlset>\n`, 'application/xml; charset=utf-8');
   if (path === '/windparken') return file(parkIndexPage(), 'text/html; charset=utf-8');
   const parkMatch = path.match(/^\/windpark\/(\d{1,5})(?:-([a-z0-9-]*))?$/);

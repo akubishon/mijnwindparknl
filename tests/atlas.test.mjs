@@ -123,7 +123,10 @@ test('atlas pagina per windpark: alleen benoemde parken, canonieke slug, sitemap
  const generic = geo.features.find(f => /^Windturbines \(\d+\)$/.test(f.properties.naam));
  assert.equal((await worker.fetch(new Request(host + `/windpark/${generic.properties.id}`), e)).status, 404);
  const robots = await (await worker.fetch(new Request(host + '/robots.txt'), e)).text();
- assert.match(robots, /Disallow: \/api\//); assert.match(robots, /Sitemap: https:\/\/atlas\.mijnwindpark\.nl\/sitemap\.xml/);
+ // Conceptfase: niets indexeren, ook niet de windparkpagina's.
+ assert.equal(robots, 'User-agent: *\nDisallow: /\n');
+ assert.equal(page.headers.get('X-Robots-Tag'), 'noindex, nofollow');
+ assert.equal((await worker.fetch(new Request(host + '/'), e)).headers.get('X-Robots-Tag'), 'noindex, nofollow');
  const sitemap = await (await worker.fetch(new Request(host + '/sitemap.xml'), e)).text();
  assert.ok(sitemap.includes(`<loc>https://atlas.mijnwindpark.nl${href[1]}</loc>`));
 });

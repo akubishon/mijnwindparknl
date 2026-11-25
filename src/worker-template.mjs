@@ -107,7 +107,7 @@ async function gateRequest(request,env,url){
 // Per IP hooguit vijf aanvragen per uur binnen deze worker-instantie; een ingevuld lokveld geldt als spam en
 // krijgt dezelfde bedankpagina, zonder dat er iets wordt opgeslagen.
 const leadAttempts=new Map();
-const scanHeaders=cache=>({...securityHeaders,'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src 'self' data:; form-action 'self'; base-uri 'none'; object-src 'none'",'Content-Type':'text/html; charset=utf-8','Cache-Control':cache});
+const scanHeaders=cache=>({...securityHeaders,...(SCAN.indexable?{}:{'X-Robots-Tag':'noindex, nofollow'}),'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src 'self' data:; form-action 'self'; base-uri 'none'; object-src 'none'",'Content-Type':'text/html; charset=utf-8','Cache-Control':cache});
 async function scanRoute(request,env,url){
  if(request.method==='GET'||request.method==='HEAD'){
   const sent=url.searchParams.get('verzonden')==='1';
@@ -158,7 +158,7 @@ export default {
     }
     // Openbaar, vóór de sitepoort: de verkooppagina met aanvraagformulier, robots.txt en het icoon.
     if(url.pathname===SCAN_PATH)return scanRoute(request,env,url);
-    if(url.pathname==='/robots.txt'&&request.method==='GET')return new Response('User-agent: *\nAllow: '+SCAN_PATH+'\nDisallow: /\n',{headers:{...securityHeaders,'Content-Type':'text/plain; charset=utf-8','Cache-Control':'public, max-age=3600'}});
+    if(url.pathname==='/robots.txt'&&request.method==='GET')return new Response(SCAN.indexable?'User-agent: *\nAllow: '+SCAN_PATH+'\nDisallow: /\n':'User-agent: *\nDisallow: /\n',{headers:{...securityHeaders,'Content-Type':'text/plain; charset=utf-8','Cache-Control':'public, max-age=3600'}});
     if(url.pathname==='/favicon.svg'&&request.method==='GET')return new Response(favicon,{headers:{...securityHeaders,'Content-Type':'image/svg+xml','Cache-Control':'public, max-age=86400'}});
     const gate=await gateRequest(request,env,url);if(gate)return gate;
     if(url.pathname==='/leads'||url.pathname==='/leads.csv'){
