@@ -7,6 +7,7 @@ import {useCalculator} from '../electrolyser-hub';
 import {catalogueModels} from '../electrolyser-catalogue.mjs';
 import {resolveSetup,newSetup,defaultLimit,DEFAULT_TARGET_MW} from '../electrolyser-setup.mjs';
 import {assemble} from '../electrolyser-run.mjs';
+import {setupCosts,withCosts} from '../electrolyser-economics.mjs';
 import {YEARS} from './supply.mjs';
 import {BOLSWARD,blankProject,studioProfile} from './project.mjs';
 import {stepStatus,allocatedMW,canComputeSupply} from './status.mjs';
@@ -46,13 +47,19 @@ function Editor({initial}:{initial:any}){
  const calc=useCalculator(supply.result?{profile:supply.result.profile,supplies:supply.result.supplies}:null);
 
  // Na Vergelijken: kerncijfers van de referentievariant voor het overzicht.
- const {reference,compared}=useMemo(()=>{
+ const {rows,compared}=useMemo(()=>{
   const ready=resolved.map((r:any,i:number)=>r.ready&&byId.get(project.varianten[i].modelId)?i:-1).filter((i:number)=>i>=0);
-  if(!supply.result||ready.length<2)return {reference:null,compared:false};
-  const results=ready.map((i:number)=>assemble(resolved[i],general,calc.cache));
-  const pos=Math.min(project.referentie,ready.length-1),a:any=results[pos];
-  return {reference:a?{label:letter(ready[pos]),waterstof_t:a.mean.waterstof_kg/1000,benut:a.mean.benut}:null,compared:results.every(Boolean)};
+  if(!supply.result||ready.length<2)return {rows:[],compared:false};
+  const raw=ready.map((i:number)=>assemble(resolved[i],general,calc.cache) as any);
+  if(!raw.every(Boolean))return {rows:[],compared:false};
+  const pos=Math.min(project.referentie,ready.length-1);
+  const costs=ready.map((i:number)=>setupCosts(resolved[i],project.varianten[i],general) as any);
+  const costed=withCosts(raw.map((r:any,k:number)=>({assembled:r,a:costs[k].a})),pos) as any[];
+  const list=ready.map((i:number,k:number)=>({label:letter(i),waterstof_t:costed[k].mean.waterstof_kg/1000,lcoh:Number.isFinite(costed[k].mean.lcoh_eur_kg)?costed[k].mean.lcoh_eur_kg as number:null,ref:k===pos,best:false}));
+  const lowest=Math.min(...list.map((r:any)=>r.lcoh??Infinity));
+  return {rows:list.map((r:any)=>({...r,best:r.lcoh!==null&&r.lcoh===lowest})),compared:true};
  },[calc.state.version,resolved,general,supply.result,project.referentie]);
+ const design=useMemo(()=>{const i=Math.min(project.referentie,project.varianten.length-1),r:any=resolved[i];return r?.ready?{label:letter(i),modules:r.modules,moduleMW:r.moduleMW,nominalMW:r.nominalMW,intakeMW:r.intakeMW}:null;},[resolved,project.referentie]);
 
  const status=useMemo(()=>stepStatus(project,{resolved,index:index.data,supply:{ready:!!supply.result,vollasturen:supply.result?.summaries[0]?.vollasturen,error:supply.error},compared}),[project,resolved,index.data,supply.result,supply.error,compared]);
  const allocated=allocatedMW(project),steps=status.steps as Step[];
@@ -98,7 +105,7 @@ function Editor({initial}:{initial:any}){
  if(step===0)return <>{top}<main id="inhoud"><LocationStep project={project} set={set} parks={parks.data?.features||null} steps={steps} onStep={setStep} kpis={kpis}/></main></>;
  if(step===3)return <>{top}<main id="inhoud"><StationsStep project={project} set={set} index={index} steps={steps} onStep={setStep} kpis={kpis}/></main></>;
 
- const ov={project,status,allocated,supply:supply.result?{summary:supply.result.summaries[0],quiet:supply.result.extras.quiet}:null,reference,onStep:setStep,onCompute:()=>{setStep(4);void supply.run();},busy:supply.busy,canCompute:canComputeSupply(project)};
+ const ov={project,status,allocated,supply:supply.result?{summary:supply.result.summaries[0]}:null,onStep:setStep,onCompute:()=>{setStep(4);void supply.run();},busy:supply.busy,canCompute:canComputeSupply(project),design,rows};
  const parkLink=(p:any)=>project.vast?`/project/bolsward/park/${p.id}`:project.id?`/project/${project.id}/park/${encodeURIComponent(p.id)}`:'';
  const railFoot=project.parken.length?<><small>Windparkpagina's</small>{project.parken.map((p:any)=>parkLink(p)?<Link key={p.id} href={parkLink(p)}><ChevronRight size={14}/>{p.naam.replace(/^Windpark /,'')}</Link>:null)}{!project.id&&!project.vast&&<span className="s-muted">Bewaar het project voor de windparkpagina's.</span>}</>:null;
  return <>{top}
@@ -111,7 +118,7 @@ function Editor({initial}:{initial:any}){
     {step===2&&<ParksStep project={project} set={set} parks={parks}/>}
     {step===4&&<SupplyStep project={project} supply={supply} resolved={resolved}/>}
     {step===5&&<CompareStep project={project} set={set} supply={supply} resolved={resolved} byId={byId} general={general} calc={calc} catalogue={catalogue.data} target={target} limit={limit} onStep={setStep}/>}
-    <NavFoot steps={steps} active={step} onStep={setStep}/>
+    <NavFoot steps={steps} active={step} onStep={setStep} todo={status.issues.filter((x:any)=>x.step===step&&x.level==='let')}/>
    </main>
    <Overview {...ov}/>
   </div>

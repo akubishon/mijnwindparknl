@@ -15,10 +15,10 @@ const state=(s:Step)=>s.status==='klaar'?'klaar':s.status==='let'?`let op${s.cou
 const done=(steps:Step[])=>steps.filter(s=>s.status==='klaar').length;
 
 export function StepRail({steps,active,onStep,footer}:Props&{footer?:ReactNode}){
- const n=done(steps);
+ const n=done(steps),next=steps.findIndex(s=>s.status!=='klaar');
  return <nav className="s-rail" aria-label="Stappen van het project">
   <div className="s-rail-head"><Eyebrow>Project</Eyebrow><Progress value={n} max={steps.length} label="Stappen klaar"/><small>{n} van {steps.length} stappen klaar</small></div>
-  <ol>{steps.map((s,i)=><li key={s.key} className={cx(i===active&&'on','st-'+s.status)}><a href={'?stap='+(i+1)} aria-current={i===active?'step':undefined} onClick={e=>{e.preventDefault();onStep(i);}}><Mark step={s} i={i} on={i===active}/><span><b>{s.label}</b><small>{s.summary}</small></span><span className="s-sr">{state(s)}</span></a></li>)}</ol>
+  <ol>{steps.map((s,i)=><li key={s.key} className={cx(i===active&&'on','st-'+s.status)}><a href={'?stap='+(i+1)} aria-current={i===active?'step':undefined} onClick={e=>{e.preventDefault();onStep(i);}}><Mark step={s} i={i} on={i===active}/><span><b>{s.label}</b><small>{s.summary}</small>{i===next&&i!==active&&<span className="s-next">hier verder</span>}</span><span className="s-sr">{state(s)}</span></a></li>)}</ol>
   {footer&&<div className="s-rail-foot">{footer}</div>}
  </nav>;
 }
@@ -35,9 +35,15 @@ export function BottomBar({steps,active,onStep}:Props){
   {active<steps.length-1?<button type="button" className="s-btn s-btn-cta" onClick={()=>onStep(active+1)}>{steps[active+1].label}<ChevronRight size={16}/></button>:<span/>}
  </div>;
 }
-export function NavFoot({steps,active,onStep}:Props){
- return <div className="s-navfoot">
-  {active>0?<button type="button" className="s-btn s-btn-ghost" onClick={()=>onStep(active-1)}><ChevronLeft size={16}/>{steps[active-1].label}</button>:<span/>}
-  {active<steps.length-1&&<button type="button" className="s-btn s-btn-cta s-btn-big" onClick={()=>onStep(active+1)}>Verder naar {steps[active+1].label}<ChevronRight size={16}/></button>}
+// Begeleiding onderaan elke stap: wat nog moet (en waarom de volgende stap nog niet klaar is), en de volgende stap.
+export function NavFoot({steps,active,onStep,todo}:Props&{todo:{text:string}[]}){
+ const open=todo.length>0,last=active===steps.length-1;
+ return <div className="s-guide">
+  {open?<div className="s-guide-todo" role="status"><b>Nog te doen in deze stap</b><ul>{todo.map(t=><li key={t.text}><TriangleAlert size={14} aria-hidden="true"/>{t.text}</li>)}</ul></div>
+   :!last&&<p className="s-guide-ok"><Check size={16} aria-hidden="true"/>Deze stap is klaar. Ga door met {steps[active+1].label}.</p>}
+  <div className="s-navfoot">
+   {active>0?<button type="button" className="s-btn s-btn-ghost" onClick={()=>onStep(active-1)}><ChevronLeft size={16}/>{steps[active-1].label}</button>:<span/>}
+   {!last&&<button type="button" className={'s-btn s-btn-big '+(open?'s-btn-ghost':'s-btn-cta')} onClick={()=>onStep(active+1)}>{open?'Toch verder naar ':'Verder naar '}{steps[active+1].label}<ChevronRight size={16}/></button>}
+  </div>
  </div>;
 }

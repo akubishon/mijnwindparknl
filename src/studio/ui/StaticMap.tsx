@@ -29,9 +29,9 @@ export function StaticMap({points=[],lines=[],rings=[],fit,width=320,height=170,
   <rect x={box[0]} y={box[1]} width={box[2]} height={box[3]} fill="#C3E4F2" opacity=".14"/>
   {rings.map((r,i)=>{const rad=r.km*1000/(EARTH*Math.cos(r.lat*Math.PI/180))*S;return <circle key={'r'+i} cx={X(r)} cy={Y(r)} r={rad} fill="#00A6DE" fillOpacity=".07" stroke="#00A6DE" strokeWidth={1.5*k} strokeDasharray={`${5*k} ${4*k}`}/>;})}
   {lines.map(([a,b],i)=><line key={'l'+i} x1={X(a)} y1={Y(a)} x2={X(b)} y2={Y(b)} stroke="#0C2340" strokeWidth={1.6*k} strokeDasharray={`${4*k} ${3*k}`}/>)}
-  {points.filter(p=>p.kind==='park').map((p,i)=><circle key={'p'+i} cx={X(p)} cy={Y(p)} r={(p.r||3)*k} fill="#00A6DE" fillOpacity=".55" stroke="#0C2340" strokeWidth={.8*k}/>)}
-  {points.filter(p=>p.kind==='station'||p.kind==='station-on').map((p,i)=><path key={'s'+i} transform={`translate(${X(p)} ${Y(p)}) scale(${k})`} d="M0 -7 L6.5 5 L-6.5 5Z" fill={p.kind==='station-on'?'#0C2340':'#fff'} stroke="#0C2340" strokeWidth="1.6"/>)}
-  {points.filter(p=>p.kind==='chosen').map((p,i)=><circle key={'c'+i} cx={X(p)} cy={Y(p)} r={Math.max(5,p.r||6)*k} fill="#F5A800" stroke="#0C2340" strokeWidth={1.8*k}/>)}
-  {points.filter(p=>p.kind==='h2').map((p,i)=><g key={'h'+i} transform={`translate(${X(p)} ${Y(p)}) scale(${k})`}><path d="M-8 -8 H5 Q8 -8 8 -5 V8 H-8Z" fill="#0C2340" stroke="#00A6DE" strokeWidth="1.6"/></g>)}
+  {points.filter(p=>p.kind==='park').map((p,i)=><circle key={'p'+i} cx={X(p)} cy={Y(p)} r={(p.r||3)*k} fill="#00A6DE" fillOpacity=".35" stroke="#0B7FAE" strokeWidth={.8*k}/>)}
+  {points.filter(p=>p.kind==='station'||p.kind==='station-on').map((p,i)=><path key={'s'+i} transform={`translate(${X(p)} ${Y(p)}) scale(${k})`} d="M0 -7 L6.5 5 L-6.5 5Z" fill={p.kind==='station-on'?'#0B7FAE':'#fff'} stroke="#0C2340" strokeWidth="1.6"/>)}
+  {points.filter(p=>p.kind==='chosen').map((p,i)=><circle key={'c'+i} cx={X(p)} cy={Y(p)} r={Math.max(5,p.r||6)*k} fill="#0B7FAE" stroke="#fff" strokeWidth={2*k}/>)}
+  {points.filter(p=>p.kind==='h2').map((p,i)=><g key={'h'+i} transform={`translate(${X(p)} ${Y(p)}) scale(${k})`}><path d="M-8 -8 H5 Q8 -8 8 -5 V8 H-8Z" fill="#fff" stroke="#0C2340" strokeWidth="2"/></g>)}
  </svg>;
 }

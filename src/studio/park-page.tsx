@@ -22,7 +22,7 @@ function Forecast({projectId,park,cap}:{projectId:string;park:any;cap:number}){
  useEffect(()=>{setF(null);setError('');getJSON(`/api/studio/harmonie?${new URLSearchParams({project:projectId,park:park.id})}`).then(setF,e=>setError(e.message));},[park.id]);
  if(error)return <Notice kind="info" title="Nog geen voorspelling">{error}</Notice>;
  if(!f)return <Skeleton height={260}/>;
- const series=[{label:'Voorspeld parkvermogen',color:'#0C2340',points:f.rows.map((r:any)=>({t:Date.parse(r.time),v:r.powerMW}))}];
+ const series=[{label:'Voorspeld parkvermogen',color:'#0B7FAE',points:f.rows.map((r:any)=>({t:Date.parse(r.time),v:r.powerMW}))}];
  const age=(Date.now()-Date.parse(f.run))/36e5;
  return <>
   <div className="s-chips s-chips-left"><Chip tone="dark">run {new Date(f.run).toLocaleString('nl-NL',{dateStyle:'medium',timeStyle:'short',timeZone:TZ})}</Chip><Chip tone={f.stale?'let':undefined}>{f.stale?'ouder dan zes uur':`${nl(age,0)} uur oud`}</Chip><Chip>{f.rows.length} uur vooruit</Chip></div>
@@ -77,7 +77,7 @@ export function ParkPage({projectId,parkId}:{projectId:string;parkId:string}){
   <Card className="s-pad">
    <div className="s-cardhead"><Seg label="Weergave" value={tab} onChange={setTab} options={[{value:'dag',label:'Daggrafiek'},{value:'stations',label:<>Stations<span className="s-hide-small">vergelijking</span></>},{value:'harmonie',label:<>HARMONIE<span className="s-hide-small">-voorspelling</span></>}]}/>{tab==='dag'&&data&&<button type="button" className="s-btn s-btn-ghost" onClick={csv}><Download size={16}/>CSV per uur</button>}</div>
    {tab==='dag'&&(busy||!data?<Skeleton height={260}/>:<>
-    <LineChart label="Gemodelleerd parkvermogen per tien minuten" series={[{label:'Model',color:'#0C2340',points:pts(data.intervals)}]} yMax={cap} xTicks={ticks(data.intervals.map((p:any)=>Date.parse(p.start)),3,hhmm)} timeLabel={t=>hhmm(t)}/>
+    <LineChart label="Gemodelleerd parkvermogen per tien minuten" series={[{label:'Model',color:'#0B7FAE',points:pts(data.intervals)}]} yMax={cap} xTicks={ticks(data.intervals.map((p:any)=>Date.parse(p.start)),3,hhmm)} timeLabel={t=>hhmm(t)}/>
     <p className="s-muted">{data.windSource}</p>
     <Details summary="Uurtabel" meta={`${data.hours.length} uur`}><div className="s-tablewrap"><table className="s-table"><thead><tr><th>Uur</th><th className="num">Model (MWh)</th><th className="num">Ontbrekend</th></tr></thead><tbody>{data.hours.map((h:any)=><tr key={h.hour}><td>{h.hour}:00</td><td className="num">{nl(h.modelMWh,2)}</td><td className="num">{h.missingMinutes?h.missingMinutes+' min':''}</td></tr>)}</tbody></table></div></Details></>)}
    {tab==='stations'&&(!cmp?<Skeleton height={260}/>:cmp.error?<Notice kind="fout">{cmp.error}</Notice>:<>

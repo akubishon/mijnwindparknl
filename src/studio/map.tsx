@@ -47,8 +47,8 @@ export function StudioMap(props:Props){
      {id:'ring-fill',type:'fill',source:'ring',paint:{'fill-color':'#00A6DE','fill-opacity':.07}},
      {id:'ring-line',type:'line',source:'ring',paint:{'line-color':'#00A6DE','line-width':1.6,'line-dasharray':[3,2]}},
      {id:'lines',type:'line',source:'lines',paint:{'line-color':['get','kleur'],'line-width':2,'line-dasharray':[2.5,2]}},
-     {id:'parks',type:'circle',source:'parks',paint:{'circle-radius':radius(2) as any,'circle-color':'#00A6DE','circle-opacity':.55,'circle-stroke-color':'#0C2340','circle-stroke-width':.8}},
-     {id:'chosen',type:'circle',source:'chosen',paint:{'circle-radius':radius(7) as any,'circle-color':['case',['get','actief'],'#F5A800','#fbe3a6'],'circle-stroke-color':'#0C2340','circle-stroke-width':2}}]}});
+     {id:'parks',type:'circle',source:'parks',paint:{'circle-radius':radius(2) as any,'circle-color':'#00A6DE','circle-opacity':.35,'circle-stroke-color':'#0B7FAE','circle-stroke-width':.8}},
+     {id:'chosen',type:'circle',source:'chosen',paint:{'circle-radius':radius(7) as any,'circle-color':['case',['get','actief'],'#0B7FAE','#bfdceb'],'circle-stroke-color':'#fff','circle-stroke-width':2}}]}});
   const popup=new maplibregl.Popup({closeButton:false,closeOnClick:false,offset:12,className:'s-popup'});
   const hover=(e:any)=>{if(h.current.mode!=='parken')return;const f=e.features?.[0];if(!f)return;m.getCanvas().style.cursor='pointer';const p=f.properties;popup.setLngLat(f.geometry.coordinates).setHTML(`<b>${esc(p.naam)}</b><span>${esc(p.plaats||p.gemeente||'')}${p.plaats||p.gemeente?' · ':''}${p.mw?nl(Number(p.mw))+' MW':'vermogen onbekend'}${p.turbines?` · ${esc(p.turbines)} turbines`:''}</span><small>${p.gekozen?'Klik om te verwijderen':'Klik om toe te voegen'}</small>`).addTo(m);};
   const leave=()=>{m.getCanvas().style.cursor='';popup.remove();};

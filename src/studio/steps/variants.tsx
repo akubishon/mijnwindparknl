@@ -1,16 +1,18 @@
 // Stap 2: elektrolyser. Varianten naast elkaar (één model × aantal units) en de catalogus van de Waterstofatlas als kaarten.
 import {useState} from 'react';
+import {ComposeTab} from '../../electrolyser-hub';
 import {Star,Trash2,Plus,Search} from 'lucide-react';
 import {DISABLED_MANUFACTURERS} from '../../electrolyser-catalogue.mjs';
 import {newSetup,fillToTarget,stackPowerMW,autoResolve,MAX_MODULES} from '../../electrolyser-setup.mjs';
 import {MAX_VARIANTS} from '../project.mjs';
 import {nl,letter,makeId} from '../lib';
-import {Card,Chip,NumberField,RangeSlider,StepHead,Notice,Skeleton,Seg,cx} from '../ui/kit';
+import {Card,Chip,NumberField,RangeSlider,StepHead,Notice,Skeleton,Seg,Details,cx} from '../ui/kit';
 
 const PAGE=12;
 export function VariantsStep({project,set,models,byId,catalogue,general,target,limit,resolved}:{project:any;set:(f:(p:any)=>any)=>void;models:any[];byId:Map<string,any>;catalogue:{data:any;error:string};general:any;target:number;limit:any;resolved:any[]}){
  const powers=models.map(m=>m.power?.value).filter((v:any)=>Number.isFinite(v)) as number[];
  const pmin=powers.length?Math.floor(Math.min(...powers)):0,pmax=powers.length?Math.ceil(Math.max(...powers)):10;
+ const [active,setActive]=useState<string>(project.varianten[0]?.id||'');
  const [tech,setTech]=useState(''),[maker,setMaker]=useState(''),[range,setRange]=useState<[number,number]|null>(null),[more,setMore]=useState(PAGE);
  const [lo,hi]=range||[pmin,pmax];
  const techs=[...new Set(models.map(m=>m.technology).filter(Boolean))].sort() as string[],makers=[...new Set(models.map(m=>m.manufacturer).filter(Boolean))].sort() as string[];
@@ -28,12 +30,15 @@ export function VariantsStep({project,set,models,byId,catalogue,general,target,l
     {project.varianten.length>1&&<button type="button" className="s-iconbtn" aria-label={`Variant ${letter(i)} verwijderen`} onClick={()=>set(p=>({...p,varianten:p.varianten.filter((x:any)=>x.id!==v.id),referentie:Math.max(0,Math.min(p.referentie>i?p.referentie-1:p.referentie,p.varianten.length-2))}))}><Trash2 size={16}/></button>}</header>
    {m?<><div className="s-variant-model"><b>{m.name}</b><span>{m.manufacturer} · {m.technology} · {nl(m.power.value,2)} MW per unit</span></div>
     <div className="s-variant-row"><label className="s-inline">Units<NumberField value={v.modules} min={1} max={MAX_MODULES} decimals={0} onChange={n=>update(v.id,{modules:n})} label={`Aantal units van variant ${letter(i)}`}/></label><button type="button" className="s-btn s-btn-ghost s-btn-small" onClick={()=>{const f=fillToTarget(moduleMW(m),target);if(f)update(v.id,{modules:f.modules});}}>Vul aan tot {nl(target,target%1?1:0)} MW</button></div>
-    {r.ready?<div className="s-variant-num"><b>{nl(r.nominalMW,1)}<i>MW nominaal</i></b><span>{nl(r.intakeMW,1)} MW opname bij vollast (stack + BoP)</span><Chip tone="dark">klaar</Chip></div>
+    {r.ready?<dl className="s-spec"><div><dt>Nominaal vermogen</dt><dd>{nl(r.nominalMW,1)}<i>MW</i></dd></div><div><dt>Opname bij vollast incl. BoP</dt><dd>{nl(r.intakeMW,1)}<i>MW</i></dd></div>{r.aannames?.systeemverbruik_vol>0&&<><div><dt>Systeemverbruik</dt><dd>{nl(r.aannames.systeemverbruik_vol,1)}<i>kWh/kg</i></dd></div><div><dt>Capaciteit bij vollast</dt><dd>{nl(r.intakeMW*1000/r.aannames.systeemverbruik_vol,0)}<i>kg/h</i></dd></div></>}{Number.isFinite(r.aannames?.minimumlast)&&<div><dt>Minimumlast per module</dt><dd>{nl(r.aannames.minimumlast*100,0)}<i>%</i></dd></div>}</dl>
      :<Notice kind="let" title="Open punten" action={<button type="button" className="s-btn s-btn-ghost s-btn-small" onClick={()=>{const x=autoResolve(m,v,general,{target,limit});set(p=>({...p,varianten:p.varianten.map((y:any)=>y.id===v.id?x.setup:y)}));}}>Vul aan met voorzichtige aannames</button>}><ul>{r.problems.map((p:string)=><li key={p}>{p}</li>)}</ul></Notice>}</>
    :<div className="s-variant-none"><b>Nog geen model</b><span>Kies hieronder een model uit de catalogus en klik op <em>Variant {letter(i)}</em>.</span></div>}
   </article>;})}
    {project.varianten.length<MAX_VARIANTS&&<button type="button" className="s-variant s-variant-add" onClick={()=>set(p=>({...p,varianten:[...p.varianten,newSetup(makeId())]}))}><span><Plus size={20}/></span><b>Variant toevoegen</b><small>Tot {MAX_VARIANTS} varianten naast elkaar</small></button>}
   </div>
+  <Card className="s-pad s-flat"><Details summary="Alle technische instellingen per variant" meta="minimumlast, degradatie, start en stop, stackleven, kosten">
+   <ComposeTab setups={project.varianten} setSetups={(f:any)=>set(p=>({...p,varianten:f(p.varianten)}))} active={active} setActive={setActive} resolved={resolved} byId={byId} models={models} update={(id:string,change:(s:any)=>any)=>set(p=>({...p,varianten:p.varianten.map((s:any)=>s.id===id?change(s):s)}))} target={target} setTarget={(n:number)=>set(p=>({...p,algemeen:{...p.algemeen,doel_mw:n}}))} go={()=>{}} general={general} limit={limit} setLimit={(l:any)=>set(p=>({...p,algemeen:{...p.algemeen,limiet:l}}))} fillOpen={(ids?:string[])=>set(p=>({...p,varianten:p.varianten.map((s:any)=>{const m=byId.get(s.modelId);return m&&(!ids||ids.includes(s.id))?autoResolve(m,s,general,{target,limit}).setup:s;})}))}/>
+  </Details></Card>
   <div className="s-sectionhead"><h2>Catalogus</h2><span className="s-muted">{shown.length} van {models.length} modellen</span></div>
   <Card className="s-pad s-filters">
    <div><small>Technologie</small><Seg label="Technologie" value={tech} onChange={setTech} options={[{value:'',label:'Alle'},...techs.map(t=>({value:t,label:t}))]}/></div>

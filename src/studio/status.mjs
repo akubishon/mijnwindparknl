@@ -6,7 +6,7 @@ import { stationName } from './project.mjs';
 
 export const STEPS = [
   { key: 'locatie', label: 'Locatie' }, { key: 'elektrolyser', label: 'Elektrolyser' }, { key: 'parken', label: 'Windparken' },
-  { key: 'stations', label: 'KNMI-stations' }, { key: 'aanbod', label: 'Beschikbaar vermogen' }, { key: 'vergelijken', label: 'Vergelijken' },
+  { key: 'stations', label: 'KNMI-stations' }, { key: 'aanbod', label: 'Beschikbaar vermogen' }, { key: 'vergelijken', label: 'LCOH vergelijken' },
 ];
 const nl = (v, d = 1) => v.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d });
 const letter = i => String.fromCharCode(65 + i);

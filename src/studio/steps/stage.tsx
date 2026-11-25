@@ -28,6 +28,6 @@ export function Stage({steps,active,onStep,title,intro,map,children,next,prev,kp
    <div className="s-sheet-foot">{prev||(active>0?<button type="button" className="s-btn s-btn-light" onClick={()=>onStep(active-1)}><ChevronLeft size={16}/>{steps[active-1].label}</button>:<span/>)}
     {next&&<button type="button" className="s-btn s-btn-cta" disabled={next.disabled} onClick={next.onClick}>{next.label}<ChevronRight size={16}/></button>}</div>
   </section>
-  <aside className="s-floatkpi" aria-label="Kerngetallen"><div><small>Toegewezen</small><b>{nl(kpis.allocated)} MW</b></div><div><small>Stations</small><b>{kpis.stations}</b></div><button type="button" className={kpis.lets?'s-floatkpi-let':''} onClick={()=>onStep(steps.findIndex(s=>s.status==='let')>=0?steps.findIndex(s=>s.status==='let'):active)}><small>Let op</small><b>{kpis.lets}</b></button></aside>
+  <aside className="s-floatkpi" aria-label="Kerngetallen"><div><small>Windvermogen</small><b>{nl(kpis.allocated)} MW</b></div><button type="button" className={kpis.lets?'s-floatkpi-let':''} onClick={()=>onStep(steps.findIndex(s=>s.status==='let')>=0?steps.findIndex(s=>s.status==='let'):active)}><small>Let op</small><b>{kpis.lets}</b></button></aside>
  </div>;
 }

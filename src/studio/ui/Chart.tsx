@@ -2,7 +2,9 @@
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import {nl} from '../lib';
 
-export const SERIES=['#0C2340','#00A6DE','#F5A800','#7FB8D6','#465970','#B5651D'];
+export const SERIES=['#0B7FAE','#00A6DE','#8A9FB0','#C5D1DB','#0C2340'];
+// Deel van de tijd (0–1) dat het aanbod minstens `mw` is, uit de duurkromme (101 punten).
+export function shareAbove(curve:number[],mw:number){for(let k=0;k<curve.length;k++)if(curve[k]<mw){if(!k)return 0;const a=curve[k-1],b=curve[k];return (k-1+(a-mw)/Math.max(1e-9,a-b))/100;}return 1;}
 const MONTHS=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
 const MONTHS_LONG=['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
 
@@ -60,31 +62,31 @@ export function DurationChart({curve,allocated,variants}:{curve:number[];allocat
  const ticks=niceTicks(Math.max(allocated,curve[0]||0,...variants.map(v=>v.mw))*1.02),top=ticks[ticks.length-1];
  const x=(k:number)=>L+k/100*(W-L-R),y=(v:number)=>H-B-v/top*(H-B-T);
  const line=curve.map((v,k)=>`${k?'L':'M'}${x(k).toFixed(1)},${y(v).toFixed(1)}`).join('');
- const share=(mw:number)=>{for(let k=0;k<curve.length;k++)if(curve[k]<mw){if(!k)return 0;const a=curve[k-1],b=curve[k];return (k-1+(a-mw)/Math.max(1e-9,a-b))/100;}return 1;};
+ const share=(mw:number)=>shareAbove(curve,mw);
  const [hover,setHover]=useState<number|null>(null);
  // Labels boven hun lijn, of eronder vlak onder de bovenrand; nooit over elkaar of over het label 'toegewezen'.
- const taken=[y(allocated)-6];
+ const taken=[y(allocated)+14];
  const marks=[...variants].sort((a,b)=>b.mw-a.mw).map(v=>{const f=share(v.mw);let ly=y(v.mw)-8;if(ly<T+14)ly=y(v.mw)+20;while(taken.some(o=>Math.abs(o-ly)<21))ly+=21;taken.push(ly);return {...v,f,ly};});
  return <div className="s-chartwrap" ref={ref}>
   <svg viewBox={`0 0 ${W} ${H}`} className="s-chart" role="img" aria-label="Duurkromme van het beschikbare vermogen">
    {ticks.map(v=><g key={v}><line x1={L} x2={W-R} y1={y(v)} y2={y(v)} className="s-grid"/><text x={L-8} y={y(v)+4} textAnchor="end">{nl(v,0)}</text></g>)}
    <text x={L-8} y={11} textAnchor="end" className="s-axis-unit">MW</text>
    {[0,25,50,75,100].map(k=><text key={k} x={x(k)} y={H-10} textAnchor="middle">{k} %</text>)}
-   <path d={`${line}L${x(100)},${y(0)}L${x(0)},${y(0)}Z`} fill="#C3E4F2" opacity=".75"/>
-   <path d={line} fill="none" stroke="#0C2340" strokeWidth="2.5"/>
-   <line x1={L} x2={W-R} y1={y(allocated)} y2={y(allocated)} stroke="#0C2340" opacity=".45"/><text x={W-R-4} y={y(allocated)-6} textAnchor="end" className="s-axis-unit">toegewezen {nl(allocated)} MW</text>
+   <path d={`${line}L${x(100)},${y(0)}L${x(0)},${y(0)}Z`} fill="#00A6DE" opacity=".16"/>
+   <path d={line} fill="none" stroke="#0B7FAE" strokeWidth="2.5"/>
+   <line x1={L} x2={W-R} y1={y(allocated)} y2={y(allocated)} stroke="#0C2340" opacity=".45"/><text x={W-R-4} y={y(allocated)+14} textAnchor="end" className="s-axis-unit">toegewezen {nl(allocated)} MW</text>
    {marks.map(v=><g key={v.label}><line x1={L} x2={W-R} y1={y(v.mw)} y2={y(v.mw)} stroke={v.color} strokeWidth="2" strokeDasharray="6 4"/><circle cx={x(v.f*100)} cy={y(v.mw)} r="5" fill={v.color} stroke="#0C2340" strokeWidth="1.5"/>
     <g transform={`translate(${Math.min(x(v.f*100)+10,W-R-190)} ${v.ly})`}><rect x="0" y="-13" width="186" height="19" fill="#fff" stroke={v.color}/><text x="7" y="1" className="s-strong">{v.label}: vollast {nl(v.f*100,0)} % van de tijd</text></g></g>)}
-   {hover!==null&&<g><line x1={x(hover)} x2={x(hover)} y1={T} y2={H-B} className="s-crosshair"/><circle cx={x(hover)} cy={y(curve[hover])} r="4.5" fill="#fff" stroke="#0C2340" strokeWidth="2"/></g>}
+   {hover!==null&&<g><line x1={x(hover)} x2={x(hover)} y1={T} y2={H-B} className="s-crosshair"/><circle cx={x(hover)} cy={y(curve[hover])} r="4.5" fill="#fff" stroke="#0B7FAE" strokeWidth="2"/></g>}
    <rect x={L} y={T} width={W-L-R} height={H-B-T} fill="transparent" onPointerMove={e=>{const p=svgX(e);setHover(Math.max(0,Math.min(100,Math.round((p.x-L)/(W-L-R)*100))));}} onPointerLeave={()=>setHover(null)}/>
   </svg>
   {hover!==null&&<Tip x={x(hover)} y={8} w={W}><b>{hover} % van de tijd</b><span>minstens {nl(curve[hover],1)} MW</span></Tip>}
-  <Legend items={[{label:'Beschikbaar vermogen',color:'#0C2340'},...variants.map(v=>({label:<><b>{v.label}</b> {v.name} · {nl(v.mw,1)} MW</>,color:v.color,dash:true}))]}/>
+  <Legend items={[{label:'Beschikbaar vermogen',color:'#0B7FAE'},...variants.map(v=>({label:<><b>{v.label}</b> {v.name} · {nl(v.mw,1)} MW</>,color:v.color,dash:true}))]}/>
  </div>;
 }
 
 // Warmtekaart: één vakje per uur (dagen × uren), kleur = gemiddeld vermogen in dat uur.
-const STOPS:[number,number[]][]=[[0,[239,236,230]],[.25,[195,228,242]],[.55,[0,166,222]],[1,[12,35,64]]];
+const STOPS:[number,number[]][]=[[0,[244,246,248]],[.3,[195,228,242]],[.65,[0,166,222]],[1,[8,92,128]]];
 export function heatColor(f:number){
  for(let i=1;i<STOPS.length;i++)if(f<=STOPS[i][0]){const [a,ca]=STOPS[i-1],[b,cb]=STOPS[i],t=(f-a)/(b-a);return ca.map((c,j)=>Math.round(c+(cb[j]-c)*t));}
  return STOPS[STOPS.length-1][1];
