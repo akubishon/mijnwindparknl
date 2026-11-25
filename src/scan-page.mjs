@@ -1,8 +1,11 @@
 // Openbare verkooppagina /waterstofscan: het ene product dat we verkopen, zonder wachtwoord te bekijken,
 // met een aanvraagformulier. Server-side HTML zonder scripts; de worker serveert hem vóór de sitepoort.
 // De inhoud staat in SCAN en de lijsten eronder; prijzen en teksten pas je hier aan. Zie docs/sales/waterstofscan.md.
-// Let op: scripts/compose-worker.mjs plakt dit bestand in de worker en haalt daarbij elk 'export'-woord met spatie weg;
-// gebruik dat woord met een spatie erachter dus nergens in teksten.
+// Kop, menu en voettekst zijn gedeeld met de startpagina en de Atlas (src/public-site.mjs).
+// Let op: scripts/compose-worker.mjs plakt dit bestand in de worker en haalt daarbij elke importregel en elk
+// 'export'-woord met spatie weg; gebruik dat woord met een spatie erachter dus nergens in teksten.
+import {PUBLIC_STYLE, publicFooter, publicHeader, publicLinks} from './public-site.mjs';
+
 export const SCAN_PATH = '/waterstofscan';
 
 export const SCAN = {
@@ -117,15 +120,10 @@ const SCAN_SOURCES = {
 };
 
 const scanEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
-const SCAN_STYLE = `
+export const SCAN_STYLE = `
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:#EFECE6;color:#0C2340;font-family:'TASA Orbiter','Segoe UI',Arial,sans-serif;font-size:16px;line-height:1.6}
 a{color:inherit}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid #00A6DE;outline-offset:3px}
-.skip{position:absolute;left:-10000px}.skip:focus{left:16px;top:12px;z-index:2;background:#fff;padding:8px 12px}
 .wrap{max-width:1160px;margin:0 auto;padding:0 20px}
-header{background:#0C2340;color:#fff;border-radius:0 0 32px 0}header .wrap{display:flex;justify-content:space-between;align-items:center;min-height:76px;gap:16px}
-.brand{font-size:24px;font-weight:700;letter-spacing:-.6px;text-decoration:none;white-space:nowrap}.brand span{color:#7ad0ed}
-header nav{display:flex;gap:20px;align-items:center;font-size:14px}header nav a{text-decoration:none}header nav a:hover{text-decoration:underline}
-header nav .button{min-height:40px;padding:8px 16px;background:#00A6DE;border-color:#00A6DE;color:#0C2340}header nav .button:hover{background:#7ad0ed;text-decoration:none}
 .hero{background:#C3E4F2;border-radius:0 48px 0 0;margin:28px 0 0;padding:44px 40px 36px}
 .eyebrow{display:inline-block;border-left:4px solid #00A6DE;padding-left:10px;font-size:13px;font-weight:700;letter-spacing:1.2px}
 h1{font-size:clamp(32px,5vw,56px);line-height:1.08;letter-spacing:-1.3px;font-weight:500;margin:16px 0 18px;max-width:880px;overflow-wrap:break-word}.nowrap{white-space:nowrap}
@@ -156,9 +154,11 @@ label{display:block;font-size:14px;font-weight:600}input,select,textarea{display
 .error{grid-column:1/-1;margin:0;padding:12px 14px;border-left:4px solid #a32c22;background:#fff3f0;color:#84251e}
 .thanks{background:#fff;border:1px solid #0C2340;border-left:6px solid #4E7A3A;border-radius:0 28px 0 0;padding:26px}.thanks h3{margin:0 0 6px;font-size:22px;font-weight:500}.thanks p{margin:0}
 .next{background:#C3E4F2;border-radius:0 24px 0 0;padding:22px 24px}.next h3{margin:0 0 8px;font-size:18px}.next ol{margin:0;padding-left:20px}.next li{margin:6px 0}.next p{margin:12px 0 0;font-size:14px}
-footer{margin:64px 0 0;border-top:1px solid #0C2340;padding:22px 0 34px;font-size:13px;color:#465970}footer .wrap{display:flex;justify-content:space-between;gap:8px 24px;flex-wrap:wrap}footer p{margin:0}
-@media(max-width:960px){.facts{grid-template-columns:repeat(2,minmax(0,1fr))}.steps{grid-template-columns:repeat(2,minmax(0,1fr))}.cards{grid-template-columns:1fr}.contact{grid-template-columns:1fr}header nav a:not(.button){display:none}}
-@media(max-width:640px){.brand{font-size:21px}header .wrap{gap:12px}header nav .button{padding:8px 12px;font-size:13px}.hero{padding:28px 22px;border-radius:0 32px 0 0}.lead{font-size:16px}.facts,.plans,.split,.steps,form{grid-template-columns:1fr}.plan,.panel,form,.when{padding:20px}.plan h3{overflow-wrap:break-word;max-width:100%}
+.onpage{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:18px 0 0;padding:6px 8px;background:#fff;border:1px solid #a7b4bf;border-radius:0 16px 0 0;font-size:14px}.onpage span{padding:0 8px 0 6px;font-weight:700}.onpage a{padding:5px 10px;text-decoration:none;border-radius:0 8px 0 0}.onpage a:hover{background:#C3E4F2}
+.tip{margin:14px 0 0;padding:10px 14px;background:#C3E4F2;border-left:4px solid #00A6DE}.tip a{font-weight:600}
+@media(min-width:961px){.onpage{position:sticky;top:0;z-index:3;box-shadow:0 6px 14px rgba(12,35,64,.08)}section{scroll-margin-top:72px}}
+@media(max-width:960px){.facts{grid-template-columns:repeat(2,minmax(0,1fr))}.steps{grid-template-columns:repeat(2,minmax(0,1fr))}.cards{grid-template-columns:1fr}.contact{grid-template-columns:1fr}}
+@media(max-width:640px){.onpage{flex-wrap:nowrap;overflow-x:auto;white-space:nowrap}.hero{padding:28px 22px;border-radius:0 32px 0 0}.lead{font-size:16px}.facts,.plans,.split,.steps,form{grid-template-columns:1fr}.plan,.panel,form,.when{padding:20px}.plan h3{overflow-wrap:break-word;max-width:100%}
 table,tbody,tr,th,td{display:block;width:100%}thead{display:none}tr{border-top:1px solid #0C2340}tbody th{width:100%;border:0;padding:14px 16px 2px}td{border:0;padding:4px 16px 14px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}`;
 
@@ -171,7 +171,10 @@ function scanProviderLine(p) {
   return `<p>Uitgevoerd door ${parts.join(' · ')}</p>`;
 }
 
-export function scanPage({sent = false, errors = [], values = {}, font = '', provider = SCAN.provider} = {}) {
+// Wat de lokale navigatie 'Op deze pagina' toont.
+const SCAN_SECTIONS = [['prijzen', 'Pakketten'], ['rvo', 'RVO-eisen'], ['oplevering', 'Wat je ontvangt'], ['werkwijze', 'Werkwijze'], ['vragen', 'Vragen'], ['aanvraag', 'Aanvragen']];
+
+export function scanPage({sent = false, errors = [], values = {}, font = '', provider = SCAN.provider, links = publicLinks('https://mijnwindpark.nl' + SCAN_PATH)} = {}) {
   const v = values;
   const form = sent
     ? `<div class="thanks" role="status"><h3>Je bericht is binnen</h3><p>We nemen per e-mail contact met je op om een vrijblijvende kennismaking te plannen. Houd je planning en de gegevens van je windpark en elektrolyser bij de hand.</p></div>`
@@ -193,11 +196,10 @@ ${v.locatie ? `<p class="full from-atlas"><strong>Locatie uit de Atlas</strong><
 <title>${scanEsc(SCAN.title)}</title><meta name="description" content="${scanEsc(SCAN.description)}">
 <meta property="og:title" content="${scanEsc(SCAN.headline)} · Waterstofscan"><meta property="og:description" content="${scanEsc(SCAN.description)}"><meta property="og:type" content="website">
 <link rel="canonical" href="https://mijnwindpark.nl${SCAN_PATH}">
-<link rel="icon" href="/favicon.svg"><style>${font ? `@font-face{font-family:'TASA Orbiter';src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:400 800;font-display:swap}` : ''}${SCAN_STYLE}.from-atlas{margin:0;padding:10px 14px;background:#C3E4F2;border-left:4px solid #00A6DE}.concept{margin:0;padding:4px 16px;background:#F2C94C;color:#0C2340;font-size:13px;font-weight:600;text-align:center}</style></head><body>
-<p class="concept" role="note">Conceptwebsite · ontwerp, nog geen bestaand bedrijf of aanbod</p>
-<a class="skip" href="#inhoud">Naar de inhoud</a>
-<header><div class="wrap"><a class="brand" href="${SCAN_PATH}">mijnwindpark<span>.nl</span></a><nav aria-label="Pagina"><a href="#prijzen">Pakketten</a><a href="#rvo">RVO-eisen</a><a href="#werkwijze">Werkwijze</a><a href="#vragen">Vragen</a><a class="button" href="#aanvraag">Bespreek je project</a></nav></div></header>
+<link rel="icon" href="/favicon.svg"><style>${font ? `@font-face{font-family:'TASA Orbiter';src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:400 800;font-display:swap}` : ''}${SCAN_STYLE}${PUBLIC_STYLE}.from-atlas{margin:0;padding:10px 14px;background:#C3E4F2;border-left:4px solid #00A6DE}</style></head><body>
+${publicHeader(links, {current: 'waterstofscan', contactHref: '#aanvraag'})}
 <main class="wrap" id="inhoud">
+<nav class="onpage" aria-label="Op deze pagina"><span>Op deze pagina</span>${SCAN_SECTIONS.map(([id, label]) => `<a href="#${id}">${label}</a>`).join('')}</nav>
 <div class="hero"><span class="eyebrow">WATERSTOFSCAN · ELEKTROLYSE OP WIND OP LAND</span>
 <h1>${scanEsc(SCAN.headline).replace(/(\S+-\S+)/g, '<span class="nowrap">$1</span>')}</h1>
 <p class="lead">Voor ontwikkelaars van elektrolyseprojecten op Nederlandse wind op land en de subsidieadviseurs die hun dossier opstellen. Je krijgt de verwachte waterstofproductie per kalenderjaar, met de onderbouwing van rendement, beschikbaarheid en degradatie, in een rekenrapport en een Excel die je adviseur, beoordelaar en financier kunnen narekenen.</p>
@@ -224,7 +226,8 @@ ${v.locatie ? `<p class="full from-atlas"><strong>Locatie uit de Atlas</strong><
 
 <section id="werkwijze" aria-labelledby="how-title"><h2 id="how-title">Werkwijze</h2>
 <ol class="steps">${SCAN_STEPS.map(([a, b]) => `<li><h3>${scanEsc(a)}</h3><p>${scanEsc(b)}</p></li>`).join('')}</ol>
-<div class="panel"><h3>Wat we van je nodig hebben</h3><p class="sub">Heb je nog niet alles? Dan bespreken we in de kennismaking welke aannames we tijdelijk gebruiken.</p><ul>${scanList(SCAN_INPUTS)}</ul></div></section>
+<div class="panel"><h3>Wat we van je nodig hebben</h3><p class="sub">Heb je nog niet alles? Dan bespreken we in de kennismaking welke aannames we tijdelijk gebruiken.</p><ul>${scanList(SCAN_INPUTS)}</ul>
+<p class="tip">Nog geen locatie gekozen? <a href="${scanEsc(links.href('atlas', '/'))}">Kies op de gratis kaart een perceel</a> en de windparken eromheen; die keuze gaat mee in je aanvraag.</p></div></section>
 
 <section id="methode" aria-labelledby="method-title"><h2 id="method-title">Methode en afbakening</h2>
 <div class="split"><div class="panel"><h3>Hoe we rekenen</h3><ul>${scanList(SCAN_METHOD)}</ul></div><div class="panel"><h3>Wat buiten de scan valt</h3><ul>${scanList(SCAN_SCOPE)}</ul></div></div></section>
@@ -239,6 +242,6 @@ ${v.locatie ? `<p class="full from-atlas"><strong>Locatie uit de Atlas</strong><
 ${sent ? '' : `<p class="intro">Laat je gegevens achter voor een vrijblijvende kennismaking. Velden met * zijn verplicht.${provider?.email ? ` Liever direct contact? Mail naar ${scanMail(provider)}.` : ''}</p>`}
 <div class="contact">${form}<aside class="next" aria-labelledby="next-title"><h3 id="next-title">Wat gebeurt er daarna?</h3><ol>${scanList(SCAN_NEXT)}</ol><p>Je zit nergens aan vast tot je de offerte accepteert.</p></aside></div></section>
 </main>
-<footer><div class="wrap"><div><p>mijnwindpark.nl · Waterstofscan</p>${scanProviderLine(provider)}</div><p>Berekeningen met benoemde aannames, geen garantie of financieel advies.</p><a href="/inloggen">Inloggen voor het team</a></div></footer>
+${publicFooter(links, {extra: scanProviderLine(provider), contactHref: '#aanvraag'})}
 </body></html>`;
 }

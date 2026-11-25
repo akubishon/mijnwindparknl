@@ -315,8 +315,8 @@ test('brand style is standard on every page and former trial links redirect',asy
 test('site gate blocks every page, data endpoint and asset before any upstream request',async()=>{
  const worker=await rawFresh();const prior=global.fetch;let calls=0;global.fetch=async()=>{calls++;throw Error('must not fetch');};
  try{
-  // De voordeur leidt bezoekers zonder login naar de openbare pagina /waterstofscan (tests/scan.test.mjs); het icoon is openbaar.
-  const door=await get(worker,'/');assert.equal(door.status,302);assert.equal(door.headers.get('Location'),'/waterstofscan');
+  // De voordeur leidt bezoekers zonder login naar de openbare startpagina /welkom (tests/public-site.test.mjs); het icoon is openbaar.
+  const door=await get(worker,'/');assert.equal(door.status,302);assert.equal(door.headers.get('Location'),'/welkom');
   const icon=await get(worker,'/favicon.svg');assert.equal(icon.status,200);assert.match(icon.headers.get('Content-Type'),/svg/);
   for(const path of ['/?weergave=product','/beabuorren','/elektrolyser','/onderzoek','/proefstijl','/assets/tasa-orbiter.ttf','/leads','/leads.csv']){
    const r=await get(worker,path);assert.equal(r.status,401,path);const html=await r.text();assert.match(html,/<label for="password">Wachtwoord<\/label>/);assert.match(html,/<h1 id="welcome-title">Welkom!<\/h1>/);assert.match(html,/Voer je wachtwoord in\./);assert.match(html,/<button type="submit">Inloggen<\/button>/);assert.doesNotMatch(html,/const |<script>|Fryslân|Beabuorren|brandFont/);assert.equal(r.headers.get('Cache-Control'),'no-store');assert.match(r.headers.get('Content-Security-Policy'),/form-action 'self'/);

@@ -66,16 +66,17 @@ test('pakketlinks selecteren het gekozen pakket en onbekende pakketten vallen te
  assert.match(await page('?pakket=gratis'), /<option value="onbekend" selected>/);
 });
 
-test('de voordeur leidt bezoekers naar het aanbod; het team logt in via /inloggen', async () => {
+test('de voordeur leidt bezoekers naar de startpagina; het team logt in via /inloggen', async () => {
  const worker = await fresh();
  const env = {SITE_PASSWORD: 'fixture-site-password'};
  const door = await worker.fetch(new Request(ORIGIN + '/'), env);
- assert.equal(door.status, 302); assert.equal(door.headers.get('Location'), '/waterstofscan');
+ assert.equal(door.status, 302); assert.equal(door.headers.get('Location'), '/welkom');
  assert.equal((await worker.fetch(new Request(ORIGIN + '/?weergave=product'), env)).status, 401);
  const login = await worker.fetch(new Request(ORIGIN + '/inloggen'), env);
  assert.equal(login.status, 200);
  const html = await login.text();
- assert.match(html, /name="next" value="\/"/); assert.match(html, /href="\/waterstofscan"/);
+ // Wie per ongeluk op de loginpagina komt, vindt de weg terug naar de openbare startpagina.
+ assert.match(html, /name="next" value="\/"/); assert.match(html, /href="\/welkom">Naar de startpagina →/);
  const auth = await worker.fetch(new Request(ORIGIN + '/auth/site', {method: 'POST', headers: {Origin: ORIGIN, 'Content-Type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams({password: env.SITE_PASSWORD, next: '/'})}), env);
  const cookie = auth.headers.get('Set-Cookie').split(';')[0];
  const again = await worker.fetch(new Request(ORIGIN + '/inloggen', {headers: {Cookie: cookie}}), env);
