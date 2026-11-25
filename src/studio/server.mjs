@@ -3,6 +3,7 @@
 import windparken from '../atlas/windparken.geojson';
 import { windRoute } from './wind-data.mjs';
 import { validateProject, newProjectId, ID_PATTERN } from './project.mjs';
+import { allocatedMW, activeParks, projectComplete } from './status.mjs';
 import { parkDayRoute } from './park-day.mjs';
 import { harmonieRoute } from './harmonie-points.mjs';
 
@@ -24,7 +25,9 @@ async function readBody(request) {
 async function saveProject(env, project) {
   await env.BUCKET.put(PROJECTS + project.id + '.json', JSON.stringify(project), { httpMetadata: { contentType: 'application/json' } });
   const index = (await readJSON(env.BUCKET, PROJECT_INDEX)) || { projecten: [] };
-  const entry = { id: project.id, naam: project.naam, locatie: project.locatie, gewijzigd: project.gewijzigd, parken: project.parken.length };
+  // Genoeg voor een projectkaart op de startpagina: plaats, vermogen, aantallen, status en de parken voor de minikaart.
+  const entry = { id: project.id, naam: project.naam, locatie: project.locatie, plaats: project.plaats || '', gewijzigd: project.gewijzigd, parken: project.parken.length,
+    mw: Math.round(allocatedMW(project) * 10) / 10, varianten: project.varianten.length, compleet: projectComplete(project), punten: activeParks(project).slice(0, 20).map(p => [p.lat, p.lon]) };
   index.projecten = [entry, ...index.projecten.filter(p => p.id !== project.id)].slice(0, MAX_PROJECTS);
   await env.BUCKET.put(PROJECT_INDEX, JSON.stringify(index), { httpMetadata: { contentType: 'application/json' } });
 }

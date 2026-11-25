@@ -56,6 +56,15 @@ test('projecten bewaren, lezen, wijzigen en in de lijst zien', async () => {
   assert.equal((await put.json()).gemaakt, saved.gemaakt);
   const list = await (await get('/api/studio/projects')).json();
   assert.deepEqual(list.projecten.map(p => p.naam), ['Test Sneek 2']);
+  // De projectenlijst heeft genoeg voor een projectkaart: plaats, toegewezen MW, aantallen, status en parkpunten.
+  const entry = list.projecten[0];
+  assert.equal(entry.mw, 6, '4 × 3.000 kW, de helft naar de elektrolyser');
+  assert.equal(entry.varianten, 1); assert.equal(entry.compleet, false, 'nog geen model gekozen');
+  assert.deepEqual(entry.punten, [[53, 5.6]]);
+  const placed = await (await get('/api/studio/projects/' + saved.id, true, { method: 'PUT', headers: { Origin: host, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...read, naam: 'Test Sneek 2', plaats: 'Sneek', varianten: [{ id: 'a', modelId: 'model-x', modules: 2, choices: {} }] }) })).json();
+  assert.equal(placed.plaats, 'Sneek');
+  const after = (await (await get('/api/studio/projects')).json()).projecten[0];
+  assert.equal(after.plaats, 'Sneek'); assert.equal(after.compleet, true);
   assert.equal((await get('/project/' + saved.id)).status, 200);
   assert.equal((await get('/api/studio/projects/aaaaaaaaaaaa')).status, 404);
   assert.equal((await get('/api/studio/park-dag?project=' + saved.id + '&park=osm:53.0000,5.6000&dag=2025-01-01')).status, 503, 'zonder KNMI-sleutel');

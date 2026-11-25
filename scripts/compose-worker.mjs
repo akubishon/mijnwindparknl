@@ -28,7 +28,7 @@ const atlasAssets = { page: readFileSync('src/atlas/page.html', 'utf8'), script:
 // Projectstudio (intern.mijnwindpark.nl): eigen browserbundle (React, MapLibre, Vergelijken) en serverbundle.
 const studioClient = (await build({ entryPoints: ['src/studio/client.tsx'], bundle: true, write: false, minify: true, format: 'iife', target: ['es2022'], jsx: 'automatic', define: { 'process.env.NODE_ENV': '"production"' } })).outputFiles[0].text;
 const studioServer = (await build({ entryPoints: ['src/studio/server.mjs'], bundle: true, write: false, minify: true, format: 'iife', globalName: 'studioServer', target: ['es2022'], loader: { '.geojson': 'json' } })).outputFiles[0].text;
-const studioAssets = { page: readFileSync('src/studio/page.html', 'utf8'), script: studioClient, style: readFileSync('node_modules/maplibre-gl/dist/maplibre-gl.css', 'utf8') + '\n' + css + '\n' + readFileSync('src/studio/studio.css', 'utf8') };
+const studioAssets = { page: readFileSync('src/studio/page.html', 'utf8'), script: studioClient, style: readFileSync('node_modules/maplibre-gl/dist/maplibre-gl.css', 'utf8') + '\n' + css + '\n' + readFileSync('src/studio/ui/tokens.css', 'utf8') + '\n' + readFileSync('src/studio/studio.css', 'utf8') };
 writeFileSync('worker/index.js', worker.replace('/* __ATLAS__ */', () => atlasServer + '\nconst atlasAssets = ' + JSON.stringify(atlasAssets) + ';').replace('/* __STUDIO__ */', () => studioServer + '\nconst studioAssets = ' + JSON.stringify(studioAssets) + ';'));
 
 console.log('Composed the standalone app worker.');

@@ -9,13 +9,13 @@ export const PROJECT_VERSION = 1, MAX_PARKS = 20, MAX_VARIANTS = 12, ID_PATTERN 
 export const BOLSWARD_LOCATION = { lat: 53.066, lon: 5.531 };
 export const BOLSWARD = Object.freeze({
   versie: PROJECT_VERSION, id: 'bolsward', naam: 'Bolsward', gemaakt: null, gewijzigd: null, vast: true,
-  locatie: BOLSWARD_LOCATION, varianten: [newSetup('v1'), newSetup('v2')], referentie: 0, parken: bolswardParks(), jaren: [...YEARS], algemeen: defaultGeneral(),
+  locatie: BOLSWARD_LOCATION, plaats: 'Bolsward', varianten: [newSetup('v1'), newSetup('v2')], referentie: 0, parken: bolswardParks(), jaren: [...YEARS], algemeen: defaultGeneral(),
 });
 export function newProjectId() {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz234567', bytes = crypto.getRandomValues(new Uint8Array(12));
   return Array.from(bytes, b => alphabet[b & 31]).join('');
 }
-export const blankProject = () => ({ ...structuredClone(BOLSWARD), id: '', naam: 'Nieuw project', vast: false, parken: [], locatie: null });
+export const blankProject = () => ({ ...structuredClone(BOLSWARD), id: '', naam: 'Nieuw project', vast: false, parken: [], locatie: null, plaats: '' });
 
 const nl = (v, d = 1) => v.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d });
 export const stationName = id => stationCatalog.find(s => s.id === id)?.name || id;
@@ -53,5 +53,7 @@ export function validateProject(input) {
   });
   const jaren = Array.isArray(input.jaren) ? YEARS.filter(y => input.jaren.includes(y)) : [...YEARS];
   const algemeen = input.algemeen && typeof input.algemeen === 'object' && JSON.stringify(input.algemeen).length < 20000 ? input.algemeen : defaultGeneral();
-  return { versie: PROJECT_VERSION, id: input.id, naam: input.naam.trim(), gemaakt: input.gemaakt ?? null, gewijzigd: input.gewijzigd ?? null, locatie: input.locatie, varianten, referentie: Number.isInteger(input.referentie) ? input.referentie : 0, parken, jaren: jaren.length ? jaren : [...YEARS], algemeen };
+  // `plaats`: woonplaats bij de locatie (PDOK Locatieserver), alleen voor de weergave.
+  const plaats = input.locatie && text(input.plaats, 120) ? input.plaats.trim() : '';
+  return { versie: PROJECT_VERSION, id: input.id, naam: input.naam.trim(), gemaakt: input.gemaakt ?? null, gewijzigd: input.gewijzigd ?? null, locatie: input.locatie, plaats, varianten, referentie: Number.isInteger(input.referentie) ? input.referentie : 0, parken, jaren: jaren.length ? jaren : [...YEARS], algemeen };
 }
