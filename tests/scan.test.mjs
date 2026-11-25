@@ -24,7 +24,7 @@ test('de openbare pagina staat vóór de login, zonder scripts, en noemt geen wi
  assert.equal(r.status, 200);
  const csp = r.headers.get('Content-Security-Policy');
  assert.match(csp, /default-src 'none'/); assert.doesNotMatch(csp, /script-src/);
- assert.equal(r.headers.get('X-Robots-Tag'), null);
+ assert.equal(r.headers.get('X-Robots-Tag'), 'noindex, nofollow', 'conceptfase: niet indexeren');
  const html = await r.text();
  assert.match(html, /<h1>Technische opbrengstanalyse voor de voorbereiding van je <span class="nowrap">OWE-aanvraag<\/span><\/h1>/);
  assert.match(html, /<form method="post" action="\/waterstofscan#aanvraag"/);
@@ -43,7 +43,7 @@ test('de openbare pagina staat vóór de login, zonder scripts, en noemt geen wi
  assert.ok(html.indexOf('/inloggen') > html.indexOf('<footer'), 'inloggen alleen in de voettekst');
  assert.doesNotMatch(html, /<script/i);
  assert.doesNotMatch(html, /Fryslân|Beabuorren|44 MW/);
- assert.equal((await (await worker.fetch(new Request(ORIGIN + '/robots.txt'), {})).text()), 'User-agent: *\nAllow: /waterstofscan\nDisallow: /\n');
+ assert.equal((await (await worker.fetch(new Request(ORIGIN + '/robots.txt'), {})).text()), 'User-agent: *\nDisallow: /\n');
 });
 
 test('de leverancier verschijnt in de voettekst en bij het formulier zodra die is ingevuld', () => {
@@ -125,15 +125,32 @@ test('aanvragen staan achter de login op /leads en als CSV, nieuwste eerst, zond
  const cookie = auth.headers.get('Set-Cookie').split(';')[0];
  const page = await (await worker.fetch(new Request(ORIGIN + '/leads', {headers: {Cookie: cookie}}), env)).text();
  assert.ok(page.indexOf('b@example.nl') < page.indexOf('a@example.nl'), 'nieuwste eerst');
- assert.doesNotMatch(page, /<th>Telefoon<\/th>|<th>MW<\/th>/);
+ assert.doesNotMatch(page, /<th>Telefoon<\/th>|<th>Aanvraag<\/th>/);
+ assert.match(page, /<th>Bron<\/th>.*<th>Locatie<\/th><th>MW<\/th>/);
+ assert.match(page, /<h2>Atlas-trechter<\/h2>/);
  const csv = await (await worker.fetch(new Request(ORIGIN + '/leads.csv', {headers: {Cookie: cookie}}), env)).text();
- assert.ok(csv.replace(/^\uFEFF/, '').startsWith('Ontvangen;Naam;Organisatie;E-mail;Pakket;Toelichting\r\n'));
+ assert.ok(csv.replace(/^\uFEFF/, '').startsWith('Ontvangen;Bron;Naam;Organisatie;E-mail;Pakket;Locatie;MW;Toelichting\r\n'));
  assert.match(csv, /"'=HYPERLINK\(""x""\)"/);
  // Een aanvraag uit het eerste formulier houdt haar extra velden zichtbaar; de standaardronde 'anders' telt niet.
  await b.put(leadKey(Date.parse('2026-10-01T10:00:00Z'), 'cccc'), JSON.stringify({naam: 'Eerder', organisatie: 'C', email: 'c@example.nl', telefoon: '0612345678', ronde: 'anders', vermogen: '5,5', ontvangen: '2026-10-01T10:00:00Z'}));
  const legacy = await (await worker.fetch(new Request(ORIGIN + '/leads', {headers: {Cookie: cookie}}), env)).text();
- assert.match(legacy, /<th>Telefoon<\/th>/); assert.match(legacy, /<th>MW<\/th>/); assert.doesNotMatch(legacy, /<th>Aanvraag<\/th>|<th>Locatie<\/th>/);
+ assert.match(legacy, /<th>Telefoon<\/th>/); assert.match(legacy, /<td>5,5<\/td>/); assert.doesNotMatch(legacy, /<th>Aanvraag<\/th>/);
  assert.match(legacy, /0612345678/);
+});
+
+test('context uit de Atlas staat in verborgen velden en gaat mee met de aanvraag', async () => {
+ const worker = await fresh(), b = bucket(), env = {SITE_PASSWORD: 'x', BUCKET: b};
+ const q = new URLSearchParams({bron: 'atlas', locatie: 'Perceel Leeuwarden A 12; windparken: <Test>', vermogen: '48,7'});
+ const html = await (await worker.fetch(new Request(ORIGIN + '/waterstofscan?' + q), env)).text();
+ assert.match(html, /<input type="hidden" name="bron" value="atlas">/);
+ assert.match(html, /<input type="hidden" name="vermogen" value="48.7">/);
+ assert.match(html, /Locatie uit de Atlas<\/strong><br>Perceel Leeuwarden A 12; windparken: &lt;Test&gt;/);
+ assert.doesNotMatch(html, /<Test>/);
+ const plain = await (await worker.fetch(new Request(ORIGIN + '/waterstofscan?bron=%3Cx%3E'), env)).text();
+ assert.match(plain, /name="bron" value="direct"/); assert.doesNotMatch(plain, /Locatie uit de Atlas/);
+ assert.equal((await post(worker, env, form({bron: 'atlas', locatie: 'Perceel X', vermogen: '20'}))).status, 303);
+ const saved = JSON.parse([...b.store.values()][0]);
+ assert.equal(saved.bron, 'atlas'); assert.equal(saved.locatie, 'Perceel X'); assert.equal(saved.vermogen, '20');
 });
 
 test('formuliercontrole: verplichte velden, onbekende pakketten naar de standaard, oude velden genegeerd', () => {
@@ -141,7 +158,12 @@ test('formuliercontrole: verplichte velden, onbekende pakketten naar de standaar
  const r = parseLead(form({vermogen: 'veel', pakket: 'gratis', ronde: 'x', telefoon: '06'}));
  assert.deepEqual(r.errors, []);
  assert.equal(r.values.pakket, 'onbekend');
- assert.deepEqual(Object.keys(r.lead).sort(), ['email', 'naam', 'ontvangen', 'organisatie', 'pakket', 'toelichting', 'toestemming']);
+ assert.deepEqual(Object.keys(r.lead).sort(), ['bron', 'email', 'locatie', 'naam', 'ontvangen', 'organisatie', 'pakket', 'toelichting', 'toestemming', 'vermogen']);
+ assert.equal(r.lead.vermogen, '');
+ assert.equal(r.lead.bron, 'direct');
+ assert.equal(parseLead(form({bron: 'Atlas-Profiel', vermogen: '12,34'})).lead.bron, 'atlas-profiel');
+ assert.equal(parseLead(form({bron: '<script>', vermogen: '12,34'})).lead.bron, 'direct');
+ assert.equal(parseLead(form({vermogen: '12,34'})).lead.vermogen, '12.3');
  assert.ok(leadKey(2000, 'a') < leadKey(1000, 'a'), 'later ontvangen sorteert eerder');
  assert.match(leadsCsv([]), /^﻿/);
  assert.match(scanPage({sent: true}), /Je bericht is binnen/);

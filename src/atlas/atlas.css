@@ -1,6 +1,7 @@
 /* Atlas (atlas.mijnwindpark.nl). Huisstijl uit brand-style.css; hier alleen de kaartopmaak. */
 html,body.atlas{height:100%;margin:0}
 body.atlas{display:flex;flex-direction:column;overflow:hidden}
+.atlas-concept{margin:0;padding:4px var(--page-gutter);background:#F2C94C;color:var(--ink);font-size:13px;font-weight:600;text-align:center}
 .atlas-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .atlas-top{display:flex;align-items:center;gap:16px;background:var(--ink);color:#fff;padding:12px var(--page-gutter);border-radius:0 0 24px 0;z-index:3}
 .atlas-logo{color:#fff;text-decoration:none;font-weight:700;font-size:22px;letter-spacing:-.5px;white-space:nowrap}
@@ -37,6 +38,31 @@ body.atlas{display:flex;flex-direction:column;overflow:hidden}
 .atlas-cta{display:inline-block;margin-top:16px;padding:10px 18px;background:var(--ink);color:#fff;text-decoration:none;font-weight:700;border-radius:0 12px 0 0}
 .atlas-cta:hover{background:var(--green)}
 .maplibregl-popup-content{font-family:inherit;border-radius:0 10px 0 0}
+.atlas-actions{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:16px 0 0}.atlas-actions .atlas-cta{margin-top:0}
+.atlas-link{border:0;background:none;padding:0;font:inherit;color:var(--ink);text-decoration:underline;cursor:pointer}
+.atlas-hub{margin-top:14px;padding:10px 12px;background:#fff;border-left:4px solid var(--green)}.atlas-hub h3{margin-top:0}
+.atlas-inline input{width:80px;font:inherit;padding:3px 6px;margin:0 4px;border:1px solid var(--line)}
+.atlas-checks{margin:8px 0;padding:0;list-style:none;font-size:14px}.atlas-checks li{margin-bottom:4px}.atlas-checks .ok{color:#2f6b12}.atlas-checks .nee{color:#84251e}.atlas-checks .open{color:var(--muted)}
+.atlas-profile-form{margin-top:14px;padding-top:4px;border-top:1px solid var(--line)}
+.atlas-profile-form form{display:grid;gap:8px}.atlas-profile-form label{display:grid;gap:2px;font-size:14px}
+.atlas-profile-form input:not([type=checkbox]){font:inherit;padding:6px 8px;border:1px solid var(--line)}
+.atlas-profile-form .atlas-check{display:flex;gap:8px;align-items:flex-start}.atlas-check input{margin-top:4px}
+.atlas-profile-form button,.atlas-profile button#print{justify-self:start;font:inherit;padding:8px 14px;border:0;background:var(--ink);color:#fff;cursor:pointer}
+.atlas-trap{position:absolute;left:-9999px}.atlas-status{font-size:14px;color:var(--muted)}
+.atlas-profile .atlas-parks small{display:block}
+/* Pagina's per windpark (zonder kaart) */
+body.atlas-doc{min-height:100vh;display:flex;flex-direction:column}
+.atlas-nav{display:flex;gap:16px;margin-left:auto}.atlas-nav a{color:#fff}
+body.atlas-doc main.atlas-page{flex:1;width:100%;max-width:760px;box-sizing:border-box;margin:0 auto;padding:28px 16px 40px}
+.atlas-page h1{font-size:clamp(26px,5vw,36px);line-height:1.2;margin:4px 0 10px}.atlas-page h2{font-size:20px;margin:28px 0 6px}
+.atlas-lead{font-size:17px}.atlas-cta-alt{background:var(--green);color:var(--ink)}
+.atlas-list{columns:2 260px;padding-left:18px}.atlas-list small{color:var(--muted)}
+.atlas-foot{padding:12px 16px;font-size:13px;color:var(--muted);border-top:1px solid var(--line)}
+@media print{
+ .atlas-top,.atlas-map,.atlas-hint,.atlas-close,.atlas-noprint,.atlas-lock,.maplibregl-control-container{display:none!important}
+ html,body.atlas{height:auto;overflow:visible;display:block}.atlas-main{position:static}
+ .atlas-panel{position:static;width:auto;max-height:none;box-shadow:none;border:0}
+}
 @media (max-width:640px){
  .atlas-top{flex-wrap:wrap;gap:8px;padding:10px 16px}
  .atlas-search{max-width:none;flex-basis:100%}

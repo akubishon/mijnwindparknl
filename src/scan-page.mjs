@@ -12,6 +12,8 @@ export const SCAN = {
   // Wie levert en factureert. Zolang dit null is, toont de pagina geen bedrijfsgegevens. Vul vóór livegang in, bijvoorbeeld:
   // {naam: 'Bedrijf B.V.', kvk: '12345678', adres: 'Straat 1, 1234 AB Plaats', email: 'scan@voorbeeld.nl', telefoon: '+31 …'}
   provider: null,
+  // Conceptfase: niet indexeren (noindex op de pagina, robots.txt sluit alles af). Zet op true zodra de site geen concept meer is.
+  indexable: false,
   packages: [
     {id: 'opbrengst', name: 'Opbrengstberekening', price: '€ 12.000', fit: 'Je hebt een voorkeursmodel en hebt de opbrengstberekening voor je dossier nodig.', items: [
       'Aanbodprofiel van je windpark per tien minuten, op historische windjaren',
@@ -179,6 +181,8 @@ ${errors.length ? `<p class="error" role="alert">${errors.map(scanEsc).join(' ')
 <label>Organisatie *<input name="organisatie" required maxlength="160" autocomplete="organization" value="${scanEsc(v.organisatie)}"></label>
 <label>Zakelijk e-mailadres *<input name="email" type="email" required maxlength="200" autocomplete="email" value="${scanEsc(v.email)}"></label>
 <label>Pakket<select name="pakket">${scanOptions(SCAN_PLANS, v.pakket || 'onbekend')}</select></label>
+${v.locatie ? `<p class="full from-atlas"><strong>Locatie uit de Atlas</strong><br>${scanEsc(v.locatie)}${v.vermogen ? ` · ${scanEsc(v.vermogen)} MW windvermogen` : ''}</p>` : ''}
+<input type="hidden" name="bron" value="${scanEsc(v.bron || 'direct')}"><input type="hidden" name="locatie" value="${scanEsc(v.locatie)}"><input type="hidden" name="vermogen" value="${scanEsc(v.vermogen)}">
 <label class="full">Deadline of toelichting (optioneel)<textarea name="toelichting" maxlength="2000" placeholder="Bijvoorbeeld: de aanvraagronde, het beoogde vermogen of de modellen die in beeld zijn">${scanEsc(v.toelichting)}</textarea></label>
 <div class="trap" aria-hidden="true"><label>Laat dit veld leeg<input name="website" tabindex="-1" autocomplete="off"></label></div>
 <label class="full check"><input type="checkbox" name="toestemming" value="ja" required${v.toestemming ? ' checked' : ''}><span>Je mag mijn gegevens gebruiken om contact met me op te nemen over dit project. *</span></label>
@@ -189,7 +193,8 @@ ${errors.length ? `<p class="error" role="alert">${errors.map(scanEsc).join(' ')
 <title>${scanEsc(SCAN.title)}</title><meta name="description" content="${scanEsc(SCAN.description)}">
 <meta property="og:title" content="${scanEsc(SCAN.headline)} · Waterstofscan"><meta property="og:description" content="${scanEsc(SCAN.description)}"><meta property="og:type" content="website">
 <link rel="canonical" href="https://mijnwindpark.nl${SCAN_PATH}">
-<link rel="icon" href="/favicon.svg"><style>${font ? `@font-face{font-family:'TASA Orbiter';src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:400 800;font-display:swap}` : ''}${SCAN_STYLE}</style></head><body>
+<link rel="icon" href="/favicon.svg"><style>${font ? `@font-face{font-family:'TASA Orbiter';src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:400 800;font-display:swap}` : ''}${SCAN_STYLE}.from-atlas{margin:0;padding:10px 14px;background:#C3E4F2;border-left:4px solid #00A6DE}.concept{margin:0;padding:4px 16px;background:#F2C94C;color:#0C2340;font-size:13px;font-weight:600;text-align:center}</style></head><body>
+<p class="concept" role="note">Conceptwebsite · ontwerp, nog geen bestaand bedrijf of aanbod</p>
 <a class="skip" href="#inhoud">Naar de inhoud</a>
 <header><div class="wrap"><a class="brand" href="${SCAN_PATH}">mijnwindpark<span>.nl</span></a><nav aria-label="Pagina"><a href="#prijzen">Pakketten</a><a href="#rvo">RVO-eisen</a><a href="#werkwijze">Werkwijze</a><a href="#vragen">Vragen</a><a class="button" href="#aanvraag">Bespreek je project</a></nav></div></header>
 <main class="wrap" id="inhoud">
