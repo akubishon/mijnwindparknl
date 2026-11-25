@@ -1,6 +1,7 @@
 /* __DATA_CLIENT__ */
 /* __WIND_CLIENT__ */
 /* __SCAN__ */
+/* __ATLAS__ */
 const opsAssets = /* __OPS_ASSETS__ */;
 const opsPage = /* __OPS_PAGE__ */;
 const opsPolicy = /* __OPS_POLICY__ */;
@@ -139,6 +140,8 @@ async function scanRoute(request,env,url){
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // Atlas: eigen host, openbaar (buiten de sitepoort); src/atlas/server.mjs geeft 404 voor alle andere paden.
+    if(atlasServer.ATLAS_HOSTS.includes(url.hostname))return atlasServer.atlasRoute(request,env,url,{...atlasAssets,font:brandFont,favicon});
     // The unattended writer has separate authorization and never opens visitor routes.
     if(url.pathname==='/api/internal/harmonie/update'){
       if(request.method!=='POST')return answer({error:'Method not allowed'},405);

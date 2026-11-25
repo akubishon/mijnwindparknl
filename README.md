@@ -499,3 +499,9 @@ SWT-DD-130-curve bij 4,3 MW / 107 dB. De parkpagina start met dit model. De
 jaarreeksen 2022–2025 voor elektrolyse zijn opnieuw uit de opgeslagen wind berekend.
 De grens 28,01 m/s is een technische bereikgrens, geen bevestigde uitschakeling.
 Zie [bron, omzetting en beperkingen](docs/curves/README.md).
+
+## Atlas
+
+Openbare kaart op `atlas.mijnwindpark.nl` (buiten de sitepoort; alleen `GET /`, statische assets, `GET /api/atlas/teaser` en `POST /api/atlas/lcoh`, de rest is 404). Code in `src/atlas/`: `client.mjs` (MapLibre, PDOK BRT-achtergrond, Kadastrale Kaart vanaf zoom 16, Locatieserver, BRK OGC API), `server.mjs` (teaser en LCOH; met kernel en economics gebundeld in de worker, nooit in de browser) en `windparken.geojson` (© OpenStreetMap-bijdragers). De LCOH verschijnt pas na Alt+klik op het logo en het sitewachtwoord (`SITE_PASSWORD`, max. 5 pogingen/min per IP).
+
+Data eenmalig vooraf: `node scripts/atlas-data.mjs wind --upload` (KNMI-uurwind 2025 naar R2 `atlas/v1/wind-2025/`) en `node scripts/atlas-data.mjs windparken` (Overpass; andere server via `OVERPASS_URL`).
