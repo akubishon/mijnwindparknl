@@ -8,6 +8,7 @@ workers_dev = true
 # Cloudflare account; deploying creates the DNS record and certificate.
 routes = [
   { pattern = "mijnwindpark.nl", custom_domain = true },
+  { pattern = "atlas.mijnwindpark.nl", custom_domain = true },
 ]
 
 # Durable HARMONIE snapshots (harmonie/v1/{model}/{run}.json).

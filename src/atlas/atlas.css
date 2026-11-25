@@ -1,0 +1,39 @@
+/* Atlas (atlas.mijnwindpark.nl). Huisstijl uit brand-style.css; hier alleen de kaartopmaak. */
+html,body.atlas{height:100%;margin:0}
+body.atlas{display:flex;flex-direction:column;overflow:hidden}
+.atlas-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.atlas-top{display:flex;align-items:center;gap:16px;background:var(--ink);color:#fff;padding:12px var(--page-gutter);border-radius:0 0 24px 0;z-index:3}
+.atlas-logo{color:#fff;text-decoration:none;font-weight:700;font-size:22px;letter-spacing:-.5px;white-space:nowrap}
+.atlas-logo small{color:#C3E4F2;font-weight:400;font-size:15px}
+.atlas-search{position:relative;flex:1;max-width:460px;margin-left:auto}
+.atlas-search input{width:100%;box-sizing:border-box;font:inherit;padding:9px 12px;border:1px solid #C3E4F2;border-radius:0 12px 0 0;background:#fff;color:var(--ink)}
+.atlas-results{position:absolute;left:0;right:0;top:100%;margin:4px 0 0;padding:0;list-style:none;background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:0 8px 24px rgba(12,35,64,.18);z-index:5}
+.atlas-results button{display:block;width:100%;text-align:left;font:inherit;padding:8px 12px;border:0;background:none;color:inherit;cursor:pointer}
+.atlas-results button:hover,.atlas-results button:focus{background:#C3E4F2}
+.atlas-results li.atlas-muted{padding:8px 12px}
+.atlas-lock{display:flex;gap:8px;align-items:center;padding:8px var(--page-gutter);background:#C3E4F2;flex-wrap:wrap}
+.atlas-lock input{font:inherit;padding:6px 10px;border:1px solid var(--line)}
+.atlas-lock button{font:inherit;padding:6px 14px;border:0;background:var(--ink);color:#fff;cursor:pointer}
+.atlas-main{position:relative;flex:1;min-height:0;padding:0}
+.atlas-map{position:absolute;inset:0}
+.atlas-hint{position:absolute;left:12px;bottom:28px;margin:0;padding:6px 12px;background:rgba(255,255,255,.92);border-left:4px solid var(--green);font-size:14px;z-index:2}
+.atlas-panel{position:absolute;top:12px;left:12px;width:340px;max-height:calc(100% - 24px);overflow:auto;box-sizing:border-box;background:var(--paper);border-top:4px solid var(--green);padding:18px 20px;box-shadow:0 10px 30px rgba(12,35,64,.25);border-radius:0 18px 0 0;z-index:2}
+.atlas-panel h2{margin:0 0 2px;font-size:21px;line-height:1.25}
+.atlas-panel h3{margin:16px 0 6px;font-size:15px}
+.atlas-close{position:absolute;top:6px;right:10px;border:0;background:none;font-size:24px;color:var(--ink);cursor:pointer}
+.atlas-kicker{margin:0;color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.06em}
+.atlas-area{margin:0 0 10px;color:var(--muted)}
+.atlas-muted{color:var(--muted)}
+.atlas-facts{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0}
+.atlas-facts dt{color:var(--muted)}.atlas-facts dd{margin:0;font-weight:600}
+.atlas-parks{margin:0;padding-left:20px}.atlas-parks li{margin-bottom:4px}.atlas-parks span{display:block;color:var(--muted);font-size:14px}
+.atlas-lcoh{margin:14px 0 0;padding:8px 10px;background:#fff;border-left:4px solid var(--ink);font-weight:700}
+.atlas-cta{display:inline-block;margin-top:16px;padding:10px 18px;background:var(--ink);color:#fff;text-decoration:none;font-weight:700;border-radius:0 12px 0 0}
+.atlas-cta:hover{background:var(--green)}
+.maplibregl-popup-content{font-family:inherit;border-radius:0 10px 0 0}
+@media (max-width:640px){
+ .atlas-top{flex-wrap:wrap;gap:8px;padding:10px 16px}
+ .atlas-search{max-width:none;flex-basis:100%}
+ .atlas-panel{top:auto;bottom:0;left:0;right:0;width:auto;max-height:55%;border-radius:18px 18px 0 0}
+ .atlas-hint{bottom:auto;top:10px;right:56px}
+}

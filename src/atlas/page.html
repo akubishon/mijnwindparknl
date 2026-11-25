@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Atlas van Mijnwindpark.nl: kies een kadastraal perceel als elektrolyserlocatie en zie wind en windparken in de buurt.">
+<title>Atlas · Mijn Windpark</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/atlas.css">
+</head>
+<body class="brand-style atlas">
+<header class="atlas-top">
+ <a id="logo" class="atlas-logo" href="https://mijnwindpark.nl/waterstofscan" title="Mijnwindpark.nl"><span>mijnwindpark.nl</span> <small>Atlas</small></a>
+ <form id="zoekform" class="atlas-search" role="search">
+  <label for="zoek" class="atlas-sr">Zoek een adres</label>
+  <input id="zoek" type="search" placeholder="Zoek adres, postcode of plaats" autocomplete="off">
+  <ul id="resultaten" class="atlas-results" hidden></ul>
+ </form>
+</header>
+<form id="slot" class="atlas-lock" hidden>
+ <label for="wachtwoord" class="atlas-sr">Wachtwoord</label>
+ <input id="wachtwoord" type="password" placeholder="Wachtwoord" autocomplete="current-password">
+ <button type="submit">Toon</button>
+ <span id="slotstatus" role="status"></span>
+</form>
+<main class="atlas-main">
+ <div id="kaart" class="atlas-map" aria-label="Kaart van Nederland"></div>
+ <p id="hint" class="atlas-hint">Zoom in of klik op de kaart om een kadastraal perceel te kiezen.</p>
+ <aside id="paneel" class="atlas-panel" hidden aria-live="polite">
+  <button id="sluit" type="button" class="atlas-close" aria-label="Sluiten">×</button>
+  <div id="teaser"></div>
+ </aside>
+</main>
+<noscript>Schakel JavaScript in om de kaart te bekijken.</noscript>
+<script src="/atlas.js" defer></script>
+</body>
+</html>
