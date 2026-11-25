@@ -284,7 +284,7 @@ function tooMany(ip, store = attempts, max = 5, windowMs = 60000) {
 
 // ---------------------------------------------------------------- kaartpagina
 // Versie in de adressen van stijl en script (ook in src/atlas/page.html), zodat browsers na een wijziging geen oude kopie gebruiken.
-const ASSET_VERSION = 'menu1';
+const ASSET_VERSION = 'sheet1';
 const ATLAS_SEARCH = `<form id="zoekform" class="atlas-search" role="search"><label for="zoek" class="atlas-sr">Zoek een adres</label>
 <input id="zoek" type="search" placeholder="Zoek adres, postcode of plaats" autocomplete="off"><ul id="resultaten" class="atlas-results" hidden></ul></form>`;
 // De kaart krijgt dezelfde kop en hetzelfde menu als de rest van de site, met het zoekveld erin.

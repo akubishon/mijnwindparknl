@@ -6,7 +6,7 @@
 <meta name="description" content="Kaart van mijnwindpark.nl: kies een kadastraal perceel als elektrolyserlocatie en zie wind en windparken in de buurt.">
 <title>Kaart · mijnwindpark.nl</title>
 <link rel="icon" href="/favicon.svg">
-<link rel="stylesheet" href="/atlas.css?v=menu1">
+<link rel="stylesheet" href="/atlas.css?v=sheet1">
 </head>
 <body class="brand-style atlas">
 <!-- Hieronder zet de server de gedeelde kop met menu en zoekveld (mapPage in server.mjs, src/public-site.mjs). -->
@@ -20,12 +20,13 @@
 <main class="atlas-main" id="inhoud">
  <div id="kaart" class="atlas-map" aria-label="Kaart van Nederland"></div>
  <aside id="paneel" class="atlas-panel" hidden aria-live="polite">
+  <button id="greep" type="button" class="atlas-grip" aria-label="Paneel groter maken" aria-expanded="false"><span></span></button>
   <button id="sluit" type="button" class="atlas-close" aria-label="Sluiten">×</button>
   <div id="teaser"></div>
  </aside>
  <p id="hint" class="atlas-hint"><span id="hinttekst">Zoek een adres of zoom in en klik op een perceel.</span> <button id="uitleg" type="button" class="atlas-link">Hoe werkt de kaart?</button></p>
 </main>
 <noscript>Schakel JavaScript in om de kaart te bekijken.</noscript>
-<script src="/atlas.js?v=menu1" defer></script>
+<script src="/atlas.js?v=sheet1" defer></script>
 </body>
 </html>

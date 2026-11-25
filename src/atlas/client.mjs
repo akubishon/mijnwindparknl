@@ -343,7 +343,46 @@ $('teaser').addEventListener('submit', async event => {
  } catch { status.textContent = 'Mislukt. Probeer opnieuw.'; }
 });
 function show(html) { $('teaser').innerHTML = html; $('paneel').hidden = false; }
-$('sluit').addEventListener('click', () => { $('paneel').hidden = true; markIntroSeen(); });
+$('sluit').addEventListener('click', () => { $('paneel').hidden = true; setSheetOpen(false); markIntroSeen(); });
+
+// ---------------------------------------------------------------- mobiel: het paneel is een kaart onderaan die je met de greep omhoog veegt (groot) of omlaag (klein, nog verder omlaag = sluiten)
+function setSheetOpen(open) {
+ const panel = $('paneel');
+ panel.classList.toggle('atlas-panel-open', open);
+ panel.style.maxHeight = '';
+ $('greep').setAttribute('aria-expanded', String(open));
+ $('greep').setAttribute('aria-label', open ? 'Paneel kleiner maken' : 'Paneel groter maken');
+}
+{
+ const panel = $('paneel'), grip = $('greep');
+ let drag = null;
+ grip.addEventListener('pointerdown', e => {
+  drag = {y: e.clientY, h: panel.getBoundingClientRect().height, moved: false};
+  grip.setPointerCapture(e.pointerId);
+ });
+ grip.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dy = e.clientY - drag.y;
+  if (!drag.moved && Math.abs(dy) < 6) return;
+  drag.moved = true;
+  panel.classList.add('atlas-dragging');
+  const max = panel.parentElement.clientHeight - 8;
+  panel.style.maxHeight = `${Math.max(60, Math.min(max, drag.h - dy))}px`;
+ });
+ const end = e => {
+  if (!drag) return;
+  const {moved, y} = drag, dy = e.clientY - y, open = panel.classList.contains('atlas-panel-open');
+  drag = null;
+  panel.classList.remove('atlas-dragging');
+  if (!moved) return setSheetOpen(!open); // tikken wisselt tussen klein en groot
+  if (dy < -40) return setSheetOpen(true);
+  if (dy > 40 && open) return setSheetOpen(false);
+  if (dy > 80) { panel.hidden = true; setSheetOpen(false); markIntroSeen(); return; }
+  setSheetOpen(open);
+ };
+ grip.addEventListener('pointerup', end);
+ grip.addEventListener('pointercancel', () => { if (!drag) return; drag = null; panel.classList.remove('atlas-dragging'); setSheetOpen(panel.classList.contains('atlas-panel-open')); });
+}
 
 // ---------------------------------------------------------------- uitleg en legenda: bij het eerste bezoek en via 'Hoe werkt de kaart?'
 const INTRO_KEY = 'mwp-kaart-uitleg';

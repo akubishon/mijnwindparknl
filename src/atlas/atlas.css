@@ -19,7 +19,8 @@ body.atlas{display:flex;flex-direction:column;overflow:hidden}
 .atlas-panel{position:absolute;top:12px;left:12px;width:340px;max-height:calc(100% - 24px);overflow:auto;box-sizing:border-box;background:var(--paper);border-top:4px solid var(--green);padding:18px 20px;box-shadow:0 10px 30px rgba(12,35,64,.25);border-radius:0 18px 0 0;z-index:2;line-height:1.5}
 .atlas-panel h2{margin:0 0 2px;font-size:21px;line-height:1.25}
 .atlas-panel h3{margin:16px 0 6px;font-size:15px}
-.atlas-close{position:absolute;top:6px;right:10px;border:0;background:none;font-size:24px;color:var(--ink);cursor:pointer}
+.atlas-grip{display:none}
+.atlas-close{position:absolute;top:6px;right:10px;z-index:2;border:0;background:none;font-size:24px;color:var(--ink);cursor:pointer}
 .atlas-kicker{margin:0;color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.06em}
 .atlas-area{margin:0 0 10px;color:var(--muted)}
 .atlas-muted{color:var(--muted)}
@@ -75,7 +76,14 @@ details.atlas-group summary{cursor:pointer;padding:10px 14px;background:#fff;bor
  .atlas-panel{position:static;width:auto;max-height:none;box-shadow:none;border:0}
 }
 @media (max-width:640px){
- .atlas-panel{top:auto;bottom:0;left:0;right:0;width:auto;max-height:55%;border-radius:18px 18px 0 0}
+ .atlas-panel{top:auto;bottom:0;left:0;right:0;width:auto;max-height:55%;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;padding:0;transition:max-height .25s ease;z-index:3}
+ .atlas-panel[hidden]{display:none}
+ .atlas-panel.atlas-panel-open{max-height:calc(100% - 8px)}
+ .atlas-panel.atlas-dragging{transition:none}
+ .atlas-panel #teaser{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 20px 18px}
+ .atlas-grip{display:flex;flex:none;justify-content:center;align-items:center;width:100%;height:30px;margin:0;padding:0;border:0;background:none;cursor:grab;touch-action:none}
+ .atlas-grip span{width:44px;height:5px;border-radius:3px;background:#9fb0c2}
+ .atlas-close{top:0}
  .atlas-hint,.atlas-panel:not([hidden])~.atlas-hint{bottom:auto;top:10px;left:12px;right:56px}
  .atlas-list{columns:1}
  .atlas-jump{gap:6px}.atlas-jump a{padding:4px 9px;font-size:14px}
