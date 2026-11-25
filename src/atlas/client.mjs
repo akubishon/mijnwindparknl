@@ -25,7 +25,7 @@ const map = new maplibregl.Map({
   sources: {
    brt: {type: 'raster', tiles: [BRT], tileSize: 256, maxzoom: 19, attribution: 'Achtergrond en percelen © <a href="https://www.pdok.nl">Kadaster / PDOK</a>'},
    kadaster: {type: 'raster', tiles: [KADASTER], tileSize: 256, minzoom: PERCEEL_ZOOM, maxzoom: 20},
-   windparken: {type: 'geojson', data: '/windparken.geojson', attribution: 'Windparken © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-bijdragers'},
+   windparken: {type: 'geojson', data: '/windparken.geojson?v=knmi1', attribution: 'Windparken © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-bijdragers'},
    perceel: {type: 'geojson', data: empty},
    dekking: {type: 'geojson', data: empty},
    stations: {type: 'geojson', data: empty, attribution: 'Wind © <a href="https://www.knmi.nl">KNMI</a>'},
