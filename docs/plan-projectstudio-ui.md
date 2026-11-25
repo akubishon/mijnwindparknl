@@ -1,6 +1,6 @@
 # Plan: Projectstudio mooier maken (interface)
 
-Status: plan, nog niet gebouwd. Opgesteld op 25 november 2026; conceptschermen in `docs/projectstudio-concepten/`. Hoort bij `docs/plan-projectstudio.md`; de aanpak en de rekenkern blijven precies zoals daar staat. Dit plan gaat **alleen over de interface**.
+Status: **gebouwd** (fases 1–4) op 25 november 2026, in de stijl van de concepten in `docs/projectstudio-concepten/`; zie *Uitvoering* onderaan. Hoort bij `docs/plan-projectstudio.md`; de aanpak en de rekenkern blijven precies zoals daar staat. Dit plan gaat **alleen over de interface**.
 
 ## Wat er nu mis is
 
@@ -191,3 +191,21 @@ Elke fase is los te mergen. Fase 1 is het grootste verschil in uitstraling.
 - **Minikaart op projectkaarten**: een echte MapLibre-kaart per project is zwaar. Voorstel: één statische PDOK-tegel met de stippen als SVG eroverheen.
 - **Warmtekaart**: 52 560 tienminutenwaarden in één SVG is te veel. Voorstel: per uur middelen (8 760 cellen) en tekenen op een `<canvas>`.
 - **Donkere modus**: de hoofdsite heeft er geen. Voorstel: niet in deze ronde.
+
+## Uitvoering
+
+Gebouwd volgens dit plan en de concepten A (werkbank), B (kaartpodium voor stap 1 en 4) en C (projecten). Waar de bouw afwijkt of verder gaat:
+
+- **Stap 3** volgt concept A: de kaart over de volle breedte met zoeken op de kaart, daaronder de gekozen parken als kaarten en de parken in de buurt als lijst (in plaats van kaart en lijst naast elkaar).
+- **Stap 4** volgt concept B: één grote kaart met het gekozen park, de 25 km-cirkel en de stations (klikbaar), en een paneel met parktabs, voorstel, dekkingsbalken en waarschuwingen (in plaats van een minikaart per park). Hoeveel momenten wegvallen bij twee stations staat erbij zodra beide reeksen geladen zijn.
+- **Stap 5**: tegels aanbod, vollasturen, dekking en windstil; het hoogste vermogen staat bij windstil.
+- **Bouwstenen**: Tile, Card, Notice, NumberField, Slider, RangeSlider, Skeleton, Empty en Info staan samen in `src/studio/ui/kit.tsx`; StepRail, Overview, Chart, StaticMap, TopBar en Toast hebben een eigen bestand.
+- **Extra**: luchtfoto als kaartlaag, de dag in de URL van de windparkpagina (`?dag=`), en een vraag vóór weggaan binnen de studio (naast `beforeunload`).
+
+Controles:
+
+1. **Getallen ongewijzigd**: Bolsward geeft in de nieuwe tegels 173,8 GWh (173.848 MWh), 3.617 vollasturen, 98,7 % dekking en 51.902 momenten, gelijk aan de oude tabel; Vergelijken rekent en het overzicht toont de referentievariant.
+2. **Tests**: `tests/studio-status.test.mjs` (nieuw) en een uitbreiding van `tests/studio-routes.test.mjs`; `npm test` 306 van 306 groen, `npm run build` groen.
+3. **Bundel**: `studio.js` van 1.252 naar 1.338 KB (+6,9 %).
+4. **Browser**: alle schermen gecontroleerd op 1440 px en 390 px met een lokale worker, echte KNMI-reeksen (Houtribdijk en Stavoren 2025) en de catalogus uit de testfixture. Schermafbeeldingen, ook voor en na: `docs/projectstudio-concepten/resultaat/`.
+

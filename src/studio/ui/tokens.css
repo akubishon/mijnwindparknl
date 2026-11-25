@@ -1,0 +1,11 @@
+/* Projectstudio: tokens van de huisstijl van mijnwindpark.nl (brand-style.css), als CSS-variabelen.
+   Op intern. staat het lettertype op /fonts/tasa-orbiter.ttf (de hoofdsite gebruikt /assets/). */
+@font-face{font-family:'TASA Orbiter';src:url('/fonts/tasa-orbiter.ttf') format('truetype');font-style:normal;font-weight:400 800;font-display:swap}
+body.studio-body{
+ --ink:#0C2340;--ink-2:#193a5d;--cyan:#00A6DE;--sky:#C3E4F2;--sky-2:#e6f3f9;--paper:#EFECE6;--amber:#F5A800;--amber-bg:#fff4da;--amber-ink:#6b3f0d;
+ --muted:#465970;--line:#bcc8d2;--line-2:#e2e7ec;--card:#fff;--ok:#0C2340;--fout:#a3271f;
+ --r-s:0 10px 0 0;--r-m:0 18px 0 0;--r-l:0 28px 0 0;
+ --gut:clamp(16px,2vw,32px);--top:64px;
+ --shadow:0 1px 2px rgba(12,35,64,.06),0 8px 24px -12px rgba(12,35,64,.18);
+ --font:'TASA Orbiter','Segoe UI',Arial,sans-serif;
+}
