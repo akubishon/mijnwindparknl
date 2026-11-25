@@ -307,18 +307,20 @@ function FieldList({model,resolved,choices,set}:{model:Model;resolved:Resolved;c
 export function CompareTab({setups,resolved,byId,general,setGeneral,reference,setReference,calc,catalogue,target,setTarget,update,go,setActive,limit,setLimit,fillOpen,studio}:{studio?:{lead:string;wind:string;years?:number[]};setups:Setup[];resolved:Resolved[];byId:Map<string,Model>;general:General;setGeneral:(f:(g:General)=>General)=>void;reference:number;setReference:(n:number)=>void;calc:ReturnType<typeof useCalculator>;catalogue:Catalogue|null;target:number;setTarget:(n:number)=>void;update:UpdateFn;go:(t:Tab)=>void;setActive:(id:string)=>void;limit:Limit;setLimit:(l:Limit)=>void;fillOpen:(ids?:string[])=>void}){
  const g=generalValues(general);
  const ready=setups.map((s,i)=>({setup:s,label:letter(i),resolved:resolved[i],model:byId.get(s.modelId)})).filter(x=>x.resolved.ready&&x.model);
+ // In de Projectstudio rekent ook één opstelling; de publieke vergelijking vraagt er minstens twee.
+ const minimum=studio?1:2;
  const ref=Math.min(reference,Math.max(0,ready.length-1));
  const jobs=ready.flatMap(x=>g.years.map(year=>({...jobFor(x.resolved,general,year),label:`Opstelling ${x.label} · ${year}`})));
  const signature=jobs.map(j=>j.key).join(',');
  const results:(Assembled|null)[]=useMemo(()=>ready.map(x=>assemble(x.resolved,general,calc.cache) as Assembled|null),[signature,calc.state.version]);
- const complete=ready.length>=2&&results.every(Boolean);
+ const complete=ready.length>=minimum&&results.every(Boolean);
  // Costs follow the simulation and are not part of the cache key: another price or rate needs no new run.
  const gc=generalCosts(general),costsOf=ready.map(x=>setupCosts(x.resolved,x.setup,general));
  const costed:(Assembled|null)[]=complete?withCosts(results.map((r,i)=>({assembled:r,a:costsOf[i].a})),ref):results;
  const verdict=complete?robustness(ready.map((x,i)=>({result:results[i]!.summary,a:costsOf[i].a,fixedOwn:Number.isFinite(x.setup.choices.cost?.fixedMeur)}))):null;
  // Start once per new input; a newer request replaces a running one in the worker.
  const autoRun=useRef('');
- useEffect(()=>{if(ready.length>=2&&!complete&&autoRun.current!==signature){autoRun.current=signature;calc.run(jobs);}},[signature,complete]);
+ useEffect(()=>{if(ready.length>=minimum&&!complete&&autoRun.current!==signature){autoRun.current=signature;calc.run(jobs);}},[signature,complete]);
  const [chosenPeriod,setPeriod]=useState<'mean'|number>('mean');
  const period=chosenPeriod!=='mean'&&!g.years.includes(chosenPeriod)?'mean':chosenPeriod;
  const rows=costed.map(r=>r?(period==='mean'?r.mean:r.perYear[r.years.indexOf(period)]||null):null);
@@ -335,12 +337,12 @@ export function CompareTab({setups,resolved,byId,general,setGeneral,reference,se
  // With a warning limit the setups stay in the comparison; each one outside the limit is listed.
  const outside=setups.map((s,i)=>({label:letter(i),limit:resolved[i].limit})).filter(x=>x.limit?.mode==='waarschuwen'&&!x.limit.ok);
  const conclusion=complete?comparisonConclusion(costed.map(r=>r?{mean:r.mean}:null),verdict):null;
- const settingsOpen=ready.length<2;
+ const settingsOpen=ready.length<minimum;
  return <section className="production-panel electrolyser-panel" aria-labelledby="compare-title">
   <div className="panel-heading"><div><span className="eyebrow">ZELFDE WIND · ZELFDE ALGEMENE AANNAMES</span><h2 id="compare-title">Vergelijken</h2></div></div>
   <p className="wind-note compare-lead">{studio?studio.lead:'Alle opstellingen draaien op dezelfde vier windjaren van Windpark Fryslân (10 %) en Beabuorren, met dezelfde aannames.'} Bovenaan staat de conclusie; de details en instellingen staan eronder.</p>
   {outside.length>0&&<div className="live-error capacity-warning" role="status">{outside.map(x=><div key={x.label}><p><strong>Opstelling {x.label}</strong> valt buiten de modulelimiet maar wordt wel meegerekend:</p><ul>{x.limit!.problems.map(p=><li key={p}>{p}</li>)}</ul></div>)}</div>}
-  {ready.length<2?<div className="live-error" role="status"><p><strong>Nog geen vergelijking mogelijk.</strong> Er zijn minstens 2 opstellingen nodig die klaar zijn om te rekenen. Nu klaar: {ready.length}.</p>{setups.some((s,i)=>byId.get(s.modelId)&&!resolved[i].ready)&&<div className="model-actions"><button type="button" className="primary-button" onClick={()=>fillOpen()}>Vul alle open punten in en reken</button><span className="wind-note">Met voorzichtige aannames (bij een bereik de ongunstige kant). Ze blijven zichtbaar en aanpasbaar in Samenstellen.</span></div>}<p>Of los de punten zelf op:</p><ul>{setups.map((s,i)=>resolved[i].ready?null:<li key={s.id}>Opstelling {letter(i)}: {resolved[i].problems[0]||'kies een model'} <button type="button" className="text-button" onClick={()=>{setActive(s.id);go('samenstellen');}}>Aanpassen</button></li>)}</ul></div>:<>
+  {ready.length<minimum?<div className="live-error" role="status"><p><strong>Nog geen {minimum===1?'berekening':'vergelijking'} mogelijk.</strong> Er {minimum===1?'is minstens 1 opstelling':`zijn minstens ${minimum} opstellingen`} nodig die klaar {minimum===1?'is':'zijn'} om te rekenen. Nu klaar: {ready.length}.</p>{setups.some((s,i)=>byId.get(s.modelId)&&!resolved[i].ready)&&<div className="model-actions"><button type="button" className="primary-button" onClick={()=>fillOpen()}>Vul alle open punten in en reken</button><span className="wind-note">Met voorzichtige aannames (bij een bereik de ongunstige kant). Ze blijven zichtbaar en aanpasbaar in Samenstellen.</span></div>}<p>Of los de punten zelf op:</p><ul>{setups.map((s,i)=>resolved[i].ready?null:<li key={s.id}>Opstelling {letter(i)}: {resolved[i].problems[0]||'kies een model'} <button type="button" className="text-button" onClick={()=>{setActive(s.id);go('samenstellen');}}>Aanpassen</button></li>)}</ul></div>:<>
    {setups.some((s,i)=>!resolved[i].ready)&&<p className="wind-note">Niet meegerekend: {setups.map((s,i)=>resolved[i].ready?null:`opstelling ${letter(i)} (${notCounted(resolved[i])})`).filter(Boolean).join(', ')}. <button type="button" className="text-button" onClick={()=>fillOpen()}>Open punten invullen</button></p>}
    {(calc.state.running||calc.state.error)&&<div className="research-progress" role="status">{calc.state.running&&<><p>{calc.state.done} van {calc.state.total} berekeningen klaar{calc.state.label?` · ${calc.state.label}`:''}{calc.state.fromCache?` · ${calc.state.fromCache} uit de cache`:''}.</p><progress value={calc.state.done} max={calc.state.total||1} aria-label="Berekeningen klaar"/></>}{calc.state.error&&<p className="live-error">{calc.state.error}</p>}</div>}
    {!complete&&!calc.state.running&&<div className="model-actions"><button type="button" className="primary-button" onClick={()=>calc.run(jobs)}>Bereken vergelijking</button></div>}
@@ -414,10 +416,11 @@ function ResultTable({ready,rows,diffs,reference,results,split}:{ready:ReadyEntr
   {key:'rust_op',label:'Rust op',cells:ready.map(x=>({value:`${x.resolved.counts?.bron} bronwaarden en ${x.resolved.counts?.aanname} aannames`}))},
   {key:'uren',label:'Uren met data',unit:'per windjaar',cells:results.map(r=>({value:r.perYear.map(y=>`${y.jaar}: ${fmt(y.dekking_uur,0)} van ${fmt(y.uren_in_jaar,0)}`).join(' · ')}))}];
  const same=(l:Line)=>l.cells.every(c=>c.value===l.cells[0].value);
- const head=<thead><tr><th scope="col">Uitkomst</th>{ready.map((x,i)=><th key={x.setup.id} scope="col"><span className="setup-swatch" style={{background:color(i)}}/>Opstelling {x.label}{i===reference?' (referentie)':''}<small>{x.model!.name} · {x.resolved.modules} × {fmt(x.resolved.moduleMW,3)} MW</small></th>)}</tr></thead>;
+ const head=<thead><tr><th scope="col">Uitkomst</th>{ready.map((x,i)=><th key={x.setup.id} scope="col"><span className="setup-swatch" style={{background:color(i)}}/>Opstelling {x.label}{i===reference&&ready.length>1?' (referentie)':''}<small>{x.model!.name} · {x.resolved.modules} × {fmt(x.resolved.moduleMW,3)} MW</small></th>)}</tr></thead>;
  const body=(list:Line[],showDiff:boolean)=><tbody>{list.map(l=><tr key={l.key}><th scope="row">{l.label}{l.unit?<small> {l.unit}</small>:null}</th>{l.cells.map((cell,i)=><td key={i}>{cell.value}{showDiff&&cell.diff?<small className="diff">{cell.diff}</small>:null}</td>)}</tr>)}</tbody>;
- const caption=`Uitkomst per opstelling · verschil ten opzichte van opstelling ${ready[reference].label}`;
- if(!split)return <div className="table-scroll compare-table-scroll"><table className="compare-table"><caption>{caption}</caption>{head}{body(lines,true)}</table></div>;
+ const caption=ready.length<2?`Uitkomst van opstelling ${ready[0].label}`:`Uitkomst per opstelling · verschil ten opzichte van opstelling ${ready[reference].label}`;
+ // Eén opstelling: niets te vergelijken, dus de hele tabel.
+ if(!split||ready.length<2)return <div className="table-scroll compare-table-scroll"><table className="compare-table"><caption>{caption}</caption>{head}{body(lines,true)}</table></div>;
  const differ=lines.filter(l=>!same(l)),equal=lines.filter(same);
  return <>
   {differ.length>0?<div className="table-scroll compare-table-scroll"><table className="compare-table"><caption>Waar de opstellingen verschillen · verschil ten opzichte van opstelling {ready[reference].label}</caption>{head}{body(differ,true)}</table></div>

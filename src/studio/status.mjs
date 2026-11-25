@@ -65,8 +65,8 @@ export function stepStatus(project, data = {}) {
     : { status: 'open', summary: canComputeSupply(project) ? 'Nog niet berekend' : 'Eerst parken en stations' });
 
   // 6. Vergelijken
-  if (supply?.ready && !compared && ready.length >= 2) add(5, 'info', 'Vergelijken nog niet bekeken.');
-  steps.push(compared ? { status: 'klaar', summary: `${ready.length} varianten vergeleken` } : { status: 'open', summary: ready.length < 2 ? 'Minstens 2 varianten nodig' : 'Nog niet bekeken' });
+  if (supply?.ready && !compared && ready.length >= 1) add(5, 'info', 'Vergelijken nog niet bekeken.');
+  steps.push(compared ? { status: 'klaar', summary: ready.length === 1 ? '1 variant berekend' : `${ready.length} varianten vergeleken` } : { status: 'open', summary: ready.length < 1 ? 'Minstens 1 variant nodig' : 'Nog niet bekeken' });
 
   const out = steps.map((s, i) => ({ ...STEPS[i], ...s, count: issues.filter(x => x.step === i && x.level === 'let').length }));
   return { steps: out, issues, done: out.filter(s => s.status === 'klaar').length };

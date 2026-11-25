@@ -64,3 +64,12 @@ test('station met lage dekking: let op; dekking nog niet opgehaald is alleen inf
   assert.equal(unknown.steps[3].summary, 'Stavoren');
   assert.ok(unknown.issues.some(x => x.level === 'info' && /nog niet bekend/.test(x.text)));
 });
+
+test('één variant is genoeg voor LCOH vergelijken', () => {
+  const p = structuredClone(BOLSWARD); p.varianten = [{ ...p.varianten[0], modelId: 'model-0' }];
+  const open = stepStatus(p, { resolved: [ready(20)], index: index({ [HOUTRIBDIJK]: 0.99, [STAVOREN]: 0.99 }), supply: { ready: true, vollasturen: 3617.4 } });
+  assert.equal(open.steps[5].summary, 'Nog niet bekeken');
+  assert.ok(open.issues.some(x => x.step === 5 && /nog niet bekeken/.test(x.text)));
+  const done = stepStatus(p, { resolved: [ready(20)], index: index({ [HOUTRIBDIJK]: 0.99, [STAVOREN]: 0.99 }), supply: { ready: true, vollasturen: 3617.4 }, compared: true });
+  assert.deepEqual(done.steps[5], { key: 'vergelijken', label: 'LCOH vergelijken', status: 'klaar', summary: '1 variant berekend', count: 0 });
+});

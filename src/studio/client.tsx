@@ -49,7 +49,7 @@ function Editor({initial}:{initial:any}){
  // Na Vergelijken: kerncijfers van de referentievariant voor het overzicht.
  const {rows,compared}=useMemo(()=>{
   const ready=resolved.map((r:any,i:number)=>r.ready&&byId.get(project.varianten[i].modelId)?i:-1).filter((i:number)=>i>=0);
-  if(!supply.result||ready.length<2)return {rows:[],compared:false};
+  if(!supply.result||ready.length<1)return {rows:[],compared:false};
   const raw=ready.map((i:number)=>assemble(resolved[i],general,calc.cache) as any);
   if(!raw.every(Boolean))return {rows:[],compared:false};
   const pos=Math.min(project.referentie,ready.length-1);
