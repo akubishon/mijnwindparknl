@@ -1,6 +1,6 @@
 # Verkoopplan Waterstofscan
 
-*Bijgewerkt op 24 november 2026. Doel voor de eerste zes weken is één betaalde Waterstofscan.*
+*Bijgewerkt op 24 november 2026. Doel voor de eerste zes weken is één betaalde Waterstofscan.* Hoe atlas.mijnwindpark.nl leads voor deze scan oplevert, staat in [`atlas.md`](atlas.md).
 
 ## 1. Aanbod en doelgroep
 
