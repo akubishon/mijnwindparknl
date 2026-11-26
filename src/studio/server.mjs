@@ -10,7 +10,7 @@ import { harmonieRoute } from './harmonie-points.mjs';
 
 export const STUDIO_HOSTS = ['intern.mijnwindpark.nl', 'intern.localhost'];
 export const PROJECTS = 'studio/v1/projects/', PROJECT_INDEX = PROJECTS + 'index.json', MAX_BODY = 256 * 1024, MAX_PROJECTS = 500;
-const CSP = "default-src 'none'; script-src 'self'; worker-src 'self' blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://service.pdok.nl https://tile.openstreetmap.org; connect-src 'self' https://service.pdok.nl https://api.pdok.nl https://tile.openstreetmap.org https://photon.komoot.io; font-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'; frame-ancestors 'none'";
+const CSP = "default-src 'none'; script-src 'self'; worker-src 'self' blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://service.pdok.nl; connect-src 'self' https://service.pdok.nl https://api.pdok.nl https://tiles.openfreemap.org https://photon.komoot.io; font-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'self'; frame-ancestors 'none'";
 export const studioHeaders = { 'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=()', 'X-Robots-Tag': 'noindex, nofollow' };
 const answer = (value, status = 200) => Response.json(value, { status, headers: { ...studioHeaders, 'Cache-Control': 'no-store' } });
 // Parken van de kaart (OpenStreetMap), alleen wat de studio nodig heeft: Nederland (zoals de Atlas) plus de buurlanden
