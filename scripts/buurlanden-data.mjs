@@ -78,7 +78,7 @@ async function dmiStations() {
 // Météo-France (Frankrijk): open data per departement, uurwaarden. FF = 10-minutengemiddelde op 10 m, één keer per uur.
 // Alleen stations met FF in minstens 80 % van de uren van 2025. Bestanden in work/mf/ (groot; niet committen).
 const MF = 'https://meteofrance.s3.sbg.io.cloud.ovh.net/data/synchro_ftp/BASE/HOR/';
-const MF_DEPARTMENTS = [...Array.from({length: 95}, (_, i) => String(i + 1).padStart(2, '0')).filter(d => d !== '20'), '2A', '2B'];
+const MF_DEPARTMENTS = Array.from({length: 95}, (_, i) => String(i + 1).padStart(2, '0'));   // Corsica staat onder 20
 async function mfStations() {
  const {createGunzip} = await import('node:zlib'), {createInterface} = await import('node:readline'), {createReadStream} = await import('node:fs');
  mkdirSync('work/mf', {recursive: true});
