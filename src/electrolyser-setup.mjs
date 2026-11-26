@@ -6,6 +6,7 @@ import {STATUS, fitPartLoadGain, NM3_PER_KG} from './electrolyser-catalogue.mjs'
 import {formatFixed, formatSigned, sharedDecimals, shownDifference, energyUnit} from './number-format.mjs';
 import {WIND_PROFILES, DEFAULT_WIND_PROFILE, windSeries, isStudioProfile} from './electrolyser-wind.mjs';
 import {COST_KEYS, COST_SETUP_KEYS, generalCosts} from './electrolyser-economics.mjs';
+import {IMBALANCE_SPAN} from './electrolyser-imbalance.mjs';
 
 export const WIND_YEARS = [2022, 2023, 2024, 2025];
 // Enough for a whole Waterstofatlas shortlist: the catalogue holds fewer than 100 electrolysers.
@@ -279,12 +280,12 @@ export const RESULT_ROWS = [
  ['Stroomkosten', 'stroom_meur_jaar', 'M€ per jaar', 'uitkomst', 'stroom_MEUR_per_jaar'], ['Stackvervanging', 'stack_meur_jaar', 'M€ per jaar', 'uitkomst', 'stackvervanging_MEUR_per_jaar'],
  ['Kosten per jaar', 'kosten_meur_jaar', 'M€ per jaar', 'uitkomst', 'kosten_MEUR_per_jaar'], ['LCOH', 'lcoh_eur_kg', '€/kg', 'uitkomst', 'LCOH_EUR_per_kg'],
  ['Maximale meerprijs t.o.v. referentie (boven +, onder − de aangenomen prijs)', 'meerprijs_eur_kw', '€/kW', 'uitkomst', 'max_meerprijs_EUR_per_kW'],
- // Onbalans (electrolyser-imbalance.mjs): windjaar 2024 met TenneT-prijzen; in het gemiddelde en in de kolom 2024.
- ['Onbalans 2024: extra stroom bij negatieve prijs', 'onbalans_mwh', 'MWh per jaar', 'energie', 'onbalans_2024_extra_MWh'],
- ['Onbalans 2024: extra waterstof', 'onbalans_kg', 'kg per jaar', 'waterstof', 'onbalans_2024_extra_waterstof_kg'],
- ['Onbalans 2024: netto opbrengst (bovengrens)', 'onbalans_meur_jaar', 'M€ per jaar', 'uitkomst', 'onbalans_2024_netto_opbrengst_MEUR'],
- ['LCOH windjaar 2024', 'lcoh_2024_eur_kg', '€/kg', 'uitkomst', 'LCOH_2024_EUR_per_kg'],
- ['LCOH windjaar 2024 met onbalansopbrengst', 'lcoh_2024_onbalans_eur_kg', '€/kg', 'uitkomst', 'LCOH_2024_met_onbalans_EUR_per_kg'],
+ // Onbalans (electrolyser-imbalance.mjs): de windjaren met TenneT-prijzen; per jaar in de eigen kolom, samen in Gemiddelde.
+ [`Onbalans ${IMBALANCE_SPAN}: extra stroom bij negatieve prijs`, 'onbalans_mwh', 'MWh per jaar', 'energie', 'onbalans_extra_MWh'],
+ [`Onbalans ${IMBALANCE_SPAN}: extra waterstof`, 'onbalans_kg', 'kg per jaar', 'waterstof', 'onbalans_extra_waterstof_kg'],
+ [`Onbalans ${IMBALANCE_SPAN}: netto opbrengst (bovengrens)`, 'onbalans_meur_jaar', 'M€ per jaar', 'uitkomst', 'onbalans_netto_opbrengst_MEUR'],
+ [`LCOH windjaren ${IMBALANCE_SPAN}`, 'onbalans_lcoh_eur_kg', '€/kg', 'uitkomst', 'LCOH_onbalansjaren_EUR_per_kg'],
+ [`LCOH windjaren ${IMBALANCE_SPAN} met onbalansopbrengst`, 'onbalans_lcoh_met_eur_kg', '€/kg', 'uitkomst', 'LCOH_onbalansjaren_met_onbalans_EUR_per_kg'],
 ];
 export const PERCENT_KEYS = new Set(['benut', 'belasting', 'dekking']);
 

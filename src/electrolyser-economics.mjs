@@ -4,7 +4,7 @@
 // another electricity price never needs a new run.
 import {pySum, DEFAULTS} from './electrolyser-kernel.mjs';
 import {STATUS} from './electrolyser-catalogue.mjs';
-import {IMBALANCE_YEAR, imbalanceValue, imbalanceMetrics} from './electrolyser-imbalance.mjs';
+import {IMBALANCE_YEARS, imbalanceValue, imbalanceMean, imbalanceMetrics} from './electrolyser-imbalance.mjs';
 
 export const OXYGEN_KG_PER_KG = 8.0;
 // Aannames() cost defaults in opsplitsing.py.
@@ -120,12 +120,12 @@ export function setupCosts(resolved, setup, general = {}) {
 
 // ---------------------------------------------------------------- results
 // Raw kernel results (per year and the mean) → economics per year and for the mean.
-// Onbalans (electrolyser-imbalance.mjs): only for the wind year with TenneT prices, when that year is in the comparison.
+// Onbalans (electrolyser-imbalance.mjs): per wind year with TenneT prices (null for the other years, aligned with
+// assembled.years) and those years together in onbalansGemiddeld.
 export function setupEconomics(assembled, a) {
  const perYear = assembled.raw.map(r => economics(r, a)), mean = economics(assembled.summary, a);
- const y = assembled.years.indexOf(IMBALANCE_YEAR);
- const onbalans = y >= 0 ? imbalanceValue(assembled.raw[y], a, perYear[y]) : null;
- return {perYear, mean, onbalans};
+ const onbalans = assembled.years.map((year, y) => IMBALANCE_YEARS.includes(year) ? imbalanceValue(assembled.raw[y], a, perYear[y]) : null);
+ return {perYear, mean, onbalans, onbalansGemiddeld: imbalanceMean(onbalans)};
 }
 // Adds the cost metrics to the per-year and mean metrics of every ready setup; `reference` is the index in `list`.
 // list: [{assembled, a}] (a: setupCosts().a or null). Returns assembled copies; the originals stay untouched.
@@ -137,11 +137,10 @@ export function withCosts(list, reference) {
   if (!c) return item.assembled;
   const premium = (result, a, lcoh) => i === reference ? null : maxPremiumEurKw(result, a, lcoh);
   const add = (m, e, refE, result, a, refResult) => ({...m, ...pickCosts(e), meerprijs_eur_kw: refE && finite(refE.lcoh_eur_kg) ? premium(result, a, refE.lcoh_eur_kg) : null, capex_eur_kw: a.capaciteit_mw ? e.capex_meur * 1e6 / (a.capaciteit_mw * 1000) : null});
-  // The 2024 imbalance rows appear in the mean column and the 2024 column; other years show none.
-  const ob = imbalanceMetrics(c.onbalans), none = imbalanceMetrics(null);
+  // The imbalance rows: each year with prices in its own column, those years together in the mean column.
   return {...item.assembled,
-   perYear: item.assembled.perYear.map((m, y) => ({...add(m, c.perYear[y], ref?.perYear[y], item.assembled.raw[y], item.a), ...(item.assembled.years[y] === IMBALANCE_YEAR ? ob : none)})),
-   mean: {...add(item.assembled.mean, c.mean, ref?.mean, item.assembled.summary, item.a), ...ob},
+   perYear: item.assembled.perYear.map((m, y) => ({...add(m, c.perYear[y], ref?.perYear[y], item.assembled.raw[y], item.a), ...imbalanceMetrics(c.onbalans[y])})),
+   mean: {...add(item.assembled.mean, c.mean, ref?.mean, item.assembled.summary, item.a), ...imbalanceMetrics(c.onbalansGemiddeld)},
    costs: c, a: item.a};
  });
 }

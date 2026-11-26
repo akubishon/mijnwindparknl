@@ -6,8 +6,9 @@
 import {IMBALANCE_EDGES} from './electrolyser-kernel.mjs';
 
 // Windjaren met een volledig prijsbestand (src/opsplitsing/data/onbalans-<jaar>.json, scripts/update-onbalans.mjs).
-export const IMBALANCE_YEARS = [2024];
-export const IMBALANCE_YEAR = 2024;
+export const IMBALANCE_YEARS = [2024, 2025];
+// "2024–2025" voor de labels in de tabel.
+export const IMBALANCE_SPAN = IMBALANCE_YEARS.length > 1 ? `${IMBALANCE_YEARS[0]}–${IMBALANCE_YEARS.at(-1)}` : String(IMBALANCE_YEARS[0]);
 export const imbalanceFile = year => `/opsplitsing-assets/data/onbalans-${year}.json`;
 export const validPrices = d => !!d && Number.isInteger(d.jaar) && Number.isFinite(d.start) && d.stap === 900 && Array.isArray(d.prijs) && d.prijs.length > 0;
 export const withPrices = (supply, prices) => prices ? {...supply, onbalans: prices} : supply;
@@ -37,11 +38,23 @@ export function imbalanceValue(result, a, base) {
   mwh: sum('mwh'), mwh_alle_negatieve: all, kg: extraKg, bruto_eur: sum('bruto_eur'), netto_eur: netto, maanden: months,
   uur_met_prijs: ob.uur_met_prijs * scale, uur_negatief: ob.uur_negatief * scale, uur_negatief_in_bedrijf: ob.uur_negatief_in_bedrijf * scale,
   belasting_negatief: ob.belasting_negatief, belasting_met_prijs: ob.belasting_met_prijs, aanbod_negatief_mw: ob.aanbod_negatief_mw, aanbod_met_prijs_mw: ob.aanbod_met_prijs_mw, vollast_mw: ob.vollast_mw,
+  kosten_eur: base.kosten_meur_jaar * 1e6, kg_basis: kg,
   lcoh_eur_kg: base.lcoh_eur_kg, lcoh_met_eur_kg: kg + extraKg > 0 ? (base.kosten_meur_jaar * 1e6 - netto) / (kg + extraKg) : null,
  };
 }
 
-// The fields the comparison table shows; the same 2024 values in the mean column and the 2024 column.
+// The years with prices together (values from imbalanceValue, nulls skipped): energy, hydrogen and revenue as the mean
+// per year; the LCOH with and without imbalance from the summed costs and hydrogen of those years.
+export function imbalanceMean(values) {
+ const list = (values || []).filter(Boolean);
+ if (!list.length) return null;
+ const mean = key => list.reduce((s, v) => s + v[key], 0) / list.length;
+ const costs = mean('kosten_eur'), kg = mean('kg_basis'), extra = mean('kg'), netto = mean('netto_eur');
+ return {jaren: list.map(v => v.jaar), mwh: mean('mwh'), kg: extra, netto_eur: netto,
+  lcoh_eur_kg: kg > 0 ? costs / kg : null, lcoh_met_eur_kg: kg + extra > 0 ? (costs - netto) / (kg + extra) : null};
+}
+
+// The fields the comparison table shows: per wind year that year's values, in the mean column imbalanceMean().
 export const imbalanceMetrics = v => v ? {
- onbalans_mwh: v.mwh, onbalans_kg: v.kg, onbalans_meur_jaar: v.netto_eur / 1e6, lcoh_2024_eur_kg: v.lcoh_eur_kg, lcoh_2024_onbalans_eur_kg: v.lcoh_met_eur_kg,
-} : {onbalans_mwh: null, onbalans_kg: null, onbalans_meur_jaar: null, lcoh_2024_eur_kg: null, lcoh_2024_onbalans_eur_kg: null};
+ onbalans_mwh: v.mwh, onbalans_kg: v.kg, onbalans_meur_jaar: v.netto_eur / 1e6, onbalans_lcoh_eur_kg: v.lcoh_eur_kg, onbalans_lcoh_met_eur_kg: v.lcoh_met_eur_kg,
+} : {onbalans_mwh: null, onbalans_kg: null, onbalans_meur_jaar: null, onbalans_lcoh_eur_kg: null, onbalans_lcoh_met_eur_kg: null};
