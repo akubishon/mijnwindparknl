@@ -588,7 +588,7 @@ De prijzen komen van het ENTSO-E Transparency Platform (Imbalance Prices [17.1.G
 | BE | Elia | |
 | DE | Duitse netbeheerders (reBAP) | |
 | FR | RTE | |
-| DK1, DK2 | Energinet | Grote Belt als grens (lengte 10,95° E); tot de overstap uurprijzen, per kwartier herhaald |
+| DK1, DK2 | Energinet | Grote Belt als grens (lengte 10,95° E); tot de overstap uurprijzen, per kwartier herhaald; ontbreekt A05, dan A04 (eenprijssysteem). 2025 mist ca. 10 % (6–30 januari en losse kwartieren in april–mei staan niet op ENTSO-E) |
 | LU | (geen eigen prijs op ENTSO-E) | Duitse prijzen als benadering: zelfde biedzone DE-LU |
 
 Projectstudio: de zone volgt het land van de elektrolyserlocatie (`land`, uit het omgekeerd zoeken; anders het land van het eerste park met vermogen, anders NL), zie `projectZone` in `src/studio/project.mjs`. Buiten Nederland staat de zone in de parkkeuze (`supplyConfig().onbalans`), zodat de rekencache per zone apart is; Bolsward en andere Nederlandse projecten houden hun profiel. Op mijnwindpark.nl blijft het Nederland.

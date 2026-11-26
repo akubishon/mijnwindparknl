@@ -42,8 +42,8 @@ test('elke zone heeft voor elk onbalansjaar een volledig prijsbestand', () => {
     assert.ok(validPrices(d), file);
     assert.equal(d.jaar, year); assert.equal(d.start, midnight(`${year}-01-01`));
     assert.equal(d.prijs.length, (midnight(`${year + 1}-01-01`) - d.start) / 900, file);
-    // Denemarken 2025: 6–30 januari staat niet op ENTSO-E; die kwartieren tellen niet mee (uur_met_prijs).
-    assert.ok(d.ontbrekend / d.prijs.length < (code.startsWith('DK') ? 0.08 : 0.01), `${file}: ${d.ontbrekend} kwartieren zonder prijs`);
+    // Denemarken 2025: 6–30 januari en losse kwartieren in april–mei staan niet op ENTSO-E (ca. 10 %); die tellen niet mee (uur_met_prijs).
+    assert.ok(d.ontbrekend / d.prijs.length < (code.startsWith('DK') ? 0.12 : 0.01), `${file}: ${d.ontbrekend} kwartieren zonder prijs`);
     assert.equal(d.zone, zone.als || code);
   }
 });
