@@ -17,8 +17,8 @@ export const IMBALANCE_ZONES = Object.freeze({
  BE: {eic: '10YBE----------2', tso: 'Elia', naam: 'België'},
  DE: {eic: '10Y1001A1001A83F', tso: 'Duitse netbeheerders, reBAP', naam: 'Duitsland'},
  FR: {eic: '10YFR-RTE------C', tso: 'RTE', naam: 'Frankrijk'},
- DK1: {eic: '10YDK-1--------W', tso: 'Energinet', naam: 'West-Denemarken (DK1)'},
- DK2: {eic: '10YDK-2--------M', tso: 'Energinet', naam: 'Oost-Denemarken (DK2)'},
+ DK1: {eic: '10YDK-1--------W', tso: 'Energinet', naam: 'West-Denemarken (DK1)', eenprijs: true},
+ DK2: {eic: '10YDK-2--------M', tso: 'Energinet', naam: 'Oost-Denemarken (DK2)', eenprijs: true},
  LU: {eic: null, als: 'DE', tso: 'Duitse netbeheerders, reBAP (benadering)', naam: 'Luxemburg'},
 });
 // Land van de elektrolyser → zone met prijsbestand. Denemarken: west van de Grote Belt (Jutland, Funen) is DK1.

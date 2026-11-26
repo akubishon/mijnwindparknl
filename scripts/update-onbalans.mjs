@@ -6,7 +6,7 @@
 //
 // Bron: Imbalance Prices [17.1.G] (documentType A85) via https://web-api.tp.entsoe.eu/api, één verzoek per maand.
 // De sleutel (security token) staat in ENTSOE_TOKEN of `transparency`; hij is alleen voor dit script nodig, niet voor de site.
-// Bewaard wordt de prijs voor wie kort staat (categorie A05, Insufficient balance): wie meer afneemt dan gepland staat
+// Bewaard wordt de prijs voor wie kort staat (categorie A05, Insufficient balance; ontbreekt die, dan A04): wie meer afneemt dan gepland staat
 // kort en wordt met die prijs afgerekend. Is die prijs negatief, dan krijgt de afnemer geld. Voor Nederland is dat
 // dezelfde prijs als TenneT's Settlement Prices ‘Price Shortage’ (tests/onbalans-entsoe.test.mjs).
 // curveType A03: een ontbrekende positie herhaalt de vorige waarde. Uurprijzen (Denemarken tot de overstap naar
@@ -86,18 +86,22 @@ export async function imbalanceYear(code, year, token) {
  if (!zone?.eic) throw Error(`Geen eigen ENTSO-E-gebied voor ${code}`);
  const start = midnight(`${year}-01-01`), end = midnight(`${year + 1}-01-01`), prijs = Array((end - start) / 900).fill(null);
  const pad = n => String(n).padStart(2, '0'), steps = new Set();
+ let lang = 0;
  for (let m = 1; m <= 12; m++) {
   const from = midnight(`${year}-${pad(m)}-01`), to = m === 12 ? end : midnight(`${year}-${pad(m + 1)}-01`);
   let n = 0;
-  for (const xml of await fetchMonth(zone, from, to, token)) for (const {t, s, prijs: v} of parseImbalance(xml)) {
+  const docs = await fetchMonth(zone, from, to, token), put = (points, only) => { for (const {t, s, prijs: v} of points) {
    steps.add(s);
-   for (let q = 0; q < s; q += 900) { const i = (t + q - start) / 900; if (i >= 0 && i < prijs.length && t + q >= from && t + q < to) { prijs[i] = v; n++; } }
-  }
+   for (let q = 0; q < s; q += 900) { const i = (t + q - start) / 900; if (i >= 0 && i < prijs.length && t + q >= from && t + q < to && !(only && prijs[i] !== null)) { prijs[i] = v; n++; if (only) lang++; } }
+  } };
+  for (const xml of docs) put(parseImbalance(xml, 'A05'), false);
+  // Eenprijssystemen (Denemarken, `eenprijs` in IMBALANCE_ZONES) publiceren soms alleen categorie A04; dezelfde prijs, dus die vult de gaten.
+  if (zone.eenprijs) for (const xml of docs) put(parseImbalance(xml, 'A04'), true);
   console.log(`${code} ${year}-${pad(m)}: ${n} kwartieren`);
  }
  const missing = prijs.filter(v => v === null).length;
  const uur = steps.has(3600) ? (steps.has(900) ? ', deels uurprijzen' : ', uurprijzen per kwartier herhaald') : '';
- return {jaar: year, zone: code, bron: `ENTSO-E Transparency Platform, Imbalance Prices (${zone.tso}), prijs bij tekort (categorie A05), €/MWh per kwartier${uur}`, opgehaald: new Date().toISOString().slice(0, 10), start, stap: 900, ontbrekend: missing, prijs};
+ return {jaar: year, zone: code, bron: `ENTSO-E Transparency Platform, Imbalance Prices (${zone.tso}), prijs bij tekort (categorie A05), €/MWh per kwartier${uur}${lang ? `, ${lang} kwartieren alleen als A04 gepubliceerd (eenprijssysteem)` : ''}`, opgehaald: new Date().toISOString().slice(0, 10), start, stap: 900, ontbrekend: missing, prijs};
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
