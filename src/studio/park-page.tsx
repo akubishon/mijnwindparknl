@@ -6,7 +6,7 @@ import {LineChart,SERIES} from './ui/Chart';
 import {Card,Chip,Eyebrow,Tile,Notice,Skeleton,Details,Seg} from './ui/kit';
 import {BOLSWARD,stationName} from './project.mjs';
 import {parkMW} from './park-model.mjs';
-import stationCatalog from '../stations.json';
+import {STATIONS as stationCatalog} from './station-catalog.mjs';
 import {getJSON,nl,clone,Link,download} from './lib';
 
 const TZ='Europe/Amsterdam';

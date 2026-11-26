@@ -1,4 +1,4 @@
-// Projectstudio (C3): KNMI-stations voorstellen voor een park; de gebruiker kiest.
+// Projectstudio (C3): meetstations (KNMI en buurlanden) voorstellen voor een park; de gebruiker kiest.
 import { kmBetween } from './park-model.mjs';
 import { YEARS } from './supply.mjs';
 
@@ -10,7 +10,7 @@ export const MIN_COVERAGE = 0.9, MAX_KM = 25;
 const complete = s => YEARS.every(y => (s.dekking?.[y] ?? 1) >= MIN_COVERAGE);
 
 export function rankStations(location, index) {
-  return index.stations.filter(s => s.lat > 50 && s.lat < 56).map(s => ({ id: s.id, naam: s.naam, km: kmBetween(location, s), dekking: s.dekking || {}, gemiddeld_ms: s.gemiddeld_ms ?? null, zee: isSeaStation(s.id) })).sort((a, b) => a.km - b.km || a.naam.localeCompare(b.naam));
+  return index.stations.filter(s => s.lat > 47 && s.lat < 58).map(s => ({ id: s.id, naam: s.naam, land: s.land || 'NL', bron: s.bron || 'knmi', meethoogte_m: s.meethoogte_m ?? 10, km: kmBetween(location, s), dekking: s.dekking || {}, gemiddeld_ms: s.gemiddeld_ms ?? null, zee: isSeaStation(s.id) })).sort((a, b) => a.km - b.km || a.naam.localeCompare(b.naam));
 }
 
 // Waarschuwingen voor een keuze van stations bij een park (op land).

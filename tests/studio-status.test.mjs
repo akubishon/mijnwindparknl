@@ -45,7 +45,7 @@ test('park zonder station: stap 4 is niet klaar en het aanbod is niet te bereken
   assert.equal(r.steps[2].status, 'klaar');
   assert.equal(r.steps[2].summary, '6,0 MW uit 1 park');
   assert.equal(r.steps[3].status, 'open');
-  assert.ok(r.issues.some(x => x.step === 3 && x.text === 'Testpark: kies een KNMI-station'));
+  assert.ok(r.issues.some(x => x.step === 3 && x.text === 'Testpark: kies een meetstation'));
   assert.equal(canComputeSupply(p), false);
   assert.equal(r.steps[4].summary, 'Eerst parken en stations');
   const zero = stepStatus({ ...p, parken: [{ ...p.parken[0], aandeel: 0 }] }, { index: index() });

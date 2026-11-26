@@ -25,6 +25,7 @@ import {SupplyStep,useSupplies} from './steps/supply';
 import {CompareStep} from './steps/compare';
 import {ProjectList} from './projects';
 import {ParkPage} from './park-page';
+import {inNL,photonPlace} from './geo';
 
 const REVERSE='https://api.pdok.nl/bzk/locatieserver/search/v3_1/reverse';
 const stepFromUrl=()=>{const n=Number(new URLSearchParams(location.search).get('stap'));return Number.isInteger(n)&&n>=1&&n<=6?n-1:0;};
@@ -75,7 +76,10 @@ function Editor({initial}:{initial:any}){
  const placed=useRef(project.plaats?`${project.locatie?.lat},${project.locatie?.lon}`:'');
  useEffect(()=>{
   const loc=project.locatie;if(!loc)return;const key=`${loc.lat},${loc.lon}`;if(placed.current===key)return;
-  const timer=setTimeout(()=>{placed.current=key;getJSON(`${REVERSE}?${new URLSearchParams({lat:String(loc.lat),lon:String(loc.lon),type:'woonplaats',rows:'1',fl:'woonplaatsnaam,gemeentenaam'})}`).then(d=>{const doc=d.response?.docs?.[0];setProject((p:any)=>p.locatie?.lat===loc.lat&&p.locatie?.lon===loc.lon?{...p,plaats:doc?.woonplaatsnaam||doc?.gemeentenaam||''}:p);}).catch(()=>{});},450);
+  // Plaatsnaam: PDOK in Nederland, Photon (OSM) daarbuiten of als PDOK niets vindt.
+  const name=async()=>{const doc=inNL(loc.lat,loc.lon)?(await getJSON(`${REVERSE}?${new URLSearchParams({lat:String(loc.lat),lon:String(loc.lon),type:'woonplaats',rows:'1',fl:'woonplaatsnaam,gemeentenaam,afstand'})}`)).response?.docs?.[0]:null;
+   return doc&&!(doc.afstand>2000)?doc.woonplaatsnaam||doc.gemeentenaam||'':await photonPlace(loc.lat,loc.lon);};
+  const timer=setTimeout(()=>{placed.current=key;name().then(plaats=>setProject((p:any)=>p.locatie?.lat===loc.lat&&p.locatie?.lon===loc.lon?{...p,plaats}:p)).catch(()=>{});},450);
   return()=>clearTimeout(timer);
  },[project.locatie?.lat,project.locatie?.lon]);
 

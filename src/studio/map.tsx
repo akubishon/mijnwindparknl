@@ -1,11 +1,12 @@
-// Projectstudio: interactieve kaart (MapLibre, PDOK). Drie standen:
+// Projectstudio: interactieve kaart (MapLibre; PDOK in Nederland, OpenStreetMap in grijs daarbuiten). Drie standen:
 // 'locatie'  klik of sleep de elektrolyser; 'parken'  parken naar MW, klik om toe te voegen of te verwijderen;
-// 'stations' het gekozen park met 25 km-cirkel en de KNMI-stations, klik om een station aan of uit te zetten.
+// 'stations' het gekozen park met 25 km-cirkel en de meetstations, klik om een station aan of uit te zetten.
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import maplibregl from 'maplibre-gl';
 import {Layers,Plus,Minus} from 'lucide-react';
 import {parkMW,kmBetween,parkFromFeature} from './park-model.mjs';
 import {nl} from './lib';
+import {OSM_TILES,inNL} from './geo';
 
 const BRT='https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png';
 const LUCHT='https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg';
@@ -39,10 +40,11 @@ export function StudioMap(props:Props){
   const m=new maplibregl.Map({container:box.current!,center:[locatie?.lon??5.45,locatie?.lat??52.75],zoom:locatie?10:6.6,attributionControl:{compact:true},dragRotate:false,pitchWithRotate:false,
    style:{version:8,sources:{
      brt:{type:'raster',tiles:[BRT],tileSize:256,maxzoom:19,attribution:'Kaart, luchtfoto en percelen © <a href="https://www.pdok.nl">Kadaster / PDOK</a> · windparken © OpenStreetMap'},
+     osm:{type:'raster',tiles:[OSM_TILES],tileSize:256,maxzoom:19,attribution:'Kaart buiten Nederland © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-bijdragers</a>'},
      lucht:{type:'raster',tiles:[LUCHT],tileSize:256,maxzoom:19},kad:{type:'raster',tiles:[KADASTER],tileSize:256,minzoom:16,maxzoom:21},
      tint:{type:'geojson',data:fc([{type:'Feature',geometry:{type:'Polygon',coordinates:[[[-20,40],[30,40],[30,65],[-20,65],[-20,40]]]},properties:{}}]) as any},
      ring:{type:'geojson',data:fc([]) as any},lines:{type:'geojson',data:fc([]) as any},parks:{type:'geojson',data:fc([]) as any},chosen:{type:'geojson',data:fc([]) as any}},
-    layers:[{id:'brt',type:'raster',source:'brt'},{id:'lucht',type:'raster',source:'lucht',layout:{visibility:'none'}},{id:'kad',type:'raster',source:'kad',minzoom:16},
+    layers:[{id:'osm',type:'raster',source:'osm',layout:{visibility:'none'},paint:{'raster-saturation':-1,'raster-contrast':-.25,'raster-brightness-min':.12}},{id:'brt',type:'raster',source:'brt'},{id:'lucht',type:'raster',source:'lucht',layout:{visibility:'none'}},{id:'kad',type:'raster',source:'kad',minzoom:16},
      {id:'tint',type:'fill',source:'tint',paint:{'fill-color':'#C3E4F2','fill-opacity':.14}},
      {id:'ring-fill',type:'fill',source:'ring',paint:{'fill-color':'#00A6DE','fill-opacity':.07}},
      {id:'ring-line',type:'line',source:'ring',paint:{'line-color':'#00A6DE','line-width':1.6,'line-dasharray':[3,2]}},
@@ -50,7 +52,7 @@ export function StudioMap(props:Props){
      {id:'parks',type:'circle',source:'parks',paint:{'circle-radius':radius(2) as any,'circle-color':'#00A6DE','circle-opacity':.35,'circle-stroke-color':'#0B7FAE','circle-stroke-width':.8}},
      {id:'chosen',type:'circle',source:'chosen',paint:{'circle-radius':radius(7) as any,'circle-color':['case',['get','actief'],'#0B7FAE','#bfdceb'],'circle-stroke-color':'#fff','circle-stroke-width':2}}]}});
   const popup=new maplibregl.Popup({closeButton:false,closeOnClick:false,offset:12,className:'s-popup'});
-  const hover=(e:any)=>{if(h.current.mode!=='parken')return;const f=e.features?.[0];if(!f)return;m.getCanvas().style.cursor='pointer';const p=f.properties;popup.setLngLat(f.geometry.coordinates).setHTML(`<b>${esc(p.naam)}</b><span>${esc(p.plaats||p.gemeente||'')}${p.plaats||p.gemeente?' · ':''}${p.mw?nl(Number(p.mw))+' MW':'vermogen onbekend'}${p.turbines?` · ${esc(p.turbines)} turbines`:''}</span><small>${p.gekozen?'Klik om te verwijderen':'Klik om toe te voegen'}</small>`).addTo(m);};
+  const hover=(e:any)=>{if(h.current.mode!=='parken')return;const f=e.features?.[0];if(!f)return;m.getCanvas().style.cursor='pointer';const p=f.properties;popup.setLngLat(f.geometry.coordinates).setHTML(`<b>${esc(p.naam)}</b><span>${esc([p.plaats||p.gemeente||'',({DE:'Duitsland',BE:'België',DK:'Denemarken',LU:'Luxemburg'} as any)[p.land]||''].filter(Boolean).join(', '))}${p.plaats||p.gemeente||(p.land&&p.land!=='NL')?' · ':''}${p.mw?nl(Number(p.mw))+' MW':'vermogen onbekend'}${p.turbines?` · ${esc(p.turbines)} turbines`:''}</span><small>${p.gekozen?'Klik om te verwijderen':'Klik om toe te voegen'}</small>`).addTo(m);};
   const leave=()=>{m.getCanvas().style.cursor='';popup.remove();};
   for(const layer of ['parks','chosen']){m.on('mousemove',layer,hover);m.on('mouseleave',layer,leave);}
   m.on('click',e=>{
@@ -58,13 +60,20 @@ export function StudioMap(props:Props){
    if(mode==='parken'){const hit=m.queryRenderedFeatures(e.point,{layers:['chosen','parks']})[0];if(hit){popup.remove();h.current.onPark?.(pt((hit.geometry as any).coordinates[0],(hit.geometry as any).coordinates[1],hit.properties));}return;}
    if(mode==='locatie')h.current.onLocation?.({lat:e.lngLat.lat,lon:e.lngLat.lng});
   });
-  m.on('moveend',()=>syncNames());
+  m.on('moveend',()=>{syncNames();syncBase();});
   // Op de telefoon start de bronvermelding ingeklapt (de i-knop klapt hem uit).
-  m.on('load',()=>{ready.current=true;setLoaded(true);if(innerWidth<=760)m.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');});
+  m.on('load',()=>{ready.current=true;setLoaded(true);syncBase();if(innerWidth<=760)m.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');});
   map.current=m;
   return()=>{popup.remove();m.remove();map.current=null;ready.current=false;h2.current=null;labels.current.clear();names.current.clear();kms.current=[];pins.current=[];};
  },[]);
 
+ // PDOK alleen als het kaartbeeld in Nederland ligt en niet breder is dan ~150 km; anders OSM (ook buurlanden).
+ function syncBase(){
+  const m=map.current;if(!m)return;
+  const c=m.getCenter(),b=m.getBounds(),wide=kmBetween({lat:c.lat,lon:b.getWest()},{lat:c.lat,lon:b.getEast()})>150;
+  const nl=inNL(c.lat,c.lng)&&!wide;
+  m.setLayoutProperty('brt','visibility',nl?'visible':'none');m.setLayoutProperty('osm','visibility',nl?'none':'visible');
+ }
  // Namen van andere parken vanaf zoom 10 (alleen wat in beeld is, hoogstens 60).
  function syncNames(){
   const m=map.current;if(!m)return;

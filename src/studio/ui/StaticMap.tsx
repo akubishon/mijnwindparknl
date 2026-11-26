@@ -1,6 +1,7 @@
-// Projectstudio: statische minikaart (PDOK-tegels met de punten als SVG erover). Geen WebGL, dus licht genoeg
+// Projectstudio: statische minikaart (PDOK-tegels, buiten Nederland OpenStreetMap in grijs, met de punten als SVG erover). Geen WebGL, dus licht genoeg
 // voor het projectoverzicht, elke projectkaart en de kop van een windparkpagina.
 import {useMemo} from 'react';
+import {OSM_TILES,inNL} from '../geo';
 
 const TILE='https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png';
 const EARTH=40075016.686;
@@ -21,11 +22,12 @@ export function StaticMap({points=[],lines=[],rings=[],fit,width=320,height=170,
   const z=Math.max(4,Math.min(15,Math.ceil(Math.log2(width*1.3/(w*256))))),n=2**z,S=256*n;
   const tiles:{x:number;y:number}[]=[];
   for(let tx=Math.floor(x0*n);tx<=Math.floor(x1*n);tx++)for(let ty=Math.floor(y0*n);ty<=Math.floor(y1*n);ty++)if(ty>=0&&ty<n)tiles.push({x:tx,y:ty});
-  return {z,S,tiles,box:[x0*S,y0*S,w*S,h*S],k:w*S/width};
+  const pdok=base.every(p=>inNL(p.lat,p.lon));
+  return {z,S,tiles,box:[x0*S,y0*S,w*S,h*S],k:w*S/width,pdok};
  },[JSON.stringify(fit||points),width,height,pad,minKm]);
- const {z,S,tiles,box,k}=view,X=(p:Pt)=>mx(p.lon)*S,Y=(p:Pt)=>my(p.lat)*S;
+ const {z,S,tiles,box,k,pdok}=view,source=pdok?TILE:OSM_TILES,X=(p:Pt)=>mx(p.lon)*S,Y=(p:Pt)=>my(p.lat)*S;
  return <svg className={'s-static '+(className||'')} viewBox={box.join(' ')} preserveAspectRatio="xMidYMid slice" role="img" aria-label={label}>
-  {tiles.map(t=><image key={t.x+'/'+t.y} href={TILE.replace('{z}',String(z)).replace('{x}',String(t.x)).replace('{y}',String(t.y))} x={t.x*256} y={t.y*256} width={256.5} height={256.5}/>)}
+  {tiles.map(t=><image key={t.x+'/'+t.y} style={pdok?undefined:{filter:'grayscale(1) contrast(.8) brightness(1.08)'}} href={source.replace('{z}',String(z)).replace('{x}',String(t.x)).replace('{y}',String(t.y))} x={t.x*256} y={t.y*256} width={256.5} height={256.5}/>)}
   <rect x={box[0]} y={box[1]} width={box[2]} height={box[3]} fill="#C3E4F2" opacity=".14"/>
   {rings.map((r,i)=>{const rad=r.km*1000/(EARTH*Math.cos(r.lat*Math.PI/180))*S;return <circle key={'r'+i} cx={X(r)} cy={Y(r)} r={rad} fill="#00A6DE" fillOpacity=".07" stroke="#00A6DE" strokeWidth={1.5*k} strokeDasharray={`${5*k} ${4*k}`}/>;})}
   {lines.map(([a,b],i)=><line key={'l'+i} x1={X(a)} y1={Y(a)} x2={X(b)} y2={Y(b)} stroke="#0C2340" strokeWidth={1.6*k} strokeDasharray={`${4*k} ${3*k}`}/>)}

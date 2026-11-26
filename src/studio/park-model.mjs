@@ -31,7 +31,7 @@ export function parkFromFeature(feature) {
   const mw = Number(p.mw) > 0 ? Number(p.mw) : null;
   const rated_kw = mw ? Math.round(mw * 1000 / turbines) : 3000;
   return {
-    id: `osm:${lat.toFixed(4)},${lon.toFixed(4)}`, naam: p.naam || 'Windpark', plaats: p.plaats || '', gemeente: p.gemeente || '', lat, lon,
+    id: `osm:${lat.toFixed(4)},${lon.toFixed(4)}`, naam: p.naam || 'Windpark', plaats: p.plaats || '', gemeente: p.gemeente || '', land: p.land || 'NL', lat, lon,
     turbines, rated_kw, hub_height_m: defaultHubHeight(rated_kw), wake_pct: 5, curve: 'standaard', hoogte: 'alpha',
     herkomst: { turbines: p.turbines ? 'osm' : 'aanname', rated_kw: mw ? 'osm' : 'aanname', hub_height_m: 'aanname', wake_pct: 'aanname', curve: 'aanname', hoogte: 'aanname' },
   };

@@ -4,7 +4,8 @@ import {useCallback,useMemo,useState} from 'react';
 import {Download,RefreshCw} from 'lucide-react';
 import {buildSupply,supplySummary,yearAxis,YEARS} from '../supply.mjs';
 import {parkMW} from '../park-model.mjs';
-import {studioProfile,studioWindText,stationName} from '../project.mjs';
+import {studioProfile,studioWindText} from '../project.mjs';
+import {sourceLabel} from '../station-catalog.mjs';
 import {describeStudio} from '../../electrolyser-wind.mjs';
 import {allocatedMW,canComputeSupply} from '../status.mjs';
 import {windSeries,localParts,localStamp,download,nl,letter} from '../lib';
@@ -35,7 +36,7 @@ export function useSupplies(project:any){
  const run=useCallback(async()=>{
   const active=project.parken.filter((p:any)=>p.aandeel>0);
   if(!active.length){setState(s=>({...s,error:'Geef minstens één park vermogen voor de elektrolyser.'}));return;}
-  if(active.some((p:any)=>!p.stations.length)){setState(s=>({...s,error:'Kies voor elk park met vermogen een KNMI-station.'}));return;}
+  if(active.some((p:any)=>!p.stations.length)){setState(s=>({...s,error:'Kies voor elk park met vermogen een meetstation.'}));return;}
   const ids=[...new Set(active.flatMap((p:any)=>p.stations))] as string[],tasks=YEARS.flatMap((y:number)=>ids.map(id=>[id,y] as [string,number]));
   setState({result:null,busy:true,error:'',done:0,total:tasks.length,stage:'Winddata laden'});
   try{
@@ -59,7 +60,7 @@ export type Supply=ReturnType<typeof useSupplies>;
 
 export function SupplyStep({project,supply,resolved}:{project:any;supply:Supply;resolved:any[]}){
  const active=project.parken.filter((p:any)=>p.aandeel>0),allocated=allocatedMW(project),r=supply.result,s=r?.summaries[0],x=r?.extras;
- const stations=[...new Set(active.flatMap((p:any)=>p.stations))].map(id=>stationName(id as string));
+ const stations=[...new Set(active.flatMap((p:any)=>p.stations))].map(id=>sourceLabel(id as string));
  const variants=resolved.map((v:any,i:number)=>v.ready?{label:letter(i),mw:v.intakeMW,color:['#0B7FAE','#8A9FB0','#00A6DE','#C5D1DB'][i%4],name:`${v.modules} × ${nl(v.moduleMW,v.moduleMW%1?2:0)} MW`,r:v}:null).filter(Boolean) as any[];
  // Opstelling tegenover het aanbod: hoe vaak haalt het aanbod de minimumlast en de vollast, en wat is overschot.
  const table=useMemo(()=>!x||!s?[]:variants.map(v=>{
@@ -70,7 +71,7 @@ export function SupplyStep({project,supply,resolved}:{project:any;supply:Supply;
  const csv=()=>{if(!x)return;const rows=['tijd (Nederlandse tijd);aanbod_MW',...x.csv.t.map((t,i)=>`${localStamp(t)};${String(x.csv.mw[i]).replace('.',',')}`)];download(`aanbod-${project.naam.replace(/[^\w-]+/g,'-')}-${s.jaar}.csv`,rows.join('\n'));};
  return <>
   <StepHead n={5} title="Beschikbaar vermogen" actions={r&&<button type="button" className="s-btn s-btn-ghost" onClick={csv}><Download size={16}/>CSV</button>}>
-   {active.length?<>Het aanbod per tien minuten uit {active.map((p:any)=>p.naam.replace(/^Windpark /,'')).join(' en ')}, gemodelleerd met KNMI {stations.join(' + ')||'–'}. Windjaar {YEARS.join(', ')}. Dit is wat je opstelling per jaar te eten krijgt.</>:'Kies eerst windparken en KNMI-stations.'}
+   {active.length?<>Het aanbod per tien minuten uit {active.map((p:any)=>p.naam.replace(/^Windpark /,'')).join(' en ')}, gemodelleerd met {stations.join(' + ')||'–'}. Windjaar {YEARS.join(', ')}. Dit is wat je opstelling per jaar te eten krijgt.</>:'Kies eerst windparken en KNMI-stations.'}
   </StepHead>
   {supply.busy&&<Card className="s-pad"><Loading>{supply.stage}{supply.stage==='Winddata laden'?`: ${supply.done} van ${supply.total} station-jaren`:'…'}</Loading><Progress value={supply.stage==='Winddata laden'?supply.done:supply.total} max={supply.total||1} label="Voortgang"/><p className="s-muted">Een station-jaar dat nog niet in de opslag staat, haalt de worker eenmalig op bij KNMI. Dat kan even duren.</p></Card>}
   {supply.error&&<Notice kind="fout" title="Het aanbod kon niet worden berekend." action={<button type="button" className="s-btn s-btn-ghost" onClick={()=>void supply.run()}><RefreshCw size={15}/>Opnieuw proberen</button>}>{supply.error}</Notice>}
@@ -93,7 +94,7 @@ export function SupplyStep({project,supply,resolved}:{project:any;supply:Supply;
    <Card className="s-pad s-flat"><Details summary="Cijfers per park, dekking en rekenwijze">
     <div className="s-tablewrap"><table className="s-table"><thead><tr><th>Windjaar</th><th className="num">Aanbod (MWh)</th><th className="num">Vollasturen</th><th className="num">Dekking</th><th className="num">Momenten</th><th className="num">Windstil</th>{active.map((p:any)=><th key={p.id} className="num">{p.naam} (hele park, MWh)</th>)}</tr></thead>
      <tbody>{r.summaries.map((q:any)=><tr key={q.jaar}><td>{q.jaar}</td><td className="num">{nl(q.mwh,0)}</td><td className="num">{nl(q.vollasturen,0)}</td><td className="num">{nl(q.dekking*100,1)} %</td><td className="num">{q.momenten.toLocaleString('nl-NL')}</td><td className="num">{nl(x.quiet*100,0)} %</td>{active.map((p:any)=><td key={p.id} className="num">{nl(q.park_mwh[p.id],0)}</td>)}</tr>)}</tbody></table></div>
-    <p className="s-muted">Aanbod per tien minuten: de som over de parken van aandeel × gemodelleerd parkvermogen, uit de gekozen KNMI-stations. Meetgaten vallen weg; ze tellen niet als nul. Vollasturen = jaaraanbod ÷ toegewezen vermogen, omgerekend naar een heel jaar bij ontbrekende momenten. Windstil = momenten met minder dan 5 % van het toegewezen vermogen.</p>
+    <p className="s-muted">Aanbod per tien minuten: de som over de parken van aandeel × gemodelleerd parkvermogen, uit de gekozen meetstations (KNMI, DWD, KMI of DMI, omgerekend naar 10 m). Meetgaten vallen weg; ze tellen niet als nul. Vollasturen = jaaraanbod ÷ toegewezen vermogen, omgerekend naar een heel jaar bij ontbrekende momenten. Windstil = momenten met minder dan 5 % van het toegewezen vermogen.</p>
    </Details></Card>
   </>}
  </>;

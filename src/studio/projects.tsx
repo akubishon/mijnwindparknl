@@ -19,7 +19,7 @@ export function ProjectList(){
  const hero:MapPoint[]=[...bolswardPoints,...projects.filter(p=>p.locatie).map(p=>({...p.locatie,kind:'h2' as const}))];
  return <main id="inhoud" className="s-home">
   <section className="s-hero">
-   <div><Eyebrow>Projectstudio</Eyebrow><h1>Waar komt de volgende elektrolyser?</h1><p>Kies een plek, een elektrolyser en de windparken die leveren. De studio rekent het aanbod per tien minuten uit de KNMI-metingen en vergelijkt de varianten, zoals bij Bolsward.</p>
+   <div><Eyebrow>Projectstudio</Eyebrow><h1>Waar komt de volgende elektrolyser?</h1><p>Kies een plek, een elektrolyser en de windparken die leveren. De studio rekent het aanbod per tien minuten uit de metingen van KNMI en de weerdiensten van Duitsland, België en Denemarken, en vergelijkt de varianten, zoals bij Bolsward.</p>
     <div className="s-hero-acts"><Link href="/nieuw" className="s-btn s-btn-cta s-btn-big"><Plus size={18}/>Nieuw project</Link><Link href="/project/bolsward" className="s-btn s-btn-ghost s-btn-big">Bolsward openen</Link></div></div>
    <div className="s-hero-map"><StaticMap points={hero} lines={bolswardLines} width={560} height={320} pad={0.35} label="Kaart met de projecten"/></div>
   </section>
