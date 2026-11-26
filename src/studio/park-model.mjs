@@ -32,11 +32,11 @@ export function parkFromFeature(feature) {
   // OSM telt soms maar een paar turbines of geen (Hollandse Kust (noord) V: 759 MW, aantal onbekend). Geeft MW ÷ aantal
   // een onmogelijk turbinevermogen, dan volgt het aantal uit een typisch turbinevermogen (zee 11 MW, land 3 MW).
   const plausible = mw && osmTurbines >= 1 && mw * 1000 / osmTurbines <= MAX_RATED_KW;
-  const typicalKW = p.provincie === 'Noordzee' ? 11000 : 3000;
+  const typicalKW = p.provincie === 'Noordzee' || p.provincie === 'Zee' ? 11000 : 3000;   // 'Zee': parken op zee in de buurlanden
   const turbines = plausible ? osmTurbines : mw ? Math.min(1000, Math.max(1, Math.round(mw * 1000 / typicalKW))) : Math.max(1, osmTurbines || 1);
   const rated_kw = mw ? Math.round(mw * 1000 / turbines) : 3000;
   return {
-    id: `osm:${lat.toFixed(4)},${lon.toFixed(4)}`, naam: p.naam || 'Windpark', plaats: p.plaats || '', gemeente: p.gemeente || '', lat, lon,
+    id: `osm:${lat.toFixed(4)},${lon.toFixed(4)}`, naam: p.naam || 'Windpark', plaats: p.plaats || '', gemeente: p.gemeente || '', land: p.land || 'NL', lat, lon,
     turbines, rated_kw, hub_height_m: defaultHubHeight(rated_kw), wake_pct: 5, curve: 'standaard', hoogte: 'alpha',
     herkomst: { turbines: plausible || (!mw && osmTurbines) ? 'osm' : 'aanname', rated_kw: mw ? 'osm' : 'aanname', hub_height_m: 'aanname', wake_pct: 'aanname', curve: 'aanname', hoogte: 'aanname' },
   };

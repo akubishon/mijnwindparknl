@@ -6,7 +6,7 @@ import { stationName } from './project.mjs';
 
 export const STEPS = [
   { key: 'locatie', label: 'Locatie' }, { key: 'elektrolyser', label: 'Elektrolyser' }, { key: 'parken', label: 'Windparken' },
-  { key: 'stations', label: 'KNMI-stations' }, { key: 'aanbod', label: 'Beschikbaar vermogen' }, { key: 'vergelijken', label: 'LCOH vergelijken' },
+  { key: 'stations', label: 'Meetstations' }, { key: 'aanbod', label: 'Beschikbaar vermogen' }, { key: 'vergelijken', label: 'LCOH vergelijken' },
 ];
 const nl = (v, d = 1) => v.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d });
 const letter = i => String.fromCharCode(65 + i);
@@ -20,7 +20,7 @@ const isInfo = text => /nog niet bekend/.test(text);
 
 // Waarschuwingen bij de stationskeuze van één park.
 export function parkStationNotes(park, index) {
-  if (!park.stations.length) return [{ level: 'let', text: 'kies een KNMI-station' }];
+  if (!park.stations.length) return [{ level: 'let', text: 'kies een meetstation' }];
   if (!index) return [];
   return stationWarnings(rankStations(park, index), park.stations).map(text => ({ level: isInfo(text) ? 'info' : 'let', text }));
 }
@@ -51,7 +51,7 @@ export function stepStatus(project, data = {}) {
 
   // 4. KNMI-stations
   let missing = 0;
-  for (const p of active) for (const note of parkStationNotes(p, index)) { if (note.text === 'kies een KNMI-station') missing++; add(3, note.level, `${p.naam.replace(/^Windpark /, '')}: ${note.text}`); }
+  for (const p of active) for (const note of parkStationNotes(p, index)) { if (note.text === 'kies een meetstation') missing++; add(3, note.level, `${p.naam.replace(/^Windpark /, '')}: ${note.text}`); }
   const warnings = issues.filter(x => x.step === 3 && x.level === 'let').length, ids = [...new Set(active.flatMap(p => p.stations))];
   steps.push(!active.length ? { status: 'open', summary: 'Kies eerst windparken' }
     : missing === active.length ? { status: 'open', summary: 'Nog geen stations' }

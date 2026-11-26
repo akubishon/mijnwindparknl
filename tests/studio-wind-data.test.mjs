@@ -32,7 +32,7 @@ test('index: dekking en gemiddelde per station bijwerken', () => {
   const index = updateIndex(emptyIndex(), HOUTRIBDIJK, 2025, seriesStats(series));
   const entry = index.stations.find(s => s.id === HOUTRIBDIJK);
   assert.equal(entry.dekking[2025], 0.5); assert.deepEqual(index.jaren, [2025]); assert.equal(entry.gemiddeld_ms, 5); assert.equal(index.voorlopig, true);
-  assert.ok(!emptyIndex().stations.some(s => s.lat < 50), 'geen Caribische stations');
+  assert.ok(!emptyIndex().stations.some(s => s.lat < 40), 'geen Caribische stations');
 });
 
 test('API: haalt eenmalig op bij KNMI, bewaart in R2 en leest daarna uit R2', async () => {

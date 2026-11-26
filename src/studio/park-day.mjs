@@ -1,8 +1,17 @@
 // Projectstudio (C5): daggrafiek en stationsvergelijking voor een park in een project, met parkPowerModel en de
-// gekozen KNMI-stations. Antwoord in dezelfde vorm als /api/wind (hours, intervals), zodat dag en jaar hetzelfde model delen.
+// gekozen meetstations (KNMI of buurlanden, zie sources.mjs). Antwoord in dezelfde vorm als /api/wind (hours, intervals), zodat dag en jaar hetzelfde model delen.
 import { fetchStation, modelHours, modelOptions, windPowerModel, describeWind, AVERAGE } from '../knmi.mjs';
 import { parkPowerModel, hubFactor, KNOWN, HOUTRIBDIJK, STAVOREN } from './park-model.mjs';
 import { BOLSWARD, stationName, ID_PATTERN } from './project.mjs';
+import { sourceOf, sourceLabel, SOURCES } from './station-catalog.mjs';
+import { foreignSamples, coverageOf } from './sources.mjs';
+
+// Eén dag van één station als KNMI-achtig antwoord: KNMI EDR met de sleutel, de buurlanden via hun open data.
+export function fetchDay(day, env, id, fetchImpl = fetch) {
+  if (sourceOf(id) === 'knmi') { if (!env.KNMI_EDR_API_KEY) throw Error('KNMI_NOT_CONFIGURED'); return fetchStation(day, env, id); }
+  const base = Date.parse(day + 'T00:00:00Z');
+  return foreignSamples(id, base - 3 * 3600000, base + 25 * 3600000, fetchImpl).then(s => coverageOf(id, s));
+}
 
 const validDay = day => /^\d{4}-\d{2}-\d{2}$/.test(day || '') && !Number.isNaN(Date.parse(day + 'T00:00:00Z')) && Date.parse(day + 'T00:00:00Z') <= Date.now() + 86400000 && day >= '2015-01-01';
 const nl = v => v.toFixed(3).replace('.', ',');
@@ -25,19 +34,19 @@ export function isSiteDefault(park) {
 export function dayModel(park, day) {
   if (isSiteDefault(park)) { const options = { ...modelOptions(new URLSearchParams({ park: park.id })), stationId: AVERAGE, stationName: 'Houtribdijk + Stavoren' }; return { options, power: windPowerModel(day, options), text: describeWind(day, options) }; }
   const id = park.stations.length > 1 ? AVERAGE : park.stations[0], f = hubFactor(park, day);
-  const source = 'KNMI ' + park.stations.map(stationName).join(' + ') + (park.stations.length > 1 ? ' (gemiddelde per tien minuten, alleen als alle stations meten)' : '');
+  const source = park.stations.map(sourceLabel).join(' + ') + (park.stations.length > 1 ? ' (gemiddelde per tien minuten, alleen als alle stations meten)' : '');
   const height = park.hoogte === 'wins50' ? `hoogtevertaling WINS50, F = ${nl(f)} voor deze maand` : `seizoens-α (aanname, geijkt op Fryslân), deze dag factor ${nl(f)} van 10 naar ${park.hub_height_m} m`;
   return { options: { stationId: id, stationName: park.stations.map(stationName).join(' + ') }, power: parkPowerModel(park, day, f), text: `${source}; ${height}; ${park.curve === 'standaard' ? 'standaardcurve SWT-DD-130 geschaald naar ' + park.rated_kw + ' kW (aanname)' : 'eigen turbinecurve'}, zogverlies ${park.wake_pct} %.` };
 }
 
 export async function parkDay(park, day, env) {
-  const model = dayModel(park, day), raws = await Promise.all(park.stations.map(id => fetchStation(day, env, id)));
+  const model = dayModel(park, day), raws = await Promise.all(park.stations.map(id => fetchDay(day, env, id)));
   const profile = modelHours(averageMany(raws), day, model.options, true, model.power);
   return { day, park: { id: park.id, naam: park.naam }, station: model.options.stationName, windSource: model.text, ...profile };
 }
 // Stationsvergelijking: elk gekozen station apart door het parkmodel, plus de combinatie en de verschilband.
 export async function parkDayComparison(park, day, env) {
-  const model = dayModel(park, day), settled = await Promise.allSettled(park.stations.map(id => fetchStation(day, env, id)));
+  const model = dayModel(park, day), settled = await Promise.allSettled(park.stations.map(id => fetchDay(day, env, id)));
   const stations = park.stations.map((id, i) => settled[i].status === 'fulfilled' ? { id, naam: stationName(id), intervals: modelHours(settled[i].value, day, { ...model.options, stationId: id }, true, model.power).intervals } : { id, naam: stationName(id), intervals: [] });
   const ok = settled.every(r => r.status === 'fulfilled');
   const combination = ok ? modelHours(averageMany(settled.map(r => r.value)), day, model.options, true, model.power).intervals.map(p => {
@@ -57,10 +66,10 @@ export async function findPark(env, projectId, parkId) {
 export async function parkDayRoute(request, env, url, answer) {
   const day = url.searchParams.get('dag');
   if (!validDay(day)) return answer({ error: 'Kies een geldige datum.' }, 400);
-  if (!env.KNMI_EDR_API_KEY) return answer({ error: 'KNMI-windgegevens zijn nog niet gekoppeld.' }, 503);
   const park = await findPark(env, url.searchParams.get('project'), url.searchParams.get('park'));
   if (!park) return answer({ error: 'Park niet gevonden in dit project.' }, 404);
-  if (!park.stations?.length) return answer({ error: 'Kies eerst een KNMI-station voor dit park.' }, 400);
+  if (!park.stations?.length) return answer({ error: 'Kies eerst een meetstation voor dit park.' }, 400);
+  if (park.stations.some(id => sourceOf(id) === 'knmi') && !env.KNMI_EDR_API_KEY) return answer({ error: 'KNMI-windgegevens zijn nog niet gekoppeld.' }, 503);
   try { return answer(url.searchParams.get('vergelijking') === '1' ? await parkDayComparison(park, day, env) : await parkDay(park, day, env)); }
-  catch (e) { console.error('STUDIO_PARK_DAY_FAILED', e?.message); return answer({ error: e?.message === 'KNMI_AUTH' ? 'KNMI weigert de API-sleutel.' : 'KNMI EDR is tijdelijk niet beschikbaar. Probeer het opnieuw.' }, 502); }
+  catch (e) { console.error('STUDIO_PARK_DAY_FAILED', e?.message); return answer({ error: e?.message === 'KNMI_AUTH' ? 'KNMI weigert de API-sleutel.' : /^(DWD|KMI|DMI|MF)_/.test(e?.message || '') ? `De open data van ${({ MF: 'Météo-France' })[e.message.split('_')[0]] || e.message.split('_')[0]} is tijdelijk niet beschikbaar. Probeer het opnieuw.` : 'KNMI EDR is tijdelijk niet beschikbaar. Probeer het opnieuw.' }, 502); }
 }

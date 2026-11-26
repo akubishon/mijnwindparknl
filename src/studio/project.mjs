@@ -1,6 +1,6 @@
 // Projectstudio (C4): het project als gegevens, gedeeld door browser en worker.
 // R2: studio/v1/projects/<id>.json en studio/v1/projects/index.json (zie server.mjs). Bolsward is vast en staat niet in R2.
-import stationCatalog from '../stations.json' with { type: 'json' };
+import { stationById, knownStation, sourceLabel, sourcesOf } from './station-catalog.mjs';
 import { defaultGeneral, inputHash, newSetup } from '../electrolyser-setup.mjs';
 import { bolswardParks, YEARS } from './supply.mjs';
 import { parkMW } from './park-model.mjs';
@@ -18,15 +18,15 @@ export function newProjectId() {
 export const blankProject = () => ({ ...structuredClone(BOLSWARD), id: '', naam: 'Nieuw project', vast: false, parken: [], locatie: null, plaats: '' });
 
 const nl = (v, d = 1) => v.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d });
-export const stationName = id => stationCatalog.find(s => s.id === id)?.name || id;
+export const stationName = id => stationById(id)?.name || id;
 // De parkkeuze die het aanbod bepaalt; twee projecten met dezelfde keuze delen de cache van de rekenkern.
 // Het aanbod wordt altijd voor alle windjaren berekend; de jaarkeuze in Vergelijken verandert het profiel dus niet.
 export const supplyConfig = project => ({ parken: project.parken.filter(p => p.aandeel > 0).map(p => ({ id: p.id, aandeel: p.aandeel, stations: p.stations, turbines: p.turbines, rated_kw: p.rated_kw, hub_height_m: p.hub_height_m, wake_pct: p.wake_pct, curve: p.curve, hoogte: p.hoogte, lat: p.lat, lon: p.lon })) });
 export const studioProfile = project => 'studio:' + inputHash(supplyConfig(project));
 export function studioWindText(project) {
   const loc = project.locatie ? `elektrolyser op ${nl(project.locatie.lat, 3)}° N ${nl(project.locatie.lon, 3)}° E` : 'elektrolyser zonder locatie';
-  const parks = project.parken.filter(p => p.aandeel > 0).map(p => `${p.naam} ${nl(p.aandeel * parkMW(p))} MW van ${nl(parkMW(p))} MW (${nl(p.aandeel * 100, 0)} %), KNMI ${p.stations.map(stationName).join(' + ')}${p.stations.length > 1 ? ' (gemiddelde)' : ''}, ${p.hoogte === 'wins50' ? 'hoogtevertaling WINS50' : `seizoens-α naar ${p.hub_height_m} m (aanname)`}${p.curve === 'standaard' ? ', standaardcurve (aanname)' : ''}`);
-  return `${loc}; ${parks.join('; ')}. Windjaren ${project.jaren.join(', ')}, KNMI-tienminutenwaarden.`;
+  const parks = project.parken.filter(p => p.aandeel > 0).map(p => `${p.naam} ${nl(p.aandeel * parkMW(p))} MW van ${nl(parkMW(p))} MW (${nl(p.aandeel * 100, 0)} %), ${p.stations.map(sourceLabel).join(' + ')}${p.stations.length > 1 ? ' (gemiddelde)' : ''}, ${p.hoogte === 'wins50' ? 'hoogtevertaling WINS50' : `seizoens-α naar ${p.hub_height_m} m (aanname)`}${p.curve === 'standaard' ? ', standaardcurve (aanname)' : ''}`);
+  return `${loc}; ${parks.join('; ')}. Windjaren ${project.jaren.join(', ')}, tienminutenwaarden van ${sourcesOf(project.parken.filter(p => p.aandeel > 0).flatMap(p => p.stations)).join(', ') || 'KNMI'} op 10 m.`;
 }
 
 // Controle van een project uit de browser of uit R2; geeft een schone kopie of gooit een fout.
@@ -36,15 +36,15 @@ export function validateProject(input) {
   const fail = why => { throw Error('Ongeldig project: ' + why); };
   if (!input || typeof input !== 'object') fail('geen object');
   if (!text(input.naam, 120) || !input.naam.trim()) fail('naam');
-  if (input.locatie !== null && !(finite(input.locatie?.lat, 50, 54) && finite(input.locatie?.lon, 3, 7.5))) fail('locatie');
+  if (input.locatie !== null && !(finite(input.locatie?.lat, 41, 58) && finite(input.locatie?.lon, -5.5, 16))) fail('locatie');
   if (!Array.isArray(input.parken) || input.parken.length > MAX_PARKS) fail('parken');
   const parken = input.parken.map(p => {
-    if (!text(p.id, 40) || !text(p.naam, 200) || !finite(p.lat, 50, 56) || !finite(p.lon, 2, 8)) fail('park');
+    if (!text(p.id, 40) || !text(p.naam, 200) || !finite(p.lat, 41, 58) || !finite(p.lon, -5.5, 16)) fail('park');
     if (!finite(p.turbines, 1, 1000) || !finite(p.rated_kw, 100, 20000) || !finite(p.hub_height_m, 20, 250) || !finite(p.wake_pct, 0, 30) || !finite(p.aandeel, 0, 1)) fail('parkgegevens van ' + p.naam);
     if (!['fryslan', 'beabuorren', 'standaard'].includes(p.curve) || !['wins50', 'alpha'].includes(p.hoogte)) fail('curve of hoogte');
-    if (!Array.isArray(p.stations) || p.stations.length > 6 || !p.stations.every(id => stationCatalog.some(s => s.id === id))) fail('stations van ' + p.naam);
+    if (!Array.isArray(p.stations) || p.stations.length > 6 || !p.stations.every(knownStation)) fail('stations van ' + p.naam);
     const herkomst = Object.fromEntries(Object.entries(p.herkomst || {}).filter(([k, v]) => text(k, 30) && text(v, 20)));
-    return { id: p.id, naam: p.naam, plaats: text(p.plaats, 120) ? p.plaats : '', gemeente: text(p.gemeente, 120) ? p.gemeente : '', lat: p.lat, lon: p.lon, turbines: p.turbines, rated_kw: p.rated_kw, hub_height_m: p.hub_height_m, wake_pct: p.wake_pct, curve: p.curve, hoogte: p.hoogte, aandeel: p.aandeel, stations: [...p.stations], herkomst, ...(p.model && text(p.model, 120) ? { model: p.model } : {}) };
+    return { id: p.id, naam: p.naam, plaats: text(p.plaats, 120) ? p.plaats : '', gemeente: text(p.gemeente, 120) ? p.gemeente : '', ...(['NL', 'DE', 'BE', 'DK', 'LU', 'FR'].includes(p.land) ? { land: p.land } : {}), lat: p.lat, lon: p.lon, turbines: p.turbines, rated_kw: p.rated_kw, hub_height_m: p.hub_height_m, wake_pct: p.wake_pct, curve: p.curve, hoogte: p.hoogte, aandeel: p.aandeel, stations: [...p.stations], herkomst, ...(p.model && text(p.model, 120) ? { model: p.model } : {}) };
   });
   if (!Array.isArray(input.varianten) || input.varianten.length > MAX_VARIANTS) fail('varianten');
   const varianten = input.varianten.map(v => {
@@ -53,7 +53,7 @@ export function validateProject(input) {
   });
   const jaren = Array.isArray(input.jaren) ? YEARS.filter(y => input.jaren.includes(y)) : [...YEARS];
   const algemeen = input.algemeen && typeof input.algemeen === 'object' && JSON.stringify(input.algemeen).length < 20000 ? input.algemeen : defaultGeneral();
-  // `plaats`: woonplaats bij de locatie (PDOK Locatieserver), alleen voor de weergave.
+  // `plaats`: woonplaats bij de locatie (PDOK Locatieserver, buiten Nederland Photon), alleen voor de weergave.
   const plaats = input.locatie && text(input.plaats, 120) ? input.plaats.trim() : '';
   return { versie: PROJECT_VERSION, id: input.id, naam: input.naam.trim(), gemaakt: input.gemaakt ?? null, gewijzigd: input.gewijzigd ?? null, locatie: input.locatie, plaats, varianten, referentie: Number.isInteger(input.referentie) ? input.referentie : 0, parken, jaren: jaren.length ? jaren : [...YEARS], algemeen };
 }

@@ -18,7 +18,7 @@ export function buildSupply({ jaar, parks, wind, axis = yearAxis(jaar) }) {
   const active = parks.filter(p => p.aandeel > 0);
   if (!active.length) throw Error('Kies minstens één park met vermogen voor de elektrolyser.');
   for (const p of active) {
-    if (!p.stations?.length) throw Error(`Kies een KNMI-station voor ${p.naam}.`);
+    if (!p.stations?.length) throw Error(`Kies een meetstation voor ${p.naam}.`);
     for (const id of p.stations) if (!wind[id] || wind[id].length !== axis.n) throw Error(`Winddata ontbreekt voor station ${id} in ${jaar}.`);
   }
   const stationIds = [...new Set(active.flatMap(p => p.stations))];

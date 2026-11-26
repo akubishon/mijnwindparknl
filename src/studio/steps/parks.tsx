@@ -7,6 +7,10 @@ import {allocatedMW} from '../status.mjs';
 import {nl,Link} from '../lib';
 import {Card,Chip,NumberField,Slider,StepHead,Details,Empty,Seg,Skeleton,Notice,Info} from '../ui/kit';
 
+// Landnaam achter de plaats, alleen buiten Nederland.
+const LANDEN:Record<string,string>={NL:'Nederland',DE:'Duitsland',BE:'België',DK:'Denemarken',LU:'Luxemburg',FR:'Frankrijk'};
+const where=(p:any)=>[p.plaats||p.gemeente||(p.provincie==='Zee'?'op zee':''),p.land&&p.land!=='NL'?LANDEN[p.land]:''].filter(Boolean).join(', ');
+
 const featureKey=(f:any)=>`${f.geometry.coordinates[0].toFixed(4)},${f.geometry.coordinates[1].toFixed(4)}`;
 // Id zoals de studio het park bewaart (Fryslân en Beabuorren worden herkend aan hun parkmidden).
 const idOf=(f:any)=>f.properties?.id||parkFromFeature(f).id;
@@ -15,7 +19,7 @@ function ParkCard({park,origin,set,remove,link}:{park:any;origin:{lat:number;lon
  const cap=parkMW(park),mw=park.aandeel*cap,known=park.curve!=='standaard';
  const setMW=(v:number)=>set({aandeel:cap?Math.min(1,Math.max(0,Math.round(v*10)/10/cap)):0},false);
  return <article className={'s-park'+(park.aandeel>0?'':' s-park-off')}>
-  <header><div><h3>{park.naam}</h3><p>{[park.plaats||park.gemeente,origin?`${nl(kmBetween(origin,park))} km van de elektrolyser`:''].filter(Boolean).join(' · ')}</p></div>
+  <header><div><h3>{park.naam}</h3><p>{[where(park),origin?`${nl(kmBetween(origin,park))} km van de elektrolyser`:''].filter(Boolean).join(' · ')}</p></div>
    <div className="s-chips"><Chip tone={known?'dark':undefined}>{known?'bekend parkmodel':'standaardmodel'}</Chip><Chip tone={park.hoogte==='wins50'?undefined:'let'}>{park.hoogte==='wins50'?'WINS50':'seizoens-α'}</Chip></div>
    <button type="button" className="s-iconbtn" aria-label={`${park.naam} verwijderen`} onClick={remove}><Trash2 size={16}/></button></header>
   <div className="s-alloc">
@@ -37,15 +41,16 @@ function ParkCard({park,origin,set,remove,link}:{park:any;origin:{lat:number;lon
 }
 
 export function ParksStep({project,set,parks}:{project:any;set:(f:(p:any)=>any)=>void;parks:{data:any;error:string}}){
- const [q,setQ]=useState(''),[sort,setSort]=useState<'km'|'mw'>('km'),[more,setMore]=useState(8),[fly,setFly]=useState<any>(null);
+ const [q,setQ]=useState(''),[land,setLand]=useState<string>('alle'),[sort,setSort]=useState<'km'|'mw'>('km'),[more,setMore]=useState(8),[fly,setFly]=useState<any>(null);
  const origin=project.locatie,features:any[]=parks.data?.features||[];
  const chosenIds=new Set(project.parken.map((p:any)=>p.id));
  const list=useMemo(()=>{
   const needle=q.trim().toLowerCase(),o=origin||{lat:52.6,lon:5.4};
   return features.map(f=>({f,km:kmBetween(o,{lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0]})}))
-   .filter(x=>!chosenIds.has(idOf(x.f))&&(!needle||`${x.f.properties.naam} ${x.f.properties.plaats||''} ${x.f.properties.gemeente||''}`.toLowerCase().includes(needle)))
+   .filter(x=>!chosenIds.has(idOf(x.f))&&(land==='alle'||(x.f.properties.land||'NL')===land)&&(!needle||`${x.f.properties.naam} ${x.f.properties.plaats||''} ${x.f.properties.gemeente||''} ${x.f.properties.provincie||''} ${LANDEN[x.f.properties.land]||''}`.toLowerCase().includes(needle)))
    .sort((a,b)=>sort==='km'||needle?a.km-b.km:(b.f.properties.mw||0)-(a.f.properties.mw||0)||a.km-b.km);
- },[features,q,sort,origin?.lat,origin?.lon,project.parken]);
+ },[features,q,land,sort,origin?.lat,origin?.lon,project.parken]);
+ const perLand=useMemo(()=>{const c:Record<string,{n:number;mw:number}>={};for(const f of features){const k=f.properties.land||'NL';c[k]||={n:0,mw:0};c[k].n++;c[k].mw+=f.properties.mw||0;}return c;},[features]);
  const shownList=sort==='mw'&&!q?list.filter(x=>x.km<=40):list;
  const add=(f:any)=>{const park=parkFromFeature(f);set(p=>p.parken.some((x:any)=>x.id===park.id)?p:{...p,parken:[...p.parken,{...park,aandeel:0,stations:[]}]});};
  const toggle=(f:any)=>{const id=idOf(f);if(chosenIds.has(id))set(p=>({...p,parken:p.parken.filter((x:any)=>x.id!==id)}));else add(f);};
@@ -57,8 +62,8 @@ export function ParksStep({project,set,parks}:{project:any;set:(f:(p:any)=>any)=
   {parks.error&&<Notice kind="fout" title="De parken konden niet worden geladen.">{parks.error}</Notice>}
   <Card className="s-mapcard">
    <StudioMap mode="parken" label="Kaart met windparken" locatie={origin} chosen={project.parken} parks={features} onPark={toggle} flyTo={fly} fitKey={'parken:'+project.parken.length} className="s-map-big">
-    <div className="s-mapsearch"><Search size={16} aria-hidden="true"/><input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder="Zoek een park, plaats of gemeente" aria-label="Zoek een park, plaats of gemeente"/>
-     {q.trim().length>1&&<ul className="s-hits">{list.slice(0,6).map(({f,km})=><li key={featureKey(f)}><button type="button" onClick={()=>{add(f);setFly({lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],zoom:11,n:Date.now()});setQ('');}}><b>{f.properties.naam}</b><span>{f.properties.plaats||f.properties.gemeente} · {f.properties.mw?nl(f.properties.mw)+' MW':'vermogen onbekend'} · {nl(km)} km</span></button></li>)}{!list.length&&<li className="s-hits-none">Geen park gevonden.</li>}</ul>}</div>
+    <div className="s-mapsearch"><Search size={16} aria-hidden="true"/><input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder="Zoek een park, plaats, regio of land" aria-label="Zoek een park, plaats, regio of land"/>
+     {q.trim().length>1&&<ul className="s-hits">{list.slice(0,6).map(({f,km})=><li key={featureKey(f)}><button type="button" onClick={()=>{add(f);setFly({lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],zoom:11,n:Date.now()});setQ('');}}><b>{f.properties.naam}</b><span>{where(f.properties)} · {f.properties.mw?nl(f.properties.mw)+' MW':'vermogen onbekend'} · {nl(km)} km</span></button></li>)}{!list.length&&<li className="s-hits-none">Geen park gevonden.</li>}</ul>}</div>
     <div className="s-maplegend"><span><i className="s-lg s-lg-h2"/>Elektrolyser</span><span><i className="s-lg s-lg-chosen"/>Gekozen park</span><span><i className="s-lg s-lg-park"/>Park (grootte = MW)</span></div>
    </StudioMap>
   </Card>
@@ -66,8 +71,9 @@ export function ParksStep({project,set,parks}:{project:any;set:(f:(p:any)=>any)=
   {!project.parken.length&&<Card className="s-pad"><Empty title="Nog geen parken gekozen">Klik een park op de kaart of gebruik + in de lijst hieronder. Het voorstel begint bij de dichtstbijzijnde parken.</Empty></Card>}
   {project.parken.map((p:any)=><ParkCard key={p.id} park={p} origin={origin} set={(c,mark)=>update(p.id,c,mark)} remove={()=>set(x=>({...x,parken:x.parken.filter((y:any)=>y.id!==p.id)}))} link={linkFor(p)}/>)}
   <Card className="s-pad s-list">
-   <div className="s-cardhead"><div><h2>{q?'Gevonden parken':'Meer parken in de buurt'}</h2><p className="s-sub">{q?`Zoekresultaten voor “${q}” in heel Nederland.`:'Bestaande parken van de kaart (OpenStreetMap). Geen afstandsgrens: de afstand is informatie.'}</p></div><Seg label="Sorteren" value={sort} onChange={setSort} options={[{value:'km',label:'Afstand'},{value:'mw',label:'Vermogen'}]}/></div>
-   {!parks.data&&!parks.error?<Skeleton lines={5}/>:<ul>{shownList.slice(0,more).map(({f,km})=><li key={featureKey(f)}><span className="s-size" style={{'--s':`${8+Math.sqrt(f.properties.mw||3)*1.6}px`} as any} aria-hidden="true"/><div><b>{f.properties.naam}</b><small>{f.properties.plaats||f.properties.gemeente}{f.properties.turbines?` · ${f.properties.turbines} ${f.properties.turbines===1?'turbine':'turbines'}`:''}</small></div><span className="num">{f.properties.mw?nl(f.properties.mw)+' MW':'–'}</span><span className="num s-muted">{nl(km)} km</span><button type="button" className="s-addbtn" aria-label={`${f.properties.naam} toevoegen`} onClick={()=>add(f)}><Plus size={16}/></button></li>)}</ul>}
+   <div className="s-cardhead"><div><h2>{q?'Gevonden parken':'Meer parken in de buurt'}</h2><p className="s-sub">{q?`Zoekresultaten voor “${q}” in ${land==='alle'?'Nederland en de buurlanden':LANDEN[land]}.`:'Bestaande parken van de kaart (OpenStreetMap), in Nederland en de buurlanden. Geen afstandsgrens: de afstand is informatie.'}</p></div><Seg label="Sorteren" value={sort} onChange={setSort} options={[{value:'km',label:'Afstand'},{value:'mw',label:'Vermogen'}]}/></div>
+   <div className="s-chips s-chips-left s-landen" role="group" aria-label="Land">{['alle','NL','DE','BE','LU','FR','DK'].filter(k=>k==='alle'||perLand[k]).map(k=><button key={k} type="button" className={'s-landchip'+(land===k?' on':'')} aria-pressed={land===k} onClick={()=>{setLand(k);setMore(8);}}>{k==='alle'?'Alle landen':LANDEN[k]}{k!=='alle'&&<small>{nl(perLand[k].n,0)} parken · {nl(perLand[k].mw/1000,1)} GW</small>}</button>)}</div>
+   {!parks.data&&!parks.error?<Skeleton lines={5}/>:<ul>{shownList.slice(0,more).map(({f,km})=><li key={featureKey(f)}><span className="s-size" style={{'--s':`${8+Math.sqrt(f.properties.mw||3)*1.6}px`} as any} aria-hidden="true"/><div><b>{f.properties.naam}</b><small>{where(f.properties)}{f.properties.turbines?` · ${f.properties.turbines} ${f.properties.turbines===1?'turbine':'turbines'}`:''}</small></div><span className="num">{f.properties.mw?nl(f.properties.mw)+' MW':'–'}</span><span className="num s-muted">{nl(km)} km</span><button type="button" className="s-addbtn" aria-label={`${f.properties.naam} toevoegen`} onClick={()=>add(f)}><Plus size={16}/></button></li>)}</ul>}
    {shownList.length>more&&<button type="button" className="s-btn s-btn-ghost s-btn-wide" onClick={()=>setMore(m=>m+8)}>Meer tonen ({shownList.length-more} over)</button>}
   </Card>
  </>;
