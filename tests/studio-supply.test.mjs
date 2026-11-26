@@ -72,5 +72,5 @@ test('stationsvoorstel: dichtstbijzijnde met dekking, paar binnen 25 km, waarsch
   assert.deepEqual(r.voorstel.paar, [STAVOREN, HOUTRIBDIJK]);
   const far = suggestStations({ lat: 51.0, lon: 6.0 }, index);
   assert.ok(far.waarschuwingen.some(w => /25 km/.test(w)));
-  assert.equal(isSeaStation('0-20000-0-06321'), true); assert.equal(isSeaStation(HOUTRIBDIJK), false);
+  assert.equal(isSeaStation('0-20000-0-06321'), true); assert.equal(isSeaStation('0-528-0-06213'), true, 'Hollandse Kust Noord');assert.equal(isSeaStation(HOUTRIBDIJK), false);
 });
