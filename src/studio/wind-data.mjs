@@ -120,7 +120,7 @@ export async function windRoute(request, env, url, answer, fetchImpl = fetch) {
     const index = env.BUCKET ? await readJSON(env.BUCKET, INDEX_KEY) : null;
     return answer(completeIndex(index));
   }
-  const m = url.pathname.match(/^\/api\/studio\/wind10\/(0-20000-0-\d{5}|0-528-0-\d{5}|dwd-\d{5}|kmi-\d{4,8}|dmi-\d{5})\/(\d{4})$/);
+  const m = url.pathname.match(/^\/api\/studio\/wind10\/(0-20000-0-\d{5}|0-528-0-\d{5}|dwd-\d{5}|kmi-\d{4,8}|dmi-\d{5}|mf-\d{8})\/(\d{4})$/);
   if (!m) return null;
   const [, station, yearText] = m, year = Number(yearText);
   if (!knownStation(station) || !YEARS.includes(year)) return answer({ error: 'Onbekend station of windjaar.' }, 400);

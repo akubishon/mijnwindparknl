@@ -71,5 +71,5 @@ export async function parkDayRoute(request, env, url, answer) {
   if (!park.stations?.length) return answer({ error: 'Kies eerst een meetstation voor dit park.' }, 400);
   if (park.stations.some(id => sourceOf(id) === 'knmi') && !env.KNMI_EDR_API_KEY) return answer({ error: 'KNMI-windgegevens zijn nog niet gekoppeld.' }, 503);
   try { return answer(url.searchParams.get('vergelijking') === '1' ? await parkDayComparison(park, day, env) : await parkDay(park, day, env)); }
-  catch (e) { console.error('STUDIO_PARK_DAY_FAILED', e?.message); return answer({ error: e?.message === 'KNMI_AUTH' ? 'KNMI weigert de API-sleutel.' : /^(DWD|KMI|DMI)_/.test(e?.message || '') ? `De open data van ${e.message.split('_')[0]} is tijdelijk niet beschikbaar. Probeer het opnieuw.` : 'KNMI EDR is tijdelijk niet beschikbaar. Probeer het opnieuw.' }, 502); }
+  catch (e) { console.error('STUDIO_PARK_DAY_FAILED', e?.message); return answer({ error: e?.message === 'KNMI_AUTH' ? 'KNMI weigert de API-sleutel.' : /^(DWD|KMI|DMI|MF)_/.test(e?.message || '') ? `De open data van ${({ MF: 'Météo-France' })[e.message.split('_')[0]] || e.message.split('_')[0]} is tijdelijk niet beschikbaar. Probeer het opnieuw.` : 'KNMI EDR is tijdelijk niet beschikbaar. Probeer het opnieuw.' }, 502); }
 }

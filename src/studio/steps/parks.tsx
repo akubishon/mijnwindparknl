@@ -8,7 +8,7 @@ import {nl,Link} from '../lib';
 import {Card,Chip,NumberField,Slider,StepHead,Details,Empty,Seg,Skeleton,Notice,Info} from '../ui/kit';
 
 // Landnaam achter de plaats, alleen buiten Nederland.
-const LANDEN:Record<string,string>={NL:'Nederland',DE:'Duitsland',BE:'België',DK:'Denemarken',LU:'Luxemburg'};
+const LANDEN:Record<string,string>={NL:'Nederland',DE:'Duitsland',BE:'België',DK:'Denemarken',LU:'Luxemburg',FR:'Frankrijk'};
 const where=(p:any)=>[p.plaats||p.gemeente||(p.provincie==='Zee'?'op zee':''),p.land&&p.land!=='NL'?LANDEN[p.land]:''].filter(Boolean).join(', ');
 
 const featureKey=(f:any)=>`${f.geometry.coordinates[0].toFixed(4)},${f.geometry.coordinates[1].toFixed(4)}`;
@@ -72,7 +72,7 @@ export function ParksStep({project,set,parks}:{project:any;set:(f:(p:any)=>any)=
   {project.parken.map((p:any)=><ParkCard key={p.id} park={p} origin={origin} set={(c,mark)=>update(p.id,c,mark)} remove={()=>set(x=>({...x,parken:x.parken.filter((y:any)=>y.id!==p.id)}))} link={linkFor(p)}/>)}
   <Card className="s-pad s-list">
    <div className="s-cardhead"><div><h2>{q?'Gevonden parken':'Meer parken in de buurt'}</h2><p className="s-sub">{q?`Zoekresultaten voor “${q}” in ${land==='alle'?'Nederland en de buurlanden':LANDEN[land]}.`:'Bestaande parken van de kaart (OpenStreetMap), in Nederland en de buurlanden. Geen afstandsgrens: de afstand is informatie.'}</p></div><Seg label="Sorteren" value={sort} onChange={setSort} options={[{value:'km',label:'Afstand'},{value:'mw',label:'Vermogen'}]}/></div>
-   <div className="s-chips s-chips-left s-landen" role="group" aria-label="Land">{['alle','NL','DE','BE','DK','LU'].filter(k=>k==='alle'||perLand[k]).map(k=><button key={k} type="button" className={'s-landchip'+(land===k?' on':'')} aria-pressed={land===k} onClick={()=>{setLand(k);setMore(8);}}>{k==='alle'?'Alle landen':LANDEN[k]}{k!=='alle'&&<small>{nl(perLand[k].n,0)} parken · {nl(perLand[k].mw/1000,1)} GW</small>}</button>)}</div>
+   <div className="s-chips s-chips-left s-landen" role="group" aria-label="Land">{['alle','NL','DE','BE','LU','FR','DK'].filter(k=>k==='alle'||perLand[k]).map(k=><button key={k} type="button" className={'s-landchip'+(land===k?' on':'')} aria-pressed={land===k} onClick={()=>{setLand(k);setMore(8);}}>{k==='alle'?'Alle landen':LANDEN[k]}{k!=='alle'&&<small>{nl(perLand[k].n,0)} parken · {nl(perLand[k].mw/1000,1)} GW</small>}</button>)}</div>
    {!parks.data&&!parks.error?<Skeleton lines={5}/>:<ul>{shownList.slice(0,more).map(({f,km})=><li key={featureKey(f)}><span className="s-size" style={{'--s':`${8+Math.sqrt(f.properties.mw||3)*1.6}px`} as any} aria-hidden="true"/><div><b>{f.properties.naam}</b><small>{where(f.properties)}{f.properties.turbines?` · ${f.properties.turbines} ${f.properties.turbines===1?'turbine':'turbines'}`:''}</small></div><span className="num">{f.properties.mw?nl(f.properties.mw)+' MW':'–'}</span><span className="num s-muted">{nl(km)} km</span><button type="button" className="s-addbtn" aria-label={`${f.properties.naam} toevoegen`} onClick={()=>add(f)}><Plus size={16}/></button></li>)}</ul>}
    {shownList.length>more&&<button type="button" className="s-btn s-btn-ghost s-btn-wide" onClick={()=>setMore(m=>m+8)}>Meer tonen ({shownList.length-more} over)</button>}
   </Card>

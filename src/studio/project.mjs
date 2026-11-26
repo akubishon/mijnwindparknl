@@ -36,15 +36,15 @@ export function validateProject(input) {
   const fail = why => { throw Error('Ongeldig project: ' + why); };
   if (!input || typeof input !== 'object') fail('geen object');
   if (!text(input.naam, 120) || !input.naam.trim()) fail('naam');
-  if (input.locatie !== null && !(finite(input.locatie?.lat, 47, 58) && finite(input.locatie?.lon, 2, 16))) fail('locatie');
+  if (input.locatie !== null && !(finite(input.locatie?.lat, 41, 58) && finite(input.locatie?.lon, -5.5, 16))) fail('locatie');
   if (!Array.isArray(input.parken) || input.parken.length > MAX_PARKS) fail('parken');
   const parken = input.parken.map(p => {
-    if (!text(p.id, 40) || !text(p.naam, 200) || !finite(p.lat, 47, 58) || !finite(p.lon, 2, 16)) fail('park');
+    if (!text(p.id, 40) || !text(p.naam, 200) || !finite(p.lat, 41, 58) || !finite(p.lon, -5.5, 16)) fail('park');
     if (!finite(p.turbines, 1, 1000) || !finite(p.rated_kw, 100, 20000) || !finite(p.hub_height_m, 20, 250) || !finite(p.wake_pct, 0, 30) || !finite(p.aandeel, 0, 1)) fail('parkgegevens van ' + p.naam);
     if (!['fryslan', 'beabuorren', 'standaard'].includes(p.curve) || !['wins50', 'alpha'].includes(p.hoogte)) fail('curve of hoogte');
     if (!Array.isArray(p.stations) || p.stations.length > 6 || !p.stations.every(knownStation)) fail('stations van ' + p.naam);
     const herkomst = Object.fromEntries(Object.entries(p.herkomst || {}).filter(([k, v]) => text(k, 30) && text(v, 20)));
-    return { id: p.id, naam: p.naam, plaats: text(p.plaats, 120) ? p.plaats : '', gemeente: text(p.gemeente, 120) ? p.gemeente : '', ...(['NL', 'DE', 'BE', 'DK', 'LU'].includes(p.land) ? { land: p.land } : {}), lat: p.lat, lon: p.lon, turbines: p.turbines, rated_kw: p.rated_kw, hub_height_m: p.hub_height_m, wake_pct: p.wake_pct, curve: p.curve, hoogte: p.hoogte, aandeel: p.aandeel, stations: [...p.stations], herkomst, ...(p.model && text(p.model, 120) ? { model: p.model } : {}) };
+    return { id: p.id, naam: p.naam, plaats: text(p.plaats, 120) ? p.plaats : '', gemeente: text(p.gemeente, 120) ? p.gemeente : '', ...(['NL', 'DE', 'BE', 'DK', 'LU', 'FR'].includes(p.land) ? { land: p.land } : {}), lat: p.lat, lon: p.lon, turbines: p.turbines, rated_kw: p.rated_kw, hub_height_m: p.hub_height_m, wake_pct: p.wake_pct, curve: p.curve, hoogte: p.hoogte, aandeel: p.aandeel, stations: [...p.stations], herkomst, ...(p.model && text(p.model, 120) ? { model: p.model } : {}) };
   });
   if (!Array.isArray(input.varianten) || input.varianten.length > MAX_VARIANTS) fail('varianten');
   const varianten = input.varianten.map(v => {

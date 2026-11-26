@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
-import { parseDWD, parseKMI, parseDMI, unzipText, foreignSamples, coverageOf, heightFactor } from '../src/studio/sources.mjs';
+import { parseDWD, parseKMI, parseDMI, unzipText, foreignSamples, coverageOf, heightFactor, parseMFStream, interpolateHours, mfFiles } from '../src/studio/sources.mjs';
+import { gzipSync } from 'node:zlib';
 import { windRoute, fetchAnyStationYear, seriesStats, completeIndex, emptyIndex } from '../src/studio/wind-data.mjs';
 import { STATIONS, stationById, sourceLabel } from '../src/studio/station-catalog.mjs';
 import { yearAxis } from '../src/studio/supply.mjs';
@@ -79,4 +80,22 @@ test('dagweergave: buitenlands station als KNMI-achtig antwoord, omgerekend naar
   assert.equal(s.ff[0], Math.round(8 * f * 1000) / 1000); assert.equal(s.dd[0], 270);
   const c = coverageOf(st.id, s);
   assert.equal(c.coverages[0]['eumetnet:locationId'], st.id); assert.equal(c.coverages[0].domain.axes.t.values[0], '2025-03-01T12:10:00.000Z');
+});
+
+test('Météo-France: uurbestand gestreamd, alleen dit station, lineair naar tien minuten', async () => {
+  const csv = 'NUM_POSTE;NOM_USUEL;LAT;LON;ALTI;AAAAMMJJHH;RR1;QRR1;FF;QFF;DD;QDD\n'
+    + '59178001;DOUAI;50.39;3.07;26;2025010100;0;1;4.0;1;200;1\n'
+    + '59999999;ANDERS;50;3;1;2025010100;0;1;99;1;10;1\n'
+    + '59178001;DOUAI;50.39;3.07;26;2025010101;0;1;7.0;1;210;1\n'
+    + '59178001;DOUAI;50.39;3.07;26;2025010102;0;1;;;;\n';
+  const stream = new Response(gzipSync(Buffer.from(csv))).body.pipeThrough(new DecompressionStream('gzip'));
+  const from = Date.UTC(2025, 0, 1), to = Date.UTC(2025, 0, 1, 2);
+  const hours = await parseMFStream(stream, '59178001', from, to);
+  assert.equal(hours.size, 3); assert.deepEqual(hours.get(from), [4, 200]);
+  const s = interpolateHours(hours, from, to);
+  assert.equal(s.t.length, 13);
+  assert.deepEqual(s.ff.slice(0, 7), [4, 4.5, 5, 5.5, 6, 6.5, 7]);
+  assert.ok(s.ff.slice(7).every(v => v === null), 'geen waarde na het laatste gemeten uur');
+  assert.deepEqual(mfFiles('59', Date.UTC(2025, 0, 1), Date.UTC(2025, 11, 31)), ['H_59_latest-2025-2026.csv.gz']);
+  assert.deepEqual(mfFiles('2A', Date.UTC(2024, 11, 31, 23), Date.UTC(2025, 0, 2)), ['H_2A_previous-2020-2024.csv.gz', 'H_2A_latest-2025-2026.csv.gz']);
 });

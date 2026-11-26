@@ -12,7 +12,7 @@ import {Loading,Empty,Info,cx} from '../ui/kit';
 import type {Step} from '../ui/StepRail';
 
 // Bron per station; buiten Nederland de weerdienst van het land.
-const BRON:Record<string,string>={knmi:'KNMI',dwd:'DWD',kmi:'KMI',dmi:'DMI'};
+const BRON:Record<string,string>={knmi:'KNMI',dwd:'DWD',kmi:'KMI',dmi:'DMI',mf:'Météo-France'};
 const same=(a:string[],b:string[])=>a.length===b.length&&[...a].sort().every((v,i)=>v===[...b].sort()[i]);
 
 // Deel van de momenten van het eerste station dat wegvalt omdat het tweede dan niet meet (alleen als beide reeksen al geladen zijn).
@@ -41,7 +41,7 @@ export function StationsStep({project,set,index,steps,onStep,kpis}:{project:any;
  const cov=(d:number|undefined)=>d===undefined?null:d;
  const map=<StudioMap mode="stations" label={`Kaart met meetstations rond ${focus?.naam||'het park'}`} locatie={project.locatie} chosen={active} parks={null} stations={pins} focus={focus} onStation={toggle} fitKey={'stations:'+(focus?.id||'')} padding={padding} className="s-map-fill"/>;
  return <Stage steps={steps} active={3} onStep={onStep} kpis={kpis} map={map} title="Meetstations"
-  intro="De studio stelt per park een station voor: KNMI in Nederland, DWD (Duitsland), KMI (België) of DMI (Denemarken) daarbuiten. Jij kiest; bij twee of meer stations telt een moment alleen als alle stations meten."
+  intro="De studio stelt per park een station voor: KNMI in Nederland, DWD (Duitsland), KMI (België), DMI (Denemarken) of Météo-France (Frankrijk, uurwaarden) daarbuiten. Jij kiest; bij twee of meer stations telt een moment alleen als alle stations meten."
   next={{label:'Beschikbaar vermogen',onClick:()=>onStep(4)}}>
   {!active.length?<Empty art={false} title="Nog geen parken met vermogen" action={<button type="button" className="s-btn s-btn-cta" onClick={()=>onStep(2)}>Naar windparken</button>}>Kies eerst in stap 3 welke parken leveren en hoeveel MW.</Empty>
   :!index.data?(index.error?<p className="s-sheet-note" role="alert">{index.error}</p>:<Loading>Stations laden…</Loading>)
@@ -56,7 +56,7 @@ export function StationsStep({project,set,index,steps,onStep,kpis}:{project:any;
    </div>}
    <ul className="s-stations">{shown.map((st:any)=>{const on=focus.stations.includes(st.id),d=cov(st.dekking[YEARS[0]]);return <li key={st.id} className={on?'on':''}>
     <button type="button" className="s-cb" role="checkbox" aria-checked={on} aria-label={`${st.naam} ${on?'uitzetten':'kiezen'}`} onClick={()=>toggle(st.id)}>{on&&<Check size={14}/>}</button>
-    <div><b>{st.naam}{st.zee&&<span className="s-tag">zee</span>}{st.bron!=='knmi'&&<span className="s-tag">{BRON[st.bron]}</span>}</b><small>{nl(st.km)} km{st.km>MAX_KM?' · verder dan 25 km':''}{st.meethoogte_m!==10?` · gemeten op ${st.meethoogte_m} m, omgerekend naar 10 m`:''}</small></div>
+    <div><b>{st.naam}{st.zee&&<span className="s-tag">zee</span>}{st.bron!=='knmi'&&<span className="s-tag">{BRON[st.bron]}</span>}</b><small>{nl(st.km)} km{st.km>MAX_KM?' · verder dan 25 km':''}{st.meethoogte_m!==10?` · gemeten op ${st.meethoogte_m} m, omgerekend naar 10 m`:''}{st.bron==='mf'?' · uurwaarden, geïnterpoleerd naar tien minuten':''}</small></div>
     <div className={cx('s-cov',d===null&&'s-cov-unknown')} title={d===null?'Dekking nog niet bekend: data nog niet opgehaald':`Dekking ${YEARS[0]}: ${nl(d*100,1)} %`}><span className={d!==null&&d<MIN_COVERAGE?'low':''} style={{width:d===null?'100%':d*100+'%'}}/></div>
     <span className="num">{d===null?'?':nl(d*100,0)+' %'}</span><span className="num s-muted">{st.gemiddeld_ms===null?'–':nl(st.gemiddeld_ms,1)+' m/s'}</span></li>;})}</ul>
    <p className="s-sheet-note">Dekking en gemiddelde wind zijn bekend zodra een station een keer is opgehaald (bij het berekenen van het aanbod).{index.data.voorlopig?' Een vraagteken betekent: nog niet opgehaald.':''}</p>

@@ -9,8 +9,9 @@ export const SOURCES = {
   dwd: { naam: 'DWD', land: 'DE', lang: 'Deutscher Wetterdienst, Climate Data Center, 10-Minutenwerte Wind (FF_10)' },
   kmi: { naam: 'KMI', land: 'BE', lang: 'Koninklijk Meteorologisch Instituut, open data AWS 10 minuten (wind_speed_10m)' },
   dmi: { naam: 'DMI', land: 'DK', lang: 'Danmarks Meteorologiske Institut, metObs (wind_speed, 10 minutter)' },
+  mf: { naam: 'Météo-France', land: 'FR', lang: 'Météo-France, données climatologiques de base horaires (FF, 10-minutengemiddelde op het uur, lineair naar tien minuten)' },
 };
-export const COUNTRY_NAMES = { NL: 'Nederland', DE: 'Duitsland', BE: 'België', DK: 'Denemarken', LU: 'Luxemburg' };
+export const COUNTRY_NAMES = { NL: 'Nederland', DE: 'Duitsland', BE: 'België', DK: 'Denemarken', LU: 'Luxemburg', FR: 'Frankrijk' };
 
 export const STATIONS = [
   ...knmi.filter(s => s.latitude > 50 && s.latitude < 56).map(s => ({ ...s, land: 'NL', bron: 'knmi', regio: null, meethoogte_m: 10 })),

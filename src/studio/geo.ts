@@ -14,8 +14,8 @@ export function inNL(lat:number,lon:number){
 export type Hit={naam:string;lat:number;lon:number;adres:boolean;soort:string};
 const LANDEN:Record<string,string>={DE:'Duitsland',BE:'België',DK:'Denemarken',LU:'Luxemburg',FR:'Frankrijk',NL:'Nederland'};
 export async function photonSearch(q:string):Promise<Hit[]>{
- const r=await fetch(`${PHOTON}/api/?${new URLSearchParams({q,limit:'6',bbox:'2.5,47,15.5,58'})}`);if(!r.ok)return [];
- return ((await r.json()).features||[]).filter((f:any)=>f.properties?.countrycode!=='NL').map((f:any)=>{const p=f.properties,[lon,lat]=f.geometry.coordinates,adres=p.type==='house'||!!p.housenumber;
+ const r=await fetch(`${PHOTON}/api/?${new URLSearchParams({q,limit:'6',bbox:'-5.5,41,15.5,58'})}`);if(!r.ok)return [];
+ return ((await r.json()).features||[]).filter((f:any)=>f.properties?.countrycode!=='NL'&&['DE','BE','DK','LU','FR'].includes(f.properties?.countrycode)).map((f:any)=>{const p=f.properties,[lon,lat]=f.geometry.coordinates,adres=p.type==='house'||!!p.housenumber;
   const naam=[p.name||[p.street,p.housenumber].filter(Boolean).join(' '),p.city&&p.city!==p.name?p.city:'',LANDEN[p.countrycode]||p.country].filter(Boolean).join(', ');
   return {naam,lat,lon,adres,soort:adres?'adres':p.type||p.osm_value||'plaats'};});
 }
