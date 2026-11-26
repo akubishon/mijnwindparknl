@@ -5,7 +5,7 @@
 // Additions that the Python kernel does not report (remaining energy split, supply classes, start counts)
 // are computed alongside the unchanged decisions and never feed back into them.
 
-export const KERNEL_VERSION = 'opsplitsing.py MODEL_VERSION 16 · JS 2';
+export const KERNEL_VERSION = 'opsplitsing.py MODEL_VERSION 16 · JS 3';
 export const STEP_H = 1 / 6;
 export const STRATEGIES = {
  verdelen: 'Per tijdstap het aantal modules dat de meeste waterstof geeft, last gelijk verdeeld.',
@@ -181,8 +181,24 @@ const lowerBound = (sorted, value) => { let lo = 0, hi = sorted.length; while (l
 export const SUPPLY_EDGES = [0, 2.5, 5, 7.5, 10, 15, 20, 25, 30, 35, 40, 45];
 const supplyClass = power => { let c = 0; while (c + 1 < SUPPLY_EDGES.length && power >= SUPPLY_EDGES[c + 1]) c++; return c; };
 
+// Onbalans (addition, never feeds back into the decisions): with supply.onbalans = TenneT prices per quarter
+// ({start, stap, prijs}, €/MWh), every running module that is below full load takes the rest up to full load from the
+// grid in quarters with a negative price. Recorded per month and per price band (upper edges in IMBALANCE_EDGES; band 0
+// is everything below the first edge), so the cost model can leave out bands where the levies exceed the price.
+export const IMBALANCE_EDGES = [-150, -100, -80, -60, -50, -40, -35, -30, -25, -20, -15, -10, -5, 0];
+export function priceAt(prices, t) {
+ const i = Math.floor((t - prices.start) / prices.stap), v = i >= 0 ? prices.prijs[i] : undefined;
+ return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+const bandOf = p => { let b = 0; while (b < IMBALANCE_EDGES.length - 1 && p >= IMBALANCE_EDGES[b]) b++; return b; };
+// Month in Amsterdam winter time (UTC+1); in summer a step in the first hour of a month can count to the previous month.
+const monthOf = t => new Date((t + 3600) * 1000).getUTCMonth();
+
 export function simulate(supply, n, a, strategy) {
  const times = supply.t, mw = supply.mw;
+ const prices = supply.onbalans || null;
+ const bands = IMBALANCE_EDGES.length, zeros = () => Array.from({length: 12}, () => new Float64Array(bands));
+ const ob = prices ? {e: zeros(), cash: zeros(), kg: zeros(), uur: 0.0, neg_uur: 0.0, neg_aan_uur: 0.0, neg_draw: 0.0, draw: 0.0, neg_aanbod: 0.0, aanbod: 0.0, neg_maand: new Float64Array(12)} : null;
  const size = a.capaciteit_mw / n;
  const min_on = a.min_aan_min / 60, min_off = a.min_uit_min / 60, delay = a.startvertraging_min / 60;
  const minimum = draw_mw(a.minimumlast * size, size, a), full = draw_mw(size, size, a);
@@ -226,6 +242,8 @@ export function simulate(supply, n, a, strategy) {
    for (const i of chosen) loads[i] = share;
   }
   let step_kg = 0.0, step_draw = 0.0, producers = 0;
+  const price = ob ? priceAt(prices, times[step]) : null, negative = price !== null && price < 0;
+  const month = negative ? monthOf(times[step]) : 0, band = negative ? bandOf(price) : 0;
   for (let i = 0; i < n; i++) {
    const x = loads[i];
    if (x >= a.minimumlast * size - 1e-9 && x > 0) {
@@ -240,6 +258,10 @@ export function simulate(supply, n, a, strategy) {
     step_kg += module_kg;
     if (module_kg > 0) producers++;
     const drawn = draw_mw(x, size, a);
+    if (negative && x < size - 1e-9) {
+     const extra = (full - drawn) * STEP_H, extraKg = (stack_kg_h(size, size, a) - stack_kg_h(x, size, a)) * STEP_H * productive;
+     ob.e[month][band] += extra; ob.cash[month][band] -= price * extra; ob.kg[month][band] += extraKg;
+    }
     used += drawn * STEP_H;
     step_draw += drawn;
     eq[i] += STEP_H;
@@ -252,6 +274,10 @@ export function simulate(supply, n, a, strategy) {
     off_h[i] += STEP_H;
     stack[i] = 0.0;
    }
+  }
+  if (price !== null) {
+   ob.uur += STEP_H; ob.draw += step_draw * STEP_H; ob.aanbod += power * STEP_H;
+   if (negative) { ob.neg_uur += STEP_H; ob.neg_maand[month] += STEP_H; ob.neg_draw += step_draw * STEP_H; ob.neg_aanbod += power * STEP_H; if (producers) ob.neg_aan_uur += STEP_H; }
   }
   kg += step_kg;
   producing += producers ? STEP_H * (1 - (1 - avail_f) ** producers) : 0.0;
@@ -278,6 +304,15 @@ export function simulate(supply, n, a, strategy) {
   starts_warm_per_module: pySum(warm) / n * scale, starts_koud_per_module: pySum(cold) / n * scale,
   eq_uren_per_module: eq.map(e => e * scale),
   dekking_uur: mw.length * STEP_H, beschikbaarheid_storing: avail_f,
+  ...(ob ? {onbalans: {
+   // Energy, cash (−price × energy, € received) and hydrogen per month × band, with the failure share applied. Not
+   // scaled to a year: the prices cover the calendar year itself. Hours and energies below are as measured.
+   randen: IMBALANCE_EDGES, bron: prices.bron || '', jaar: supply.jaar,
+   e_mwh: ob.e.map(r => Array.from(r, v => v * avail_f)), opbrengst_eur: ob.cash.map(r => Array.from(r, v => v * avail_f)), kg: ob.kg.map(r => Array.from(r, v => v * avail_f)),
+   uur_met_prijs: ob.uur, uur_negatief: ob.neg_uur, uur_negatief_per_maand: Array.from(ob.neg_maand), uur_negatief_in_bedrijf: ob.neg_aan_uur * avail_f,
+   belasting_negatief: ob.neg_uur ? ob.neg_draw * avail_f / (ob.neg_uur * installedFull) : null, belasting_met_prijs: ob.uur ? ob.draw * avail_f / (ob.uur * installedFull) : null,
+   aanbod_negatief_mw: ob.neg_uur ? ob.neg_aanbod / ob.neg_uur : null, aanbod_met_prijs_mw: ob.uur ? ob.aanbod / ob.uur : null, vollast_mw: installedFull,
+  }} : {}),
   extra: {
    schaal: scale, waterstof_kg_gemeten: kg, verbruik_mwh_gemeten: used, starts_totaal: pySum(warm) + pySum(cold),
    onder_minimum_mwh: below * scale, boven_maximum_mwh: above * scale, overig_mwh: other * scale,
@@ -326,6 +361,6 @@ export function cleanSupply(supply) {
   const v = supply.mw[i];
   if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && Number.isFinite(supply.t[i])) { t.push(supply.t[i]); mw.push(v); } else dropped++;
  }
- return {jaar: supply.jaar, t, mw, dropped};
+ return {jaar: supply.jaar, t, mw, dropped, ...(supply.onbalans ? {onbalans: supply.onbalans} : {})};
 }
 export const hoursInYear = year => (Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1)) / 3600000;

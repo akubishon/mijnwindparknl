@@ -2,6 +2,7 @@
 import {simulate_with_replacements, summarise, cleanSupply} from './electrolyser-kernel.mjs';
 import {generalValues, jobFor, metrics, meanMetrics, withCoverage} from './electrolyser-setup.mjs';
 import {profileSupply} from './electrolyser-wind.mjs';
+import {withPrices} from './electrolyser-imbalance.mjs';
 
 export const jobsFor = (resolvedList, general) => resolvedList.flatMap((resolved, index) => resolved?.ready ? generalValues(general).years.map(year => ({...jobFor(resolved, general, year), index})) : []);
 
@@ -22,8 +23,9 @@ export function assemble(resolved, general, raw) {
 }
 
 // Synchronous helper for tests and scripts: year series are passed in directly; `production` (productie_fryslan.csv as
-// parseProduction() returns it) is only needed for the profile scaled to measured production.
-export function compareNow(resolvedList, general, supplies, cache = new Map(), production = null) {
- for (const job of jobsFor(resolvedList, general)) if (!cache.has(job.key)) cache.set(job.key, runJob(job, profileSupply(supplies[job.year], job.wind, production)));
+// parseProduction() returns it) is only needed for the profile scaled to measured production; `prices` maps a year to its
+// TenneT imbalance prices (onbalans-<jaar>.json) for the imbalance rows.
+export function compareNow(resolvedList, general, supplies, cache = new Map(), production = null, prices = {}) {
+ for (const job of jobsFor(resolvedList, general)) if (!cache.has(job.key)) cache.set(job.key, runJob(job, withPrices(profileSupply(supplies[job.year], job.wind, production), prices[job.year])));
  return resolvedList.map(r => r?.ready ? assemble(r, general, cache) : null);
 }

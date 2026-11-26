@@ -575,3 +575,9 @@ Openbare kaart op `atlas.mijnwindpark.nl` (buiten de sitepoort; de rest is 404).
 - **Plaatsnamen:** `plaats`, `gemeente` en `provincie` per park in `windparken.geojson` komen uit de PDOK Locatieserver: `node scripts/atlas-data.mjs plaatsen` (draait ook na `windparken`). Ligt een park meer dan 500 m buiten elke gemeente, dan is de provincie `Noordzee` en de plaats de dichtstbijzijnde aan de kust. De browser krijgt alleen `plaats` (in de pop-ups en de parkenlijst in het paneel); gemeente en provincie gebruikt alleen de server.
 
 Data eenmalig vooraf: `node scripts/atlas-data.mjs wind --upload` (KNMI-uurwind 2025 naar R2 `atlas/v1/wind-2025/`), `node scripts/atlas-data.mjs windparken` (Overpass; andere server via `OVERPASS_URL`) en `node scripts/atlas-data.mjs plaatsen` (PDOK; ongeveer een minuut).
+
+## Onbalans (TenneT)
+
+Vergelijken toont voor windjaar 2024 wat extra afnemen bij een negatieve onbalansprijs oplevert: draait een module en is de prijs van het kwartier negatief, dan gaat hij naar vollast met netstroom. De kern legt dat vast als toevoeging (`result.onbalans`) die de simulatie zelf niet verandert; `src/electrolyser-imbalance.mjs` trekt de netkosten en belasting uit de algemene aannames eraf en geeft de opbrengst, de extra waterstof en de LCOH van 2024 met en zonder onbalans. Het is een bovengrens: de prijs is pas achteraf zeker.
+
+De prijzen staan in `src/opsplitsing/data/onbalans-2024.json` (TenneT Settlement Prices, prijs bij tekort, per kwartier). Bijwerken of een jaar toevoegen: `TENNET_API_KEY=… node scripts/update-onbalans.mjs <jaar>` (12 verzoeken; productie staat 25 per dag toe) en het jaar opnemen in `IMBALANCE_YEARS`. De sleutel is alleen voor dit script nodig, niet voor de site.

@@ -348,6 +348,7 @@ export function CompareTab({setups,resolved,byId,general,setGeneral,reference,se
    {!complete&&!calc.state.running&&<div className="model-actions"><button type="button" className="primary-button" onClick={()=>calc.run(jobs)}>Bereken vergelijking</button></div>}
    {conclusion&&<Conclusion conclusion={conclusion} verdict={verdict} ready={ready} results={costed as Assembled[]}/>}
    {complete&&<><ResultTable ready={ready} rows={rows} diffs={diffs} reference={ref} results={results as Assembled[]} split={!!studio}/><details className="model-settings"><summary>Waterstof per windjaar en benutting per windklasse (grafiek)</summary><YearTable ready={ready} results={results as Assembled[]} reference={ref}/><ClassChart ready={ready} rows={rows} reference={ref}/></details>
+    <ImbalanceInsight ready={ready} results={costed as Assembled[]} reference={ref}/>
     <p className="wind-note">Kosten en LCOH zijn indicatief: de prijs per kW is een eigen aanname tot er offertes zijn, en start/stop-slijtage zit er niet in. Dit is geen financieel advies. De algemene studie naar het nut van opsplitsen, met gevoeligheid en omslagkaart, staat in <a href="/opsplitsing">Elektrolyser opsplitsen</a>. Rekenkern: {KERNEL_VERSION}.</p></>}
    {warnings.length>0&&<div className="live-error capacity-warning" role="alert">{warnings.map(w=><p key={w.index}><strong>Opstelling {ready[w.index].label}</strong> {w.kind==='nominaal'?`heeft ${fmt(Math.abs(w.pct)*100,1)}% ${w.pct>0?'meer':'minder'} nominaal vermogen dan referentie ${ready[ref].label}`:`neemt bij vollast ${fmt(Math.abs(w.pct)*100,1)}% ${w.pct>0?'meer':'minder'} op dan referentie ${ready[ref].label}, door een andere vermogensgrens (stack of systeem)`} ({fmt(w.kind==='nominaal'?ready[w.index].resolved.nominalMW:ready[w.index].resolved.intakeMW,2)} tegen {fmt(w.kind==='nominaal'?ready[ref].resolved.nominalMW:ready[ref].resolved.intakeMW,2)} MW). Verschillen in opbrengst komen dan ook door de grootte.</p>)}<div className="model-actions"><label className="inline-input">Doelvermogen stack (MW)<NumberInput label="Doelvermogen als totaal stackvermogen in MW" value={target} onCommit={v=>{if(v!==null&&v>0&&v<=100000)setTarget(v);}}/></label><button type="button" className="download" onClick={fillAll}>Vul alle opstellingen aan tot {fmt(target,2)} MW stack</button></div></div>}
    {complete&&<div className="model-actions compare-actions"><button type="button" className="download" disabled={calc.state.running} onClick={()=>calc.run(jobs)}>{calc.state.running?'Rekenen…':'Opnieuw rekenen'}</button><button type="button" className="download" onClick={download}>CSV met waarden, statussen en catalogusversie</button>{atlasLink&&<a className="primary-button" href={atlasLink} target="_blank" rel="noopener">Resultaat naar Waterstofatlas ↗</a>}</div>}
@@ -408,11 +409,57 @@ function Conclusion({conclusion,verdict,ready,results}:{conclusion:Conclusion;ve
  </section>;
 }
 type ReadyEntry={setup:Setup;label:string;resolved:Resolved;model?:Model};
+// Onbalans 2024 (electrolyser-imbalance.mjs): wat extra afnemen bij een negatieve onbalansprijs oplevert, en waarom.
+const MONTHS=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+function ImbalanceInsight({ready,results,reference}:{ready:ReadyEntry[];results:Assembled[];reference:number}){
+ const data=results.map(r=>(r as any)?.costs?.onbalans??null);
+ const [box,width]=useWidth<HTMLDivElement>();
+ if(!data.some(Boolean))return null;
+ const refI=data[reference]?reference:data.findIndex(Boolean),v=data[refI],x=ready[refI];
+ const eur=(n:number)=>fmt(n,2),meur=(n:number)=>fmt(n/1e6,Math.abs(n)<1e6?2:1);
+ const energy=(mwh:number)=>{const u=energyUnit(mwh);return `${formatFixed(mwh*u.factor,decimalsFor(mwh*u.factor),true)} ${u.unit}`;};
+ const live=data.map((d,i)=>d&&Number.isFinite(d.lcoh_eur_kg)&&Number.isFinite(d.lcoh_met_eur_kg)?i:-1).filter(i=>i>=0);
+ const cheapest=(key:string)=>live.reduce((b,i)=>b<0||data[i][key]<data[b][key]?i:b,-1);
+ const before=cheapest('lcoh_eur_kg'),after=cheapest('lcoh_met_eur_kg');
+ const gain=(i:number)=>data[i].lcoh_eur_kg-data[i].lcoh_met_eur_kg;
+ const most=live.reduce((b,i)=>b<0||gain(i)>gain(b)?i:b,-1),least=live.reduce((b,i)=>b<0||gain(i)<gain(b)?i:b,-1);
+ // Chart: net revenue per month, grouped per setup, in k€.
+ const W=Math.max(300,Math.min(960,width)),narrow=W<560,H=narrow?240:260,L=52,R=12,T=14,B=36;
+ const series=live.map(i=>({i,values:data[i].maanden.map((m:any)=>m.netto_eur/1000)}));
+ const top=Math.max(1,...series.flatMap(s=>s.values)),low=Math.min(0,...series.flatMap(s=>s.values));
+ const step=(W-L-R)/12,group=step*.78,bar=Math.max(2,group/Math.max(1,series.length)-2),y=(k:number)=>T+(top-k)/(top-low)*(H-T-B);
+ const ticks=[0,.5,1].map(f=>low+(top-low)*f);
+ return <section className="imbalance-insight" aria-labelledby="imbalance-title">
+  <span className="eyebrow">ONBALANS · WINDJAAR {v.jaar} · TENNET</span>
+  <h3 id="imbalance-title">Extra afnemen als het net te veel stroom heeft</h3>
+  <p>In {v.jaar} was de onbalansprijs van TenneT in <strong>{fmt(v.uur_negatief,0)} uur negatief</strong>. Dat gebeurt juist als het hard waait: het windaanbod is dan gemiddeld {fmt(v.aanbod_negatief_mw,1)} MW, tegen {fmt(v.aanbod_met_prijs_mw,1)} MW over het hele jaar. Toch draait opstelling {x.label} op die momenten maar op {fmt(v.belasting_negatief*100,0)} % van zijn vermogen (gemiddeld {fmt(v.belasting_met_prijs*100,0)} %): er is ruimte over.</p>
+  <p>Vult de elektrolyser die ruimte met netstroom tot vollast, dan neemt hij <strong>{energy(v.mwh)}</strong> extra af, maakt hij <strong>{fmt(v.kg/1000,0)} t</strong> extra waterstof en krijgt hij daar netto <strong>{meur(v.netto_eur)} M€</strong> voor. De LCOH van {v.jaar} gaat van {eur(v.lcoh_eur_kg)} naar <strong>{eur(v.lcoh_met_eur_kg)} €/kg</strong> ({formatSigned(-(gain(refI)),2)} €/kg). Alleen kwartieren onder {fmt(v.drempel_eur_mwh,0).replace('-','−')} €/MWh tellen mee: daar blijft na netkosten en belasting ({fmt(v.heffingen_eur_mwh,2)} €/MWh) geld over.</p>
+  {live.length>1&&<p className="imbalance-key"><strong>Wat dit betekent voor de keuze:</strong> {gain(most)-gain(least)>=0.05?`opstelling ${ready[most].label} wint het meest (${eur(gain(most))} €/kg), opstelling ${ready[least].label} het minst (${eur(gain(least))} €/kg). Een opstelling met meer vermogen ten opzichte van het windaanbod heeft op de negatieve uren meer ruimte over.`:`het voordeel is voor alle opstellingen ongeveer even groot (${eur(gain(least))}–${eur(gain(most))} €/kg).`} {before!==after?`Met onbalans wordt opstelling ${ready[after].label} in ${v.jaar} de goedkoopste in plaats van opstelling ${ready[before].label}.`:`De goedkoopste opstelling in ${v.jaar} blijft opstelling ${ready[after].label}.`}</p>}
+  <div className="table-scroll compare-table-scroll"><table className="compare-table"><caption>Onbalans {v.jaar} per opstelling</caption><thead><tr><th scope="col">Opstelling</th><th scope="col">Belasting bij negatieve prijs</th><th scope="col">Extra stroom</th><th scope="col">Extra waterstof</th><th scope="col">Netto opbrengst</th><th scope="col">LCOH {v.jaar}</th><th scope="col">Met onbalans</th></tr></thead>
+   <tbody>{live.map(i=>{const d=data[i];return <tr key={ready[i].setup.id}><th scope="row"><span className="setup-swatch" style={{background:color(i)}}/>Opstelling {ready[i].label}</th><td>{fmt(d.belasting_negatief*100,0)} %</td><td>{energy(d.mwh)}</td><td>{fmt(d.kg/1000,0)} t</td><td>{meur(d.netto_eur)} M€</td><td>{eur(d.lcoh_eur_kg)} €/kg</td><td><strong>{eur(d.lcoh_met_eur_kg)} €/kg</strong><small className="diff">{formatSigned(-gain(i),2)}</small></td></tr>;})}</tbody></table></div>
+  <figure className="class-chart"><figcaption><h4>Netto opbrengst per maand (k€)</h4><p>Per maand, met de afrekening per kwartier. Beweeg over een balk voor de extra stroom en het aantal uur met een negatieve prijs.</p></figcaption>
+   {series.length>1&&<div className="combined-legend">{series.map(s=><span key={s.i}><span className="setup-swatch" style={{background:color(s.i)}}/>Opstelling {ready[s.i].label}</span>)}</div>}
+   <div className="class-chart-box" ref={box}><svg className="class-chart-svg" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Netto onbalansopbrengst per maand in ${v.jaar}, per opstelling`}><title>Netto onbalansopbrengst per maand</title>
+    {ticks.map(k=><g key={k}><line x1={L} x2={W-R} y1={y(k)} y2={y(k)} stroke="#e4e9e3"/><text x={L-8} y={y(k)+4} textAnchor="end" fontSize="11">{fmt(k,0).replace('-','−')}</text></g>)}
+    {series.map((s,j)=>s.values.map((val:number,m:number)=>{const x0=L+step*m+(step-group)/2+j*(bar+2),h=Math.abs(y(val)-y(0));return <rect key={`${s.i}-${m}`} x={x0} width={bar} y={Math.min(y(val),y(0))} height={Math.max(1,h)} rx={Math.min(4,bar/2)} fill={color(s.i)}><title>Opstelling {ready[s.i].label}, {MONTHS[m]} {v.jaar}: {fmt(val,0)} k€ netto · {energy(data[s.i].maanden[m].mwh)} extra · {fmt(data[s.i].maanden[m].uur_negatief,0)} uur negatieve prijs</title></rect>;}))}
+    {MONTHS.map((name,m)=><text key={name} x={L+step*(m+.5)} y={H-B+16} textAnchor="middle" fontSize={narrow?10:12}>{name}</text>)}
+   </svg></div>
+  </figure>
+  <details className="model-settings"><summary>Hoe dit is gerekend en wat het niet zegt</summary><ul>
+   <li>Prijzen: {v.bron}. Wie meer afneemt dan gepland, staat kort en wordt met de prijs bij tekort afgerekend; is die negatief, dan krijgt de afnemer geld. Bijwerken: <code>scripts/update-onbalans.mjs</code>.</li>
+   <li>Per tien minuten: draait een module en is de prijs van dat kwartier negatief, dan gaat hij naar vollast. Modules die uit staan, starten hiervoor niet. De extra waterstof volgt het deellastrendement van de kern; storingsbeschikbaarheid telt mee.</li>
+   <li><strong>Bovengrens:</strong> de prijs is pas achteraf zeker. In de praktijk stuur je op het actuele balanssignaal van TenneT (balansdelta) en haal je een deel hiervan.</li>
+   <li>De netaansluiting moet de vollast kunnen afnemen, ook als de wind dat niet levert. Netkosten en belasting komen per MWh uit de algemene aannames; een werkelijk tarief met een capaciteitsdeel kan anders uitvallen.</li>
+   <li>Eén jaar ({v.jaar}), want alleen dat jaar heeft een volledig prijsbestand. De onbalansregels in de tabel tonen dezelfde {v.jaar}-waarden in de kolom Gemiddelde; ze veranderen de andere uitkomsten niet.</li>
+  </ul></details>
+ </section>;
+}
+
 function ResultTable({ready,rows,diffs,reference,results,split}:{ready:ReadyEntry[];rows:(Metrics|null)[];diffs:any[];reference:number;results:Assembled[];split?:boolean}){
  // Each line: label, unit, cells. With `split` (Projectstudio) the lines whose shown values differ come first and
  // the lines that are the same for every setup go into a collapsed list below.
  type Line={key:string;label:string;unit?:string;cells:{value:string;diff?:string|null}[]};
- const lines:Line[]=[...(RESULT_ROWS as [string,string,string,string,string][]).map(row=>{const shown=resultRow(row,rows,diffs);return {key:row[1],label:row[0],unit:shown.unit,cells:shown.cells};}),
+ const lines:Line[]=[...(RESULT_ROWS as [string,string,string,string,string][]).filter(row=>!/^(onbalans_|lcoh_2024)/.test(row[1])||rows.some(r=>Number.isFinite(r?.[row[1]] as number))).map(row=>{const shown=resultRow(row,rows,diffs);return {key:row[1],label:row[0],unit:shown.unit,cells:shown.cells};}),
   {key:'rust_op',label:'Rust op',cells:ready.map(x=>({value:`${x.resolved.counts?.bron} bronwaarden en ${x.resolved.counts?.aanname} aannames`}))},
   {key:'uren',label:'Uren met data',unit:'per windjaar',cells:results.map(r=>({value:r.perYear.map(y=>`${y.jaar}: ${fmt(y.dekking_uur,0)} van ${fmt(y.uren_in_jaar,0)}`).join(' · ')}))}];
  const same=(l:Line)=>l.cells.every(c=>c.value===l.cells[0].value);
