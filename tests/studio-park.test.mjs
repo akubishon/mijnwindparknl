@@ -4,6 +4,7 @@ import { readWind, readWindComparison, modelOptions } from '../src/knmi.mjs';
 import { parkDay, parkDayComparison, averageMany, isSiteDefault, findPark } from '../src/studio/park-day.mjs';
 import { bolswardParks } from '../src/studio/supply.mjs';
 import { parkFromFeature, HOUTRIBDIJK, STAVOREN } from '../src/studio/park-model.mjs';
+import { validateProject, blankProject } from '../src/studio/project.mjs';
 
 // Nep-KNMI: per station een vaste, verschillende windreeks over de hele dag (UTC-venster zoals fetchStation vraagt).
 const DAY = '2025-03-12';
@@ -68,4 +69,12 @@ test('HARMONIE: extra roosterpunten apart bewaard, voorspelling per park met het
   assert.equal(ok.status, 200); assert.match((await ok.json()).hoogtevertaling, /seizoens/);
   const missing = await harmonieRoute(null, { BUCKET: bucket }, new URL('https://x/api/studio/harmonie?project=bolsward&park=fryslan'), answer);
   assert.equal(missing.status, 404);
+});
+
+test('OSM-park zonder of met te weinig turbines krijgt een geldig turbinevermogen', () => {
+  const hkn = parkFromFeature({ geometry: { coordinates: [4.25, 52.71] }, properties: { naam: 'Hollandse Kust (noord) V', mw: 759, turbines: null, provincie: 'Noordzee' } });
+  assert.equal(hkn.turbines, 69); assert.equal(hkn.rated_kw, 11000); assert.equal(hkn.herkomst.turbines, 'aanname');
+  const hkz = parkFromFeature({ geometry: { coordinates: [4.2, 52.3] }, properties: { naam: 'Hollandse Kust (zuid) IV', mw: 385, turbines: 2, provincie: 'Noordzee' } });
+  assert.ok(hkz.rated_kw <= 20000 && hkz.turbines * hkz.rated_kw === 385000);
+  validateProject({ ...blankProject(), naam: 'Zee', parken: [{ ...hkn, aandeel: 0.1, stations: [] }, { ...hkz, aandeel: 0.1, stations: [] }] });
 });
