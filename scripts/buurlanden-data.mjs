@@ -4,7 +4,7 @@
 // Zonder argument: beide. Committen; de Worker bundelt de bestanden. De windgegevens zelf haalt de studio per station
 // en windjaar op (src/studio/sources.mjs) en bewaart ze in R2, zoals bij KNMI.
 // Achter de agent-proxy: NODE_USE_ENV_PROXY=1 node scripts/buurlanden-data.mjs
-import {writeFileSync} from 'node:fs';
+import {writeFileSync, readFileSync, existsSync, mkdirSync} from 'node:fs';
 import {inflateRawSync} from 'node:zlib';
 
 const args = process.argv.slice(2), want = step => !args.length || args.includes(step);
@@ -90,7 +90,6 @@ async function stations() {
 // plaats = dichtstbijzijnde stad, dorp of gemeente. Parken op zee krijgen het land van de dichtstbijzijnde plaats.
 const OVERPASS = process.env.OVERPASS_URL || 'https://maps.mail.ru/osm/tools/overpass/api/interpreter';
 const COUNTRIES = {DE: {naam: 'Duitsland', level: 4}, BE: {naam: 'België', level: 6}, DK: {naam: 'Denemarken', level: 4}, LU: {naam: 'Luxemburg', level: 2}};
-const BBOX = '(47.2,2.5,58,15.5)';   // zuid, west, noord, oost: alle buurlanden met hun parken op zee
 const WIND = '(node["power"="generator"]["generator:source"="wind"]AREA;nwr["power"="plant"]["plant:source"="wind"]AREA;);';
 const wind = area => WIND.replaceAll('AREA', area);
 async function overpass(query) {
@@ -123,44 +122,59 @@ function clusterTurbines(turbines) {
  }
  return clusters;
 }
+// Kleine verzoeken (per deelstaat/provincie en per stuk zee): één groot verzoek over het hele gebied loopt achter een
+// proxy vast. Antwoorden worden bewaard in work/overpass/, zodat een herhaalde run alleen ontbrekende delen ophaalt.
+const SEAS = {Noordzee: '53.3,3.0,56.6,9.0', Oostzee: '53.8,9.5,56.6,15.5', Kattegat: '56.6,7.5,58,13'};
+const PLACE_COUNTRIES = {...Object.fromEntries(Object.keys(COUNTRIES).map(c => [c, 'city|town|village'])), NL: 'city|town', SE: 'city|town', PL: 'city|town', GB: 'city|town', NO: 'city|town', FR: 'city|town'};
+async function cachedOverpass(name, query) {
+ const file = `work/overpass/${name}.txt`;
+ if (existsSync(file)) return readFileSync(file, 'utf8');
+ const text = await overpass(query); mkdirSync('work/overpass', {recursive: true}); writeFileSync(file, text); await sleep(2000);
+ return text;
+}
 async function windparken() {
  const at = e => e.type === 'node' ? [e.lon, e.lat] : [e.center.lon, e.center.lat];
- const elements = await json(`[out:json][timeout:600][bbox:${BBOX.slice(1, -1)}];${wind('')}out center tags;`);
- console.log('OSM-objecten in het gebied:', elements.length);
- // Land en regio per object. Objecten in een ander land (FR, GB, PL, SE …) vallen weg; zonder land = op zee.
- const where = new Map(), other = new Set();
+ const byKey = new Map(), where = new Map();
  for (const [code, c] of Object.entries(COUNTRIES)) {
-  const regions = c.level === 2 ? `area["ISO3166-1"="${code}"][admin_level=2]` : `area["ISO3166-2"~"^${code}-"][admin_level=${c.level}]`;
-  const list = await json(`[out:json][timeout:600];${regions}->.r;foreach.r->.x(.x out tags;${wind('(area.x)')}out ids;);`);
-  let region = null;
-  for (const e of list) { if (e.type === 'area') region = e.tags?.['name:nl'] || e.tags?.name || null; else where.set(e.type + e.id, {land: code, provincie: c.level === 2 ? c.naam : region}); }
-  console.log(code, [...where.values()].filter(w => w.land === code).length, 'objecten op land');
-  await sleep(3000);
+  const sel = c.level === 2 ? `area["ISO3166-1"="${code}"][admin_level=2]` : `area["ISO3166-2"~"^${code}-"][admin_level=${c.level}]`;
+  const regions = JSON.parse(await cachedOverpass(`regios-${code}`, `[out:json][timeout:120];${sel};out tags;`)).elements;
+  for (const r of regions) {
+   const naam = c.level === 2 ? c.naam : r.tags?.['name:nl'] || r.tags?.name || null;
+   const list = JSON.parse(await cachedOverpass(`wind-${code}-${r.id}`, `[out:json][timeout:300];area(id:${r.id})->.a;${wind('(area.a)')}out center tags;`)).elements;
+   for (const e of list) { byKey.set(e.type + e.id, e); where.set(e.type + e.id, {land: code, provincie: naam}); }
+   console.log(code, naam, list.length);
+  }
  }
- for (const e of await json(`[out:json][timeout:600];area["ISO3166-1"~"^(NL|FR|GB|PL|SE|NO|CH|AT|CZ)$"][admin_level=2]->.a;${wind('(area.a)')}out ids;`)) other.add(e.type + e.id);
- // Plaatsen per land, voor plaats en (op zee) land.
+ for (const [zee, box] of Object.entries(SEAS)) {
+  const list = JSON.parse(await cachedOverpass(`wind-zee-${zee}`, `[out:json][timeout:300][bbox:${box}];${wind('')}out center tags;`)).elements;
+  let n = 0; for (const e of list) if (!byKey.has(e.type + e.id)) { byKey.set(e.type + e.id, e); n++; }
+  console.log(zee, n, 'objecten buiten de bestuurlijke gebieden');
+ }
+ const elements = [...byKey.values()];
+ // Plaatsen per land, voor plaats en (op zee) land. Ook NL, SE, PL, GB, NO en FR (alleen steden), zodat objecten in
+ // die landen of hun wateren daar terechtkomen en wegvallen.
  const places = [];
- for (const code of Object.keys(COUNTRIES)) {
-  const csv = await overpass(`[out:csv(::lat,::lon,name;false;"\\t")][timeout:600];area["ISO3166-1"="${code}"][admin_level=2]->.a;node["place"~"^(city|town|village)$"](area.a);out;`);
+ for (const [code, kinds] of Object.entries(PLACE_COUNTRIES)) {
+  const csv = await cachedOverpass(`plaatsen-${code}`, `[out:csv(::lat,::lon,name;false;"\\t")][timeout:300];area["ISO3166-1"="${code}"][admin_level=2]->.a;node["place"~"^(${kinds})$"](area.a);out;`);
   for (const line of csv.split('\n')) { const [lat, lon, name] = line.split('\t'); if (name) places.push({at: [Number(lon), Number(lat)], name, land: code}); }
-  await sleep(3000);
  }
  console.log('Plaatsen:', places.length);
  const pgrid = new Map(), pcell = p => `${Math.floor(p[1] / 0.25)},${Math.floor(p[0] / 0.4)}`;
  for (const p of places) { const k = pcell(p.at); if (!pgrid.has(k)) pgrid.set(k, []); pgrid.get(k).push(p); }
- const nearest = point => {
+ const nearest = (point, land) => {
   const [cy, cx] = pcell(point).split(',').map(Number);
   for (let r = 1; r <= 8; r++) {
    let best = null;
-   for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) for (const p of pgrid.get(`${cy + dy},${cx + dx}`) || []) { const d = km(point, p.at); if (!best || d < best.d) best = {...p, d}; }
+   for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) for (const p of pgrid.get(`${cy + dy},${cx + dx}`) || []) { if (land && p.land !== land) continue; const d = km(point, p.at); if (!best || d < best.d) best = {...p, d}; }
    if (best && best.d <= r * 25) return best;
   }
   return null;
  };
  const placeOf = (e, point) => {
-  const w = where.get(e.type + e.id), p = nearest(point);
-  if (w) return {...w, plaats: p?.land === w.land ? p.name : null};
-  if (other.has(e.type + e.id) || !p || p.d > 120) return null;   // ander land, of te ver op zee om toe te wijzen
+  const w = where.get(e.type + e.id);
+  if (w) return {...w, plaats: nearest(point, w.land)?.name || null};
+  const p = nearest(point);
+  if (!p || p.d > 120 || !COUNTRIES[p.land]) return null;   // ander land, of te ver op zee om toe te wijzen
   return {land: p.land, provincie: 'Zee', plaats: p.name};
  };
  const plants = elements.filter(e => e.tags?.power === 'plant').map(e => ({e, at: at(e), tags: e.tags, turbines: 0}));
