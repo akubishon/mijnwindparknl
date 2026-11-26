@@ -2,6 +2,7 @@
 // Wind years are the /opsplitsing year series; results are cached per input hash for this page session.
 import {runJob} from './electrolyser-run.mjs';
 import {profileSupply, parseProduction, isStudioProfile} from './electrolyser-wind.mjs';
+import {IMBALANCE_YEARS, imbalanceFile, validPrices, withPrices} from './electrolyser-imbalance.mjs';
 
 const years = new Map(), supplies = new Map(), results = new Map();
 let latest = 0, production = null;
@@ -24,12 +25,20 @@ function measured() {
   return parseProduction(new TextDecoder().decode(Uint8Array.from(atob(file), c => c.charCodeAt(0))));
  }).catch(e => { production = null; throw e; });
 }
+// Onbalansprijzen van TenneT voor de jaren met een prijsbestand. Ontbreekt het bestand, dan rekent alles door zonder
+// onbalansregels: de prijzen zijn een toevoeging en nooit een voorwaarde.
+const priceFiles = new Map();
+function prices(y) {
+ if (!IMBALANCE_YEARS.includes(y)) return Promise.resolve(null);
+ if (!priceFiles.has(y)) priceFiles.set(y, fetch(imbalanceFile(y)).then(r => r.ok ? r.json() : null).then(d => validPrices(d) && d.jaar === y ? d : null).catch(() => null));
+ return priceFiles.get(y);
+}
 // Projectstudio: het aanbod per windjaar komt met de opdrachten mee (data.studio = {profile, supplies: {jaar: {jaar, t, mw}}}).
 const studio = new Map();
 async function supply(y, profile) {
  const key = `${y}|${profile}`;
- if (isStudioProfile(profile)) { const s = studio.get(profile)?.[y]; if (!s) throw Error(`Het projectaanbod voor ${y} ontbreekt.`); return s; }
- if (!supplies.has(key)) supplies.set(key, (async () => profileSupply(await year(y), profile, profile === 'gemeten_dagproductie' ? await measured() : null))()
+ if (isStudioProfile(profile)) { const s = studio.get(profile)?.[y]; if (!s) throw Error(`Het projectaanbod voor ${y} ontbreekt.`); return withPrices(s, await prices(y)); }
+ if (!supplies.has(key)) supplies.set(key, (async () => withPrices(profileSupply(await year(y), profile, profile === 'gemeten_dagproductie' ? await measured() : null), await prices(y)))()
   .catch(e => { supplies.delete(key); throw e; }));
  return supplies.get(key);
 }
