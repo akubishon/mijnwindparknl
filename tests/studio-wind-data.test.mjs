@@ -61,4 +61,8 @@ test('API: haalt eenmalig op bij KNMI, bewaart in R2 en leest daarna uit R2', as
   await assert.rejects(fetchStationYear(STAVOREN, 2024, 'x', async () => new Response('{"error":"Quota exceeded"}', { status: 403 })), /KNMI_QUOTA/);
   const quota = await windRoute(null, { BUCKET: bucket, KNMI_EDR_API_KEY: 'x' }, new URL('https://x/api/studio/wind10/' + HOUTRIBDIJK + '/2025'), answer, async () => new Response('{"error":"Quota exceeded"}', { status: 403 }));
   assert.equal(quota.status, 429);
+  // Nationale WIGOS-reeks (0-528-0-…), o.a. Hollandse Kust Noord: de route herkent ze en vraagt KNMI met dat ID.
+  const hkn = '0-528-0-06213', asked = [];
+  const viaHkn = await windRoute(null, env, new URL('https://x/api/studio/wind10/' + hkn + '/2025'), answer, async u => { asked.push(u); return Response.json(coverage(hkn, [data.t[0]], [7])); });
+  assert.equal(viaHkn.status, 200); assert.equal((await viaHkn.json()).station, hkn); assert.ok(asked[0].includes(encodeURIComponent(hkn)));
 });

@@ -3,8 +3,9 @@ import { kmBetween } from './park-model.mjs';
 import { YEARS } from './supply.mjs';
 
 // Stations op zee (platforms, boeien, lichteilanden, windparken op zee).
-const SEA = new Set(['06201', '06203', '06204', '06205', '06206', '06207', '06208', '06211', '06212', '06213', '06214', '06216', '06218', '06239', '06252', '06285', '06313', '06317', '06320', '06321'].map(n => '0-20000-0-' + n));
-export const isSeaStation = id => SEA.has(id);
+// Op stationsnummer: de WIGOS-reeks verschilt (0-20000-0-… of 0-528-0-… voor Hollandse Kust en Borssele).
+const SEA = new Set(['06201', '06203', '06204', '06205', '06206', '06207', '06208', '06211', '06212', '06213', '06214', '06216', '06218', '06239', '06252', '06285', '06313', '06317', '06320', '06321']);
+export const isSeaStation = id => /^0-\d+-0-\d{5}$/.test(id) && SEA.has(id.slice(-5));
 export const MIN_COVERAGE = 0.9, MAX_KM = 25;
 // Dekking nog onbekend (station nog niet opgehaald) telt mee, met een waarschuwing.
 const complete = s => YEARS.every(y => (s.dekking?.[y] ?? 1) >= MIN_COVERAGE);
