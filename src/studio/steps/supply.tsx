@@ -43,7 +43,7 @@ export function useSupplies(project:any){
    // Drie station-jaren tegelijk: sneller bij meerdere stations, zonder KNMI EDR te overvragen bij een eerste ophaling.
    const loaded=new Map<string,Float64Array>(),queue=[...tasks];let done=0;
    const worker=async()=>{for(let t=queue.shift();t;t=queue.shift()){const [id,y]=t;
-    try{loaded.set(id+'|'+y,await windSeries(id,y));}catch(e:any){throw Error(`${stationName(id)} (${y}): ${e.message||'laden mislukt'}`);}
+    try{loaded.set(id+'|'+y,await windSeries(id,y));}catch(e:any){throw Error(`${sourceLabel(id)} (${y}): ${e.message||'laden mislukt'}`);}
     setState(s=>({...s,done:++done}));}};
    await Promise.all(Array.from({length:Math.min(3,tasks.length)},worker));
    setState(s=>({...s,stage:'Aanbod berekenen'}));

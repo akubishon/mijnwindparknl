@@ -1,4 +1,4 @@
-// Projectstudio: interactieve kaart (MapLibre; PDOK in Nederland, OpenStreetMap in grijs daarbuiten). Drie standen:
+// Projectstudio: interactieve kaart (MapLibre; PDOK in Nederland, daarbuiten vectortegels van OpenFreeMap). Drie standen:
 // 'locatie'  klik of sleep de elektrolyser; 'parken'  parken naar MW, klik om toe te voegen of te verwijderen;
 // 'stations' het gekozen park met 25 km-cirkel en de meetstations, klik om een station aan of uit te zetten.
 import {useEffect,useRef,useState,type ReactNode} from 'react';
@@ -6,7 +6,7 @@ import maplibregl from 'maplibre-gl';
 import {Layers,Plus,Minus} from 'lucide-react';
 import {parkMW,kmBetween,parkFromFeature} from './park-model.mjs';
 import {nl} from './lib';
-import {OSM_TILES,inNL} from './geo';
+import {OFM_STYLE,inNL} from './geo';
 
 const BRT='https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png';
 const LUCHT='https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg';
@@ -40,11 +40,10 @@ export function StudioMap(props:Props){
   const m=new maplibregl.Map({container:box.current!,center:[locatie?.lon??5.45,locatie?.lat??52.75],zoom:locatie?10:6.6,attributionControl:{compact:true},dragRotate:false,pitchWithRotate:false,
    style:{version:8,sources:{
      brt:{type:'raster',tiles:[BRT],tileSize:256,maxzoom:19,attribution:'Kaart, luchtfoto en percelen © <a href="https://www.pdok.nl">Kadaster / PDOK</a> · windparken © OpenStreetMap'},
-     osm:{type:'raster',tiles:[OSM_TILES],tileSize:256,maxzoom:19,attribution:'Kaart buiten Nederland © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-bijdragers</a>'},
      lucht:{type:'raster',tiles:[LUCHT],tileSize:256,maxzoom:19},kad:{type:'raster',tiles:[KADASTER],tileSize:256,minzoom:16,maxzoom:21},
      tint:{type:'geojson',data:fc([{type:'Feature',geometry:{type:'Polygon',coordinates:[[[-20,40],[30,40],[30,65],[-20,65],[-20,40]]]},properties:{}}]) as any},
      ring:{type:'geojson',data:fc([]) as any},lines:{type:'geojson',data:fc([]) as any},parks:{type:'geojson',data:fc([]) as any},chosen:{type:'geojson',data:fc([]) as any}},
-    layers:[{id:'osm',type:'raster',source:'osm',layout:{visibility:'none'},paint:{'raster-saturation':-1,'raster-contrast':-.25,'raster-brightness-min':.12}},{id:'brt',type:'raster',source:'brt'},{id:'lucht',type:'raster',source:'lucht',layout:{visibility:'none'}},{id:'kad',type:'raster',source:'kad',minzoom:16},
+    layers:[{id:'brt',type:'raster',source:'brt'},{id:'lucht',type:'raster',source:'lucht',layout:{visibility:'none'}},{id:'kad',type:'raster',source:'kad',minzoom:16},
      {id:'tint',type:'fill',source:'tint',paint:{'fill-color':'#C3E4F2','fill-opacity':.14}},
      {id:'ring-fill',type:'fill',source:'ring',paint:{'fill-color':'#00A6DE','fill-opacity':.07}},
      {id:'ring-line',type:'line',source:'ring',paint:{'line-color':'#00A6DE','line-width':1.6,'line-dasharray':[3,2]}},
@@ -62,17 +61,30 @@ export function StudioMap(props:Props){
   });
   m.on('moveend',()=>{syncNames();syncBase();});
   // Op de telefoon start de bronvermelding ingeklapt (de i-knop klapt hem uit).
-  m.on('load',()=>{ready.current=true;setLoaded(true);syncBase();if(innerWidth<=760)m.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');});
+  m.on('load',()=>{ready.current=true;setLoaded(true);void addAbroad(m);if(innerWidth<=760)m.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');});
   map.current=m;
   return()=>{popup.remove();m.remove();map.current=null;ready.current=false;h2.current=null;labels.current.clear();names.current.clear();kms.current=[];pins.current=[];};
  },[]);
 
  // PDOK alleen als het kaartbeeld in Nederland ligt en niet breder is dan ~150 km; anders OSM (ook buurlanden).
+ // Buiten Nederland: OpenFreeMap 'positron' (vectortegels, geen sleutel of tegellimiet) onder de PDOK-laag. De
+ // OSM-tegelserver (tile.openstreetmap.org) is niet bedoeld voor zwaar of commercieel gebruik en blokkeert de studio.
+ const abroad=useRef<string[]>([]),onBase=useRef<boolean|null>(null);
+ async function addAbroad(m:maplibregl.Map){
+  try{
+   const style=await (await fetch(OFM_STYLE)).json();if(map.current!==m)return;
+   for(const [id,src] of Object.entries<any>(style.sources))m.addSource('ofm-'+id,{...src,attribution:'Kaart buiten Nederland © <a href="https://openfreemap.org">OpenFreeMap</a> · <a href="https://www.openmaptiles.org/">OpenMapTiles</a> · © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-bijdragers</a>'});
+   if(style.glyphs)m.setGlyphs(style.glyphs);if(style.sprite)m.setSprite(style.sprite);
+   for(const layer of style.layers){const id='ofm-'+layer.id;m.addLayer({...layer,id,...(layer.source?{source:'ofm-'+layer.source}:{}),layout:{...(layer.layout||{}),visibility:'none'}},'brt');abroad.current.push(id);}
+  }catch{/* zonder OpenFreeMap blijft alleen PDOK over */}
+  onBase.current=null;syncBase();
+ }
  function syncBase(){
   const m=map.current;if(!m)return;
   const c=m.getCenter(),b=m.getBounds(),wide=kmBetween({lat:c.lat,lon:b.getWest()},{lat:c.lat,lon:b.getEast()})>150;
   const nl=inNL(c.lat,c.lng)&&!wide;
-  m.setLayoutProperty('brt','visibility',nl?'visible':'none');m.setLayoutProperty('osm','visibility',nl?'none':'visible');
+  if(onBase.current===nl)return;onBase.current=nl;
+  m.setLayoutProperty('brt','visibility',nl||!abroad.current.length?'visible':'none');for(const id of abroad.current)m.setLayoutProperty(id,'visibility',nl?'none':'visible');
  }
  // Namen van andere parken vanaf zoom 10 (alleen wat in beeld is, hoogstens 60).
  function syncNames(){
