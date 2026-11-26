@@ -4,7 +4,7 @@ import {useCallback,useMemo,useState} from 'react';
 import {Download,RefreshCw} from 'lucide-react';
 import {buildSupply,supplySummary,yearAxis,YEARS} from '../supply.mjs';
 import {parkMW} from '../park-model.mjs';
-import {studioProfile,studioWindText} from '../project.mjs';
+import {studioProfile,studioWindText,projectZone} from '../project.mjs';
 import {sourceLabel} from '../station-catalog.mjs';
 import {describeStudio} from '../../electrolyser-wind.mjs';
 import {allocatedMW,canComputeSupply} from '../status.mjs';
@@ -13,7 +13,7 @@ import {Card,Tile,Notice,Progress,StepHead,Details,Loading,Empty} from '../ui/ki
 import {DurationChart,Heatmap,HeatLegend,MonthlyBars,SERIES,shareAbove} from '../ui/Chart';
 
 export type Extras={cells:Float32Array;days:number;monthly:number[][];series:{label:string;color:string}[];quiet:number;max:number;csv:{t:number[];mw:number[]}};
-export type SupplyResult={profile:string;supplies:any;summaries:any[];key:string;extras:Extras};
+export type SupplyResult={profile:string;supplies:any;summaries:any[];key:string;extras:Extras;zone:string};
 
 function extrasFor(s:any,active:any[],year:number):Extras{
  const days=new Date(Date.UTC(year,1,29)).getUTCMonth()===1?366:365,sum=new Float64Array(days*24),count=new Uint16Array(days*24),monthly=Array.from({length:12},()=>active.map(()=>0));
@@ -55,7 +55,7 @@ export function useSupplies(project:any){
     extras=extrasFor(s,active,y);
    }
    const profile=studioProfile(project);describeStudio(profile,studioWindText(project));
-   setState({result:{profile,supplies,summaries,key,extras:extras!},busy:false,error:'',done,total:tasks.length,stage:''});
+   setState({result:{profile,supplies,summaries,key,extras:extras!,zone:projectZone(project)},busy:false,error:'',done,total:tasks.length,stage:''});
   }catch(e:any){setState(s=>({...s,busy:false,stage:'',error:e.message||'Het aanbod kon niet worden berekend.'}));}
  },[key]);
  return {...state,result:state.result?.key===key?state.result:null,run};

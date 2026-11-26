@@ -120,7 +120,7 @@ export function setupCosts(resolved, setup, general = {}) {
 
 // ---------------------------------------------------------------- results
 // Raw kernel results (per year and the mean) → economics per year and for the mean.
-// Onbalans (electrolyser-imbalance.mjs): per wind year with TenneT prices (null for the other years, aligned with
+// Onbalans (electrolyser-imbalance.mjs): per wind year with imbalance prices (ENTSO-E, per bidding zone) (null for the other years, aligned with
 // assembled.years) and those years together in onbalansGemiddeld.
 export function setupEconomics(assembled, a) {
  const perYear = assembled.raw.map(r => economics(r, a)), mean = economics(assembled.summary, a);

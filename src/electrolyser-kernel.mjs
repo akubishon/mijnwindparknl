@@ -181,7 +181,7 @@ const lowerBound = (sorted, value) => { let lo = 0, hi = sorted.length; while (l
 export const SUPPLY_EDGES = [0, 2.5, 5, 7.5, 10, 15, 20, 25, 30, 35, 40, 45];
 const supplyClass = power => { let c = 0; while (c + 1 < SUPPLY_EDGES.length && power >= SUPPLY_EDGES[c + 1]) c++; return c; };
 
-// Onbalans (addition, never feeds back into the decisions): with supply.onbalans = TenneT prices per quarter
+// Onbalans (addition, never feeds back into the decisions): with supply.onbalans = imbalance prices per quarter (ENTSO-E)
 // ({start, stap, prijs}, €/MWh), every running module that is below full load takes the rest up to full load from the
 // grid in quarters with a negative price. Recorded per month and per price band (upper edges in IMBALANCE_EDGES; band 0
 // is everything below the first edge), so the cost model can leave out bands where the levies exceed the price.
@@ -307,7 +307,7 @@ export function simulate(supply, n, a, strategy) {
   ...(ob ? {onbalans: {
    // Energy, cash (−price × energy, € received) and hydrogen per month × band, with the failure share applied. Not
    // scaled to a year: the prices cover the calendar year itself. Hours and energies below are as measured.
-   randen: IMBALANCE_EDGES, bron: prices.bron || '', jaar: supply.jaar,
+   randen: IMBALANCE_EDGES, bron: prices.bron || '', zone: prices.zone || 'NL', jaar: supply.jaar,
    e_mwh: ob.e.map(r => Array.from(r, v => v * avail_f)), opbrengst_eur: ob.cash.map(r => Array.from(r, v => v * avail_f)), kg: ob.kg.map(r => Array.from(r, v => v * avail_f)),
    uur_met_prijs: ob.uur, uur_negatief: ob.neg_uur, uur_negatief_per_maand: Array.from(ob.neg_maand), uur_negatief_in_bedrijf: ob.neg_aan_uur * avail_f,
    belasting_negatief: ob.neg_uur ? ob.neg_draw * avail_f / (ob.neg_uur * installedFull) : null, belasting_met_prijs: ob.uur ? ob.draw * avail_f / (ob.uur * installedFull) : null,

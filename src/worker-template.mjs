@@ -174,8 +174,8 @@ async function studioFetch(request,env,url){
  const shared=async path=>{
   if(path==='/api/atlas/catalogue')return catalogueResponse(env).catch(()=>answer({error:'De Waterstofatlas-catalogus kon niet uit de opslag worden gelezen. Probeer opnieuw.'},502));
   if(path==='/assets/elektrolyser-rekenkern.js')return new Response(calculatorWorker,{headers:{...securityHeaders,'Content-Security-Policy':"default-src 'none'; connect-src 'self'",'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'no-cache'}});
-  // Onbalansprijzen van TenneT (src/electrolyser-imbalance.mjs): de rekenkern haalt ze ook hier op.
-  if(/^\/opsplitsing-assets\/data\/onbalans-\d{4}\.json$/.test(path)){const asset=opsAssets[path.slice('/opsplitsing-assets/'.length)];return asset?new Response(asset[0],{headers:{...securityHeaders,'Content-Type':'application/json; charset=utf-8','Cache-Control':'private, max-age=3600'}}):null;}
+  // Onbalansprijzen per biedzone (ENTSO-E, src/electrolyser-imbalance.mjs): de rekenkern haalt ze ook hier op.
+  if(/^\/opsplitsing-assets\/data\/onbalans-(?:[A-Z]{2}\d?-)?\d{4}\.json$/.test(path)){const asset=opsAssets[path.slice('/opsplitsing-assets/'.length)];return asset?new Response(asset[0],{headers:{...securityHeaders,'Content-Type':'application/json; charset=utf-8','Cache-Control':'private, max-age=3600'}}):null;}
   if(path==='/fonts/tasa-orbiter.ttf')return new Response(Uint8Array.from(atob(brandFont),c=>c.charCodeAt(0)),{headers:{...securityHeaders,'Content-Type':'font/ttf','Cache-Control':'public, max-age=604800'}});
   return null;
  };
