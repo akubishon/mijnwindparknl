@@ -92,11 +92,15 @@ const OVERPASS = process.env.OVERPASS_URL || 'https://maps.mail.ru/osm/tools/ove
 const COUNTRIES = {DE: {naam: 'Duitsland', level: 4}, BE: {naam: 'België', level: 6}, DK: {naam: 'Denemarken', level: 4}, LU: {naam: 'Luxemburg', level: 2}};
 const WIND = '(node["power"="generator"]["generator:source"="wind"]AREA;nwr["power"="plant"]["plant:source"="wind"]AREA;);';
 const wind = area => WIND.replaceAll('AREA', area);
+// Ook het lezen van het antwoord opnieuw proberen: een proxy kan een lange download halverwege afbreken.
 async function overpass(query) {
- const r = await get(OVERPASS, {method: 'POST', body: new URLSearchParams({data: query})}, 6);
- const text = await r.text();
- if (text.startsWith('<')) throw Error('Overpass gaf geen JSON: ' + text.slice(0, 200));
- return text;
+ for (let i = 0; ; i++) {
+  try {
+   const text = await (await get(OVERPASS, {method: 'POST', body: new URLSearchParams({data: query})}, 6)).text();
+   if (text.startsWith('<')) throw Error('Overpass gaf geen JSON: ' + text.slice(0, 200));
+   return text;
+  } catch (e) { if (i >= 4) throw e; console.warn('Overpass opnieuw:', e.message); await sleep(10000 * (i + 1)); }
+ }
 }
 const json = async query => JSON.parse(await overpass(query)).elements;
 const outputMW = text => {
@@ -141,7 +145,7 @@ async function windparken() {
   for (const r of regions) {
    const naam = c.level === 2 ? c.naam : r.tags?.['name:nl'] || r.tags?.name || null;
    const list = JSON.parse(await cachedOverpass(`wind-${code}-${r.id}`, `[out:json][timeout:300];area(id:${r.id})->.a;${wind('(area.a)')}out center tags;`)).elements;
-   for (const e of list) { byKey.set(e.type + e.id, e); where.set(e.type + e.id, {land: code, provincie: naam}); }
+   for (const e of list) { byKey.set(e.type + e.id, e); if (!where.has(e.type + e.id)) where.set(e.type + e.id, {land: code, provincie: naam?.replace(/\s*\(Landmasse\)$/, '') || null}); }
    console.log(code, naam, list.length);
   }
  }
