@@ -120,7 +120,8 @@ export async function windRoute(request, env, url, answer, fetchImpl = fetch) {
     const index = env.BUCKET ? await readJSON(env.BUCKET, INDEX_KEY) : null;
     return answer(completeIndex(index));
   }
-  const m = url.pathname.match(/^\/api\/studio\/wind10\/(0-20000-0-\d{5}|0-528-0-\d{5}|dwd-\d{5}|kmi-\d{4,8}|dmi-\d{5}|mf-\d{8})\/(\d{4})$/);
+  // KNMI: WIGOS-ID's 0-20000-0-xxxxx (WMO) en 0-528-0-xxxxx (nationaal, o.a. Hollandse Kust, Borssele); buurlanden met eigen voorvoegsel.
+  const m = url.pathname.match(/^\/api\/studio\/wind10\/(0-\d{1,5}-0-\d{5}|dwd-\d{5}|kmi-\d{4,8}|dmi-\d{5}|mf-\d{8})\/(\d{4})$/);
   if (!m) return null;
   const [, station, yearText] = m, year = Number(yearText);
   if (!knownStation(station) || !YEARS.includes(year)) return answer({ error: 'Onbekend station of windjaar.' }, 400);

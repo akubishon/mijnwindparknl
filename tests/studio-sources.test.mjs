@@ -17,10 +17,10 @@ function zip(name, text) {
 }
 const dwdLine = (t, ff, dd = 200) => `         11;${t};    3;${String(ff).padStart(6)};${String(dd).padStart(4)};eor`;
 
-test('catalogus: KNMI plus Duitsland, België en Denemarken, elk met bron, land en meethoogte', () => {
+test('catalogus: KNMI plus Duitsland, België, Denemarken en Frankrijk, elk met bron, land en meethoogte', () => {
   const lands = new Set(STATIONS.map(s => s.land));
-  for (const land of ['NL', 'DE', 'BE', 'DK']) assert.ok(lands.has(land), land);
-  assert.ok(STATIONS.every(s => s.bron && s.meethoogte_m > 0 && s.latitude > 45));
+  for (const land of ['NL', 'DE', 'BE', 'DK', 'FR']) assert.ok(lands.has(land), land);
+  assert.ok(STATIONS.every(s => s.bron && s.meethoogte_m > 0 && s.latitude > 40));
   assert.equal(new Set(STATIONS.map(s => s.id)).size, STATIONS.length, 'unieke id');
   assert.equal(sourceLabel('0-20000-0-06267'), 'KNMI Stavoren');
   assert.match(sourceLabel(STATIONS.find(s => s.bron === 'dwd').id), /^DWD /);

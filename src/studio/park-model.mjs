@@ -21,19 +21,24 @@ export const kmBetween = (a, b) => {
   return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 };
 // Standaard ashoogte voor een park zonder bron, naar turbinevermogen.
+export const MAX_RATED_KW = 20000;
 export const defaultHubHeight = ratedKW => ratedKW < 2000 ? 80 : ratedKW <= 4000 ? 100 : 120;
 
 // OSM-park naar een studiopark. Het parkmidden binnen 2 km van Fryslân of Beabuorren geeft het bekende model.
 export function parkFromFeature(feature) {
   const [lon, lat] = feature.geometry.coordinates, p = feature.properties || {};
   for (const known of Object.values(KNOWN)) if (kmBetween({ lat, lon }, known) <= 2) return { ...known, herkomst: { turbines: 'bron', rated_kw: 'bron', hub_height_m: 'bron', wake_pct: 'aanname' } };
-  const turbines = Math.max(1, Math.round(Number(p.turbines) || 1));
-  const mw = Number(p.mw) > 0 ? Number(p.mw) : null;
+  const mw = Number(p.mw) > 0 ? Number(p.mw) : null, osmTurbines = Math.round(Number(p.turbines) || 0);
+  // OSM telt soms maar een paar turbines of geen (Hollandse Kust (noord) V: 759 MW, aantal onbekend). Geeft MW ÷ aantal
+  // een onmogelijk turbinevermogen, dan volgt het aantal uit een typisch turbinevermogen (zee 11 MW, land 3 MW).
+  const plausible = mw && osmTurbines >= 1 && mw * 1000 / osmTurbines <= MAX_RATED_KW;
+  const typicalKW = p.provincie === 'Noordzee' || p.provincie === 'Zee' ? 11000 : 3000;   // 'Zee': parken op zee in de buurlanden
+  const turbines = plausible ? osmTurbines : mw ? Math.min(1000, Math.max(1, Math.round(mw * 1000 / typicalKW))) : Math.max(1, osmTurbines || 1);
   const rated_kw = mw ? Math.round(mw * 1000 / turbines) : 3000;
   return {
     id: `osm:${lat.toFixed(4)},${lon.toFixed(4)}`, naam: p.naam || 'Windpark', plaats: p.plaats || '', gemeente: p.gemeente || '', land: p.land || 'NL', lat, lon,
     turbines, rated_kw, hub_height_m: defaultHubHeight(rated_kw), wake_pct: 5, curve: 'standaard', hoogte: 'alpha',
-    herkomst: { turbines: p.turbines ? 'osm' : 'aanname', rated_kw: mw ? 'osm' : 'aanname', hub_height_m: 'aanname', wake_pct: 'aanname', curve: 'aanname', hoogte: 'aanname' },
+    herkomst: { turbines: plausible || (!mw && osmTurbines) ? 'osm' : 'aanname', rated_kw: mw ? 'osm' : 'aanname', hub_height_m: 'aanname', wake_pct: 'aanname', curve: 'aanname', hoogte: 'aanname' },
   };
 }
 

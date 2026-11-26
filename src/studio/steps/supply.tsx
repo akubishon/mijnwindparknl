@@ -40,8 +40,12 @@ export function useSupplies(project:any){
   const ids=[...new Set(active.flatMap((p:any)=>p.stations))] as string[],tasks=YEARS.flatMap((y:number)=>ids.map(id=>[id,y] as [string,number]));
   setState({result:null,busy:true,error:'',done:0,total:tasks.length,stage:'Winddata laden'});
   try{
-   const loaded=new Map<string,Float64Array>();let done=0;
-   for(const [id,y] of tasks){loaded.set(id+'|'+y,await windSeries(id,y));setState(s=>({...s,done:++done}));}
+   // Drie station-jaren tegelijk: sneller bij meerdere stations, zonder KNMI EDR te overvragen bij een eerste ophaling.
+   const loaded=new Map<string,Float64Array>(),queue=[...tasks];let done=0;
+   const worker=async()=>{for(let t=queue.shift();t;t=queue.shift()){const [id,y]=t;
+    try{loaded.set(id+'|'+y,await windSeries(id,y));}catch(e:any){throw Error(`${stationName(id)} (${y}): ${e.message||'laden mislukt'}`);}
+    setState(s=>({...s,done:++done}));}};
+   await Promise.all(Array.from({length:Math.min(3,tasks.length)},worker));
    setState(s=>({...s,stage:'Aanbod berekenen'}));
    await new Promise(r=>setTimeout(r,30));
    const supplies:any={},summaries:any[]=[];let extras:Extras|null=null;
