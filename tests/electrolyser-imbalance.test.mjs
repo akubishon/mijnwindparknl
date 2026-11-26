@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {simulate_with_replacements, cleanSupply, DEFAULTS, IMBALANCE_EDGES, priceAt} from '../src/electrolyser-kernel.mjs';
 import {economics, COST_DEFAULTS, setupEconomics} from '../src/electrolyser-economics.mjs';
-import {imbalanceValue, imbalanceMetrics, validPrices, IMBALANCE_YEAR} from '../src/electrolyser-imbalance.mjs';
+import {imbalanceValue, imbalanceMean, imbalanceMetrics, validPrices, IMBALANCE_YEARS} from '../src/electrolyser-imbalance.mjs';
 
 // A short synthetic year: 30 days of ten-minute steps from 1 January 2024 with a steady 20 MW.
 const start = Date.UTC(2024, 0, 1) / 1000, steps = 30 * 144;
@@ -59,18 +59,27 @@ test('Price bands are ordered and end at zero', () => {
  for (let i = 1; i < IMBALANCE_EDGES.length; i++) assert.ok(IMBALANCE_EDGES[i] > IMBALANCE_EDGES[i - 1]);
 });
 
-test('The table rows carry the 2024 value only when that year is computed', () => {
- const r = simulate_with_replacements(cleanSupply({...supply(), onbalans: flat(-100)}), 10, a, 'verdelen');
- const with2024 = setupEconomics({years: [IMBALANCE_YEAR], raw: [r], summary: r}, costs);
- assert.ok(with2024.onbalans.netto_eur > 0);
- const without = setupEconomics({years: [2023], raw: [r], summary: r}, costs);
- assert.equal(without.onbalans, null);
+test('Each year with prices gets its own imbalance value; the mean covers only those years', () => {
+ const deep = simulate_with_replacements(cleanSupply({...supply(), onbalans: flat(-100)}), 10, a, 'verdelen');
+ const mild = simulate_with_replacements(cleanSupply({...supply(), onbalans: flat(-50)}), 10, a, 'verdelen');
+ const e = setupEconomics({years: [2023, 2024, 2025], raw: [deep, deep, mild], summary: deep}, costs);
+ assert.equal(e.onbalans[0], null);
+ assert.ok(e.onbalans[1].netto_eur > e.onbalans[2].netto_eur && e.onbalans[2].netto_eur > 0);
+ const m = e.onbalansGemiddeld;
+ assert.equal(m.jaren.length, 2);   // 2023 has no prices and stays out
+ assert.ok(Math.abs(m.netto_eur - (e.onbalans[1].netto_eur + e.onbalans[2].netto_eur) / 2) < 1e-6);
+ assert.ok(m.lcoh_met_eur_kg < m.lcoh_eur_kg);
+ // Same year twice: the mean equals that year.
+ const one = imbalanceMean([e.onbalans[1], e.onbalans[1]]);
+ assert.ok(Math.abs(one.lcoh_met_eur_kg - e.onbalans[1].lcoh_met_eur_kg) < 1e-9);
+ assert.equal(setupEconomics({years: [2023], raw: [deep], summary: deep}, costs).onbalansGemiddeld, null);
  assert.deepEqual(Object.values(imbalanceMetrics(null)), [null, null, null, null, null]);
 });
 
-test('The 2024 price file is complete and in the expected format', () => {
- const d = JSON.parse(readFileSync(new URL('../src/opsplitsing/data/onbalans-2024.json', import.meta.url), 'utf8'));
+for (const year of IMBALANCE_YEARS) test(`The ${year} price file is complete and in the expected format`, () => {
+ const d = JSON.parse(readFileSync(new URL(`../src/opsplitsing/data/onbalans-${year}.json`, import.meta.url), 'utf8'));
+ const days = (Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1)) / 864e5;
  assert.ok(validPrices(d));
- assert.equal(d.jaar, 2024); assert.equal(d.prijs.length, 366 * 96); assert.equal(d.ontbrekend, 0);
- assert.equal(d.start, Date.UTC(2023, 11, 31, 23) / 1000);
+ assert.equal(d.jaar, year); assert.equal(d.prijs.length, days * 96); assert.equal(d.ontbrekend, 0);
+ assert.equal(d.start, Date.UTC(year - 1, 11, 31, 23) / 1000);
 });

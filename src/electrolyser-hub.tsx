@@ -409,12 +409,18 @@ function Conclusion({conclusion,verdict,ready,results}:{conclusion:Conclusion;ve
  </section>;
 }
 type ReadyEntry={setup:Setup;label:string;resolved:Resolved;model?:Model};
-// Onbalans 2024 (electrolyser-imbalance.mjs): wat extra afnemen bij een negatieve onbalansprijs oplevert, en waarom.
+// Onbalans (electrolyser-imbalance.mjs): wat extra afnemen bij een negatieve onbalansprijs oplevert, en waarom.
+// Eén windjaar tegelijk (standaard het laatste met prijzen); met meer jaren een keuze en een regel per jaar.
 const MONTHS=['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
 function ImbalanceInsight({ready,results,reference}:{ready:ReadyEntry[];results:Assembled[];reference:number}){
- const data=results.map(r=>(r as any)?.costs?.onbalans??null);
+ const perSetup=results.map(r=>{const c=(r as any)?.costs;return Array.isArray(c?.onbalans)?c.onbalans as any[]:[];});
+ const years=[...new Set(perSetup.flat().filter(Boolean).map((v:any)=>v.jaar as number))].sort((p,q)=>p-q);
+ const [picked,setPicked]=useState<number|null>(null);
  const [box,width]=useWidth<HTMLDivElement>();
- if(!data.some(Boolean))return null;
+ if(!years.length)return null;
+ const year=picked!==null&&years.includes(picked)?picked:years[years.length-1];
+ const of=(i:number,y:number)=>perSetup[i].find((v:any)=>v?.jaar===y)??null;
+ const data=perSetup.map((_,i)=>of(i,year));
  const refI=data[reference]?reference:data.findIndex(Boolean),v=data[refI],x=ready[refI];
  const eur=(n:number)=>fmt(n,2),meur=(n:number)=>fmt(n/1e6,Math.abs(n)<1e6?2:1);
  const energy=(mwh:number)=>{const u=energyUnit(mwh);return `${formatFixed(mwh*u.factor,decimalsFor(mwh*u.factor),true)} ${u.unit}`;};
@@ -432,6 +438,8 @@ function ImbalanceInsight({ready,results,reference}:{ready:ReadyEntry[];results:
  return <section className="imbalance-insight" aria-labelledby="imbalance-title">
   <span className="eyebrow">ONBALANS · WINDJAAR {v.jaar} · TENNET</span>
   <h3 id="imbalance-title">Extra afnemen als het net te veel stroom heeft</h3>
+  {years.length>1&&<div className="imbalance-years" role="group" aria-label="Windjaar voor onbalans">{years.map(y=><button key={y} type="button" aria-pressed={y===year} onClick={()=>setPicked(y)}>{y}</button>)}</div>}
+  {years.length>1&&<p>Opstelling {x.label} per jaar: {years.map(y=>{const d=of(refI,y);return d&&Number.isFinite(d.lcoh_met_eur_kg)?`${y}: ${fmt(d.uur_negatief,0)} uur negatief, netto ${meur(d.netto_eur)} M€, LCOH ${eur(d.lcoh_eur_kg)} → ${eur(d.lcoh_met_eur_kg)} €/kg`:null;}).filter(Boolean).join(' · ')}.</p>}
   <p>In {v.jaar} was de onbalansprijs van TenneT in <strong>{fmt(v.uur_negatief,0)} uur negatief</strong>. Dat gebeurt juist als het hard waait: het windaanbod is dan gemiddeld {fmt(v.aanbod_negatief_mw,1)} MW, tegen {fmt(v.aanbod_met_prijs_mw,1)} MW over het hele jaar. Toch draait opstelling {x.label} op die momenten maar op {fmt(v.belasting_negatief*100,0)} % van zijn vermogen (gemiddeld {fmt(v.belasting_met_prijs*100,0)} %): er is ruimte over.</p>
   <p>Vult de elektrolyser die ruimte met netstroom tot vollast, dan neemt hij <strong>{energy(v.mwh)}</strong> extra af, maakt hij <strong>{fmt(v.kg/1000,0)} t</strong> extra waterstof en krijgt hij daar netto <strong>{meur(v.netto_eur)} M€</strong> voor. De LCOH van {v.jaar} gaat van {eur(v.lcoh_eur_kg)} naar <strong>{eur(v.lcoh_met_eur_kg)} €/kg</strong> ({formatSigned(-(gain(refI)),2)} €/kg). Alleen kwartieren onder {fmt(v.drempel_eur_mwh,0).replace('-','−')} €/MWh tellen mee: daar blijft na netkosten en belasting ({fmt(v.heffingen_eur_mwh,2)} €/MWh) geld over.</p>
   {live.length>1&&<p className="imbalance-key"><strong>Wat dit betekent voor de keuze:</strong> {gain(most)-gain(least)>=0.05?`opstelling ${ready[most].label} wint het meest (${eur(gain(most))} €/kg), opstelling ${ready[least].label} het minst (${eur(gain(least))} €/kg). Een opstelling met meer vermogen ten opzichte van het windaanbod heeft op de negatieve uren meer ruimte over.`:`het voordeel is voor alle opstellingen ongeveer even groot (${eur(gain(least))}–${eur(gain(most))} €/kg).`} {before!==after?`Met onbalans wordt opstelling ${ready[after].label} in ${v.jaar} de goedkoopste in plaats van opstelling ${ready[before].label}.`:`De goedkoopste opstelling in ${v.jaar} blijft opstelling ${ready[after].label}.`}</p>}
@@ -450,7 +458,7 @@ function ImbalanceInsight({ready,results,reference}:{ready:ReadyEntry[];results:
    <li>Per tien minuten: draait een module en is de prijs van dat kwartier negatief, dan gaat hij naar vollast. Modules die uit staan, starten hiervoor niet. De extra waterstof volgt het deellastrendement van de kern; storingsbeschikbaarheid telt mee.</li>
    <li><strong>Bovengrens:</strong> de prijs is pas achteraf zeker. In de praktijk stuur je op het actuele balanssignaal van TenneT (balansdelta) en haal je een deel hiervan.</li>
    <li>De netaansluiting moet de vollast kunnen afnemen, ook als de wind dat niet levert. Netkosten en belasting komen per MWh uit de algemene aannames; een werkelijk tarief met een capaciteitsdeel kan anders uitvallen.</li>
-   <li>Eén jaar ({v.jaar}), want alleen dat jaar heeft een volledig prijsbestand. De onbalansregels in de tabel tonen dezelfde {v.jaar}-waarden in de kolom Gemiddelde; ze veranderen de andere uitkomsten niet.</li>
+   <li>{years.length>1?`Windjaren met een volledig prijsbestand: ${years.join(' en ')}. In de tabel staat elk jaar in zijn eigen kolom; de kolom Gemiddelde toont het gemiddelde van deze jaren, niet van alle windjaren.`:`Eén jaar (${v.jaar}), want alleen dat jaar heeft een volledig prijsbestand. De onbalansregels in de tabel tonen dezelfde ${v.jaar}-waarden in de kolom Gemiddelde.`} De onbalansregels veranderen de andere uitkomsten niet.</li>
   </ul></details>
  </section>;
 }
@@ -459,7 +467,7 @@ function ResultTable({ready,rows,diffs,reference,results,split}:{ready:ReadyEntr
  // Each line: label, unit, cells. With `split` (Projectstudio) the lines whose shown values differ come first and
  // the lines that are the same for every setup go into a collapsed list below.
  type Line={key:string;label:string;unit?:string;cells:{value:string;diff?:string|null}[]};
- const lines:Line[]=[...(RESULT_ROWS as [string,string,string,string,string][]).filter(row=>!/^(onbalans_|lcoh_2024)/.test(row[1])||rows.some(r=>Number.isFinite(r?.[row[1]] as number))).map(row=>{const shown=resultRow(row,rows,diffs);return {key:row[1],label:row[0],unit:shown.unit,cells:shown.cells};}),
+ const lines:Line[]=[...(RESULT_ROWS as [string,string,string,string,string][]).filter(row=>!/^onbalans_/.test(row[1])||rows.some(r=>Number.isFinite(r?.[row[1]] as number))).map(row=>{const shown=resultRow(row,rows,diffs);return {key:row[1],label:row[0],unit:shown.unit,cells:shown.cells};}),
   {key:'rust_op',label:'Rust op',cells:ready.map(x=>({value:`${x.resolved.counts?.bron} bronwaarden en ${x.resolved.counts?.aanname} aannames`}))},
   {key:'uren',label:'Uren met data',unit:'per windjaar',cells:results.map(r=>({value:r.perYear.map(y=>`${y.jaar}: ${fmt(y.dekking_uur,0)} van ${fmt(y.uren_in_jaar,0)}`).join(' · ')}))}];
  const same=(l:Line)=>l.cells.every(c=>c.value===l.cells[0].value);
