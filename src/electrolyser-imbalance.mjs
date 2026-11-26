@@ -1,15 +1,33 @@
-// Onbalans als opbrengstregel: wat levert het op als de elektrolyser in kwartieren met een negatieve onbalansprijs van
-// TenneT extra stroom van het net afneemt, tot vollast van de modules die al draaien? De kern (simulate) legt per maand
+// Onbalans als opbrengstregel: wat levert het op als de elektrolyser in kwartieren met een negatieve onbalansprijs
+// (ENTSO-E Transparency Platform, per biedzone; in Nederland die van TenneT) extra stroom van het net afneemt, tot vollast van de modules die al draaien? De kern (simulate) legt per maand
 // en per prijsband vast hoeveel extra stroom dat is, wat het oplevert (−prijs × energie) en hoeveel extra waterstof.
 // Hier gaan de netkosten en energiebelasting van de vergelijking eraf: een kwartier telt alleen mee als de prijs
 // zo negatief is dat de afnemer na die heffingen nog geld krijgt. Achteraf bekende prijzen: dit is een bovengrens.
 import {IMBALANCE_EDGES} from './electrolyser-kernel.mjs';
 
-// Windjaren met een volledig prijsbestand (src/opsplitsing/data/onbalans-<jaar>.json, scripts/update-onbalans.mjs).
+// Windjaren met een volledig prijsbestand (src/opsplitsing/data/onbalans-<jaar>.json en onbalans-<zone>-<jaar>.json, scripts/update-onbalans.mjs).
 export const IMBALANCE_YEARS = [2024, 2025];
 // "2024–2025" voor de labels in de tabel.
 export const IMBALANCE_SPAN = IMBALANCE_YEARS.length > 1 ? `${IMBALANCE_YEARS[0]}–${IMBALANCE_YEARS.at(-1)}` : String(IMBALANCE_YEARS[0]);
-export const imbalanceFile = year => `/opsplitsing-assets/data/onbalans-${year}.json`;
+// Biedzones met onbalansprijzen van het ENTSO-E Transparency Platform (scripts/update-onbalans.mjs). Nederland houdt de
+// oude bestandsnaam onbalans-<jaar>.json; de andere zones onbalans-<zone>-<jaar>.json. Luxemburg heeft geen eigen
+// onbalansprijs op ENTSO-E en zit met Duitsland in biedzone DE-LU: daar gelden de Duitse prijzen als benadering.
+export const IMBALANCE_ZONES = Object.freeze({
+ NL: {eic: '10YNL----------L', tso: 'TenneT', naam: 'Nederland'},
+ BE: {eic: '10YBE----------2', tso: 'Elia', naam: 'België'},
+ DE: {eic: '10Y1001A1001A83F', tso: 'Duitse netbeheerders, reBAP', naam: 'Duitsland'},
+ FR: {eic: '10YFR-RTE------C', tso: 'RTE', naam: 'Frankrijk'},
+ DK1: {eic: '10YDK-1--------W', tso: 'Energinet', naam: 'West-Denemarken (DK1)'},
+ DK2: {eic: '10YDK-2--------M', tso: 'Energinet', naam: 'Oost-Denemarken (DK2)'},
+ LU: {eic: null, als: 'DE', tso: 'Duitse netbeheerders, reBAP (benadering)', naam: 'Luxemburg'},
+});
+// Land van de elektrolyser → zone met prijsbestand. Denemarken: west van de Grote Belt (Jutland, Funen) is DK1.
+export function imbalanceZone(land, lon) {
+ if (land === 'DK') return lon < 10.95 ? 'DK1' : 'DK2';
+ return IMBALANCE_ZONES[land] ? land : 'NL';
+}
+const fileZone = zone => IMBALANCE_ZONES[zone]?.als || zone || 'NL';
+export const imbalanceFile = (year, zone = 'NL') => fileZone(zone) === 'NL' ? `/opsplitsing-assets/data/onbalans-${year}.json` : `/opsplitsing-assets/data/onbalans-${fileZone(zone)}-${year}.json`;
 export const validPrices = d => !!d && Number.isInteger(d.jaar) && Number.isFinite(d.start) && d.stap === 900 && Array.isArray(d.prijs) && d.prijs.length > 0;
 export const withPrices = (supply, prices) => prices ? {...supply, onbalans: prices} : supply;
 
@@ -34,7 +52,7 @@ export function imbalanceValue(result, a, base) {
  const kg = result.waterstof_t * 1000;
  const netto = sum('netto_eur'), extraKg = sum('kg');
  return {
-  jaar: ob.jaar, bron: ob.bron, heffingen_eur_mwh: L, drempel_eur_mwh: Number.isFinite(threshold) ? threshold : null,
+  jaar: ob.jaar, bron: ob.bron, zone: ob.zone || 'NL', heffingen_eur_mwh: L, drempel_eur_mwh: Number.isFinite(threshold) ? threshold : null,
   mwh: sum('mwh'), mwh_alle_negatieve: all, kg: extraKg, bruto_eur: sum('bruto_eur'), netto_eur: netto, maanden: months,
   uur_met_prijs: ob.uur_met_prijs * scale, uur_negatief: ob.uur_negatief * scale, uur_negatief_in_bedrijf: ob.uur_negatief_in_bedrijf * scale,
   belasting_negatief: ob.belasting_negatief, belasting_met_prijs: ob.belasting_met_prijs, aanbod_negatief_mw: ob.aanbod_negatief_mw, aanbod_met_prijs_mw: ob.aanbod_met_prijs_mw, vollast_mw: ob.vollast_mw,

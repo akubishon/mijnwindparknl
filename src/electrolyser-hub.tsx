@@ -5,6 +5,7 @@ import {resultRow,parseAtlasImport,setupsFromImport,windResultPayload,windResult
 import {catalogueModels,missingEndpointFields,DISABLED_MANUFACTURERS,NM3_PER_KG} from './electrolyser-catalogue.mjs';
 import {resolveSetup,generalValues,defaultGeneral,newSetup,fillWithinLimit,stackPowerMW,defaultLimit,validLimit,modelFit,limitFloorMW,RESULT_ROWS,PERCENT_KEYS,differences,capacityWarnings,comparisonCSV,fieldMeta,GENERAL_KEYS,WIND_YEARS,MAX_SETUPS,MAX_MODULES,DEFAULT_TARGET_MW,MODEL_KEYS,jobFor} from './electrolyser-setup.mjs';
 import {assemble} from './electrolyser-run.mjs';
+import {IMBALANCE_ZONES} from './electrolyser-imbalance.mjs';
 import {COST_KEYS,generalCosts,setupCosts,withCosts,robustness,DEFAULT_PRICE_EUR_KW} from './electrolyser-economics.mjs';
 import {STRATEGIES,TECHNOLOGIES,SUPPLY_EDGES,KERNEL_VERSION} from './electrolyser-kernel.mjs';
 import {WIND_PROFILES,windSeries} from './electrolyser-wind.mjs';
@@ -60,8 +61,8 @@ function Shell({tab,go,children}:{tab:Tab;go:(t:Tab)=>void;children:ReactNode}){
 // Worker-backed calculation with progress and a cache per input hash. A whole Atlas shortlist is many jobs (one per setup
 // and wind year), so they are spread over several workers, one per spare processor core.
 const MAX_WORKERS=6;
-// Projectstudio: `studio` = {profile, supplies}; elk rekenwerkje krijgt het projectaanbod één keer mee.
-export function useCalculator(studio:{profile:string;supplies:any}|null=null){
+// Projectstudio: `studio` = {profile, supplies, zone}; elk rekenwerkje krijgt het projectaanbod één keer mee.
+export function useCalculator(studio:{profile:string;supplies:any;zone?:string}|null=null){
  const workers=useRef<Worker[]>([]),cache=useRef(new Map<string,any>()),serial=useRef(0),sent=useRef(new WeakMap<Worker,string>()),project=useRef(studio);
  project.current=studio;
  const [state,setState]=useState({running:false,done:0,total:0,fromCache:0,error:'',version:0,label:''});
@@ -422,6 +423,7 @@ function ImbalanceInsight({ready,results,reference}:{ready:ReadyEntry[];results:
  const of=(i:number,y:number)=>perSetup[i].find((v:any)=>v?.jaar===y)??null;
  const data=perSetup.map((_,i)=>of(i,year));
  const refI=data[reference]?reference:data.findIndex(Boolean),v=data[refI],x=ready[refI];
+ const zoneInfo={zone:v.zone||'NL',...(IMBALANCE_ZONES as any)[v.zone||'NL']};
  const eur=(n:number)=>fmt(n,2),meur=(n:number)=>fmt(n/1e6,Math.abs(n)<1e6?2:1);
  const energy=(mwh:number)=>{const u=energyUnit(mwh);return `${formatFixed(mwh*u.factor,decimalsFor(mwh*u.factor),true)} ${u.unit}`;};
  const live=data.map((d,i)=>d&&Number.isFinite(d.lcoh_eur_kg)&&Number.isFinite(d.lcoh_met_eur_kg)?i:-1).filter(i=>i>=0);
@@ -436,11 +438,11 @@ function ImbalanceInsight({ready,results,reference}:{ready:ReadyEntry[];results:
  const step=(W-L-R)/12,group=step*.78,bar=Math.max(2,group/Math.max(1,series.length)-2),y=(k:number)=>T+(top-k)/(top-low)*(H-T-B);
  const ticks=[0,.5,1].map(f=>low+(top-low)*f);
  return <section className="imbalance-insight" aria-labelledby="imbalance-title">
-  <span className="eyebrow">ONBALANS · WINDJAAR {v.jaar} · TENNET</span>
+  <span className="eyebrow">ONBALANS · WINDJAAR {v.jaar} · {zoneInfo.naam.toUpperCase()}</span>
   <h3 id="imbalance-title">Extra afnemen als het net te veel stroom heeft</h3>
   {years.length>1&&<div className="imbalance-years" role="group" aria-label="Windjaar voor onbalans">{years.map(y=><button key={y} type="button" aria-pressed={y===year} onClick={()=>setPicked(y)}>{y}</button>)}</div>}
   {years.length>1&&<p>Opstelling {x.label} per jaar: {years.map(y=>{const d=of(refI,y);return d&&Number.isFinite(d.lcoh_met_eur_kg)?`${y}: ${fmt(d.uur_negatief,0)} uur negatief, netto ${meur(d.netto_eur)} M€, LCOH ${eur(d.lcoh_eur_kg)} → ${eur(d.lcoh_met_eur_kg)} €/kg`:null;}).filter(Boolean).join(' · ')}.</p>}
-  <p>In {v.jaar} was de onbalansprijs van TenneT in <strong>{fmt(v.uur_negatief,0)} uur negatief</strong>. Dat gebeurt juist als het hard waait: het windaanbod is dan gemiddeld {fmt(v.aanbod_negatief_mw,1)} MW, tegen {fmt(v.aanbod_met_prijs_mw,1)} MW over het hele jaar. Toch draait opstelling {x.label} op die momenten maar op {fmt(v.belasting_negatief*100,0)} % van zijn vermogen (gemiddeld {fmt(v.belasting_met_prijs*100,0)} %): er is ruimte over.</p>
+  <p>In {v.jaar} was de onbalansprijs {zoneInfo.zone==='NL'?'van TenneT':`in ${zoneInfo.naam} (${zoneInfo.tso})`} in <strong>{fmt(v.uur_negatief,0)} uur negatief</strong>. Dat gebeurt juist als het hard waait: het windaanbod is dan gemiddeld {fmt(v.aanbod_negatief_mw,1)} MW, tegen {fmt(v.aanbod_met_prijs_mw,1)} MW over het hele jaar. Toch draait opstelling {x.label} op die momenten maar op {fmt(v.belasting_negatief*100,0)} % van zijn vermogen (gemiddeld {fmt(v.belasting_met_prijs*100,0)} %): er is ruimte over.</p>
   <p>Vult de elektrolyser die ruimte met netstroom tot vollast, dan neemt hij <strong>{energy(v.mwh)}</strong> extra af, maakt hij <strong>{fmt(v.kg/1000,0)} t</strong> extra waterstof en krijgt hij daar netto <strong>{meur(v.netto_eur)} M€</strong> voor. De LCOH van {v.jaar} gaat van {eur(v.lcoh_eur_kg)} naar <strong>{eur(v.lcoh_met_eur_kg)} €/kg</strong> ({formatSigned(-(gain(refI)),2)} €/kg). Alleen kwartieren onder {fmt(v.drempel_eur_mwh,0).replace('-','−')} €/MWh tellen mee: daar blijft na netkosten en belasting ({fmt(v.heffingen_eur_mwh,2)} €/MWh) geld over.</p>
   {live.length>1&&<p className="imbalance-key"><strong>Wat dit betekent voor de keuze:</strong> {gain(most)-gain(least)>=0.05?`opstelling ${ready[most].label} wint het meest (${eur(gain(most))} €/kg), opstelling ${ready[least].label} het minst (${eur(gain(least))} €/kg). Een opstelling met meer vermogen ten opzichte van het windaanbod heeft op de negatieve uren meer ruimte over.`:`het voordeel is voor alle opstellingen ongeveer even groot (${eur(gain(least))}–${eur(gain(most))} €/kg).`} {before!==after?`Met onbalans wordt opstelling ${ready[after].label} in ${v.jaar} de goedkoopste in plaats van opstelling ${ready[before].label}.`:`De goedkoopste opstelling in ${v.jaar} blijft opstelling ${ready[after].label}.`}</p>}
   <div className="table-scroll compare-table-scroll"><table className="compare-table"><caption>Onbalans {v.jaar} per opstelling</caption><thead><tr><th scope="col">Opstelling</th><th scope="col">Belasting bij negatieve prijs</th><th scope="col">Extra stroom</th><th scope="col">Extra waterstof</th><th scope="col">Netto opbrengst</th><th scope="col">LCOH {v.jaar}</th><th scope="col">Met onbalans</th></tr></thead>
@@ -456,7 +458,7 @@ function ImbalanceInsight({ready,results,reference}:{ready:ReadyEntry[];results:
   <details className="model-settings"><summary>Hoe dit is gerekend en wat het niet zegt</summary><ul>
    <li>Prijzen: {v.bron}. Wie meer afneemt dan gepland, staat kort en wordt met de prijs bij tekort afgerekend; is die negatief, dan krijgt de afnemer geld. Bijwerken: <code>scripts/update-onbalans.mjs</code>.</li>
    <li>Per tien minuten: draait een module en is de prijs van dat kwartier negatief, dan gaat hij naar vollast. Modules die uit staan, starten hiervoor niet. De extra waterstof volgt het deellastrendement van de kern; storingsbeschikbaarheid telt mee.</li>
-   <li><strong>Bovengrens:</strong> de prijs is pas achteraf zeker. In de praktijk stuur je op het actuele balanssignaal van TenneT (balansdelta) en haal je een deel hiervan.</li>
+   <li><strong>Bovengrens:</strong> de prijs is pas achteraf zeker. In de praktijk stuur je op het actuele balanssignaal van de netbeheerder ({zoneInfo.zone==='NL'?'bij TenneT de balansdelta':zoneInfo.tso}) en haal je een deel hiervan.</li>
    <li>De netaansluiting moet de vollast kunnen afnemen, ook als de wind dat niet levert. Netkosten en belasting komen per MWh uit de algemene aannames; een werkelijk tarief met een capaciteitsdeel kan anders uitvallen.</li>
    <li>{years.length>1?`Windjaren met een volledig prijsbestand: ${years.join(' en ')}. In de tabel staat elk jaar in zijn eigen kolom; de kolom Gemiddelde toont het gemiddelde van deze jaren, niet van alle windjaren.`:`Eén jaar (${v.jaar}), want alleen dat jaar heeft een volledig prijsbestand. De onbalansregels in de tabel tonen dezelfde ${v.jaar}-waarden in de kolom Gemiddelde.`} De onbalansregels veranderen de andere uitkomsten niet.</li>
   </ul></details>

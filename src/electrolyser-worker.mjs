@@ -25,19 +25,22 @@ function measured() {
   return parseProduction(new TextDecoder().decode(Uint8Array.from(atob(file), c => c.charCodeAt(0))));
  }).catch(e => { production = null; throw e; });
 }
-// Onbalansprijzen van TenneT voor de jaren met een prijsbestand. Ontbreekt het bestand, dan rekent alles door zonder
+// Onbalansprijzen (ENTSO-E, per biedzone; standaard Nederland) voor de jaren met een prijsbestand. Ontbreekt het bestand, dan rekent alles door zonder
 // onbalansregels: de prijzen zijn een toevoeging en nooit een voorwaarde.
 const priceFiles = new Map();
-function prices(y) {
+function prices(y, zone = 'NL') {
  if (!IMBALANCE_YEARS.includes(y)) return Promise.resolve(null);
- if (!priceFiles.has(y)) priceFiles.set(y, fetch(imbalanceFile(y)).then(r => r.ok ? r.json() : null).then(d => validPrices(d) && d.jaar === y ? d : null).catch(() => null));
- return priceFiles.get(y);
+ const key = `${zone}|${y}`, file = imbalanceFile(y, zone);
+ // Luxemburg rekent met het Duitse bestand, maar houdt zijn eigen zone voor de tekst.
+ if (!priceFiles.has(key)) priceFiles.set(key, fetch(file).then(r => r.ok ? r.json() : null).then(d => validPrices(d) && d.jaar === y ? {...d, zone} : null).catch(() => null));
+ return priceFiles.get(key);
 }
-// Projectstudio: het aanbod per windjaar komt met de opdrachten mee (data.studio = {profile, supplies: {jaar: {jaar, t, mw}}}).
+// Projectstudio: het aanbod per windjaar komt met de opdrachten mee (data.studio = {profile, supplies: {jaar: {jaar, t, mw}}, zone}).
+// `zone`: de biedzone van de elektrolyser (imbalanceZone), voor de onbalansprijzen.
 const studio = new Map();
 async function supply(y, profile) {
  const key = `${y}|${profile}`;
- if (isStudioProfile(profile)) { const s = studio.get(profile)?.[y]; if (!s) throw Error(`Het projectaanbod voor ${y} ontbreekt.`); return withPrices(s, await prices(y)); }
+ if (isStudioProfile(profile)) { const p = studio.get(profile), s = p?.supplies[y]; if (!s) throw Error(`Het projectaanbod voor ${y} ontbreekt.`); return withPrices(s, await prices(y, p.zone)); }
  if (!supplies.has(key)) supplies.set(key, (async () => withPrices(profileSupply(await year(y), profile, profile === 'gemeten_dagproductie' ? await measured() : null), await prices(y)))()
   .catch(e => { supplies.delete(key); throw e; }));
  return supplies.get(key);
@@ -45,7 +48,7 @@ async function supply(y, profile) {
 self.onmessage = async ({data}) => {
  const {id, jobs} = data;
  latest = id;
- if (data.studio) { studio.clear(); studio.set(data.studio.profile, data.studio.supplies); }
+ if (data.studio) { studio.clear(); studio.set(data.studio.profile, {supplies: data.studio.supplies, zone: data.studio.zone || 'NL'}); }
  try {
   const out = {};
   for (let i = 0; i < jobs.length; i++) {

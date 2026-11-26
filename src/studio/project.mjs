@@ -4,6 +4,7 @@ import { stationById, knownStation, sourceLabel, sourcesOf } from './station-cat
 import { defaultGeneral, inputHash, newSetup } from '../electrolyser-setup.mjs';
 import { bolswardParks, YEARS } from './supply.mjs';
 import { parkMW } from './park-model.mjs';
+import { imbalanceZone } from '../electrolyser-imbalance.mjs';
 
 export const PROJECT_VERSION = 1, MAX_PARKS = 20, MAX_VARIANTS = 12, ID_PATTERN = /^[a-z2-7]{12}$/;
 export const BOLSWARD_LOCATION = { lat: 53.066, lon: 5.531 };
@@ -21,7 +22,15 @@ const nl = (v, d = 1) => v.toLocaleString('nl-NL', { minimumFractionDigits: d, m
 export const stationName = id => stationById(id)?.name || id;
 // De parkkeuze die het aanbod bepaalt; twee projecten met dezelfde keuze delen de cache van de rekenkern.
 // Het aanbod wordt altijd voor alle windjaren berekend; de jaarkeuze in Vergelijken verandert het profiel dus niet.
-export const supplyConfig = project => ({ parken: project.parken.filter(p => p.aandeel > 0).map(p => ({ id: p.id, aandeel: p.aandeel, stations: p.stations, turbines: p.turbines, rated_kw: p.rated_kw, hub_height_m: p.hub_height_m, wake_pct: p.wake_pct, curve: p.curve, hoogte: p.hoogte, lat: p.lat, lon: p.lon })) });
+export const LANDEN = ['NL', 'DE', 'BE', 'DK', 'LU', 'FR'];
+// Biedzone voor de onbalansprijzen: het land van de elektrolyser (omgekeerd zoeken), anders dat van het eerste park met
+// vermogen, anders Nederland.
+export function projectZone(project) {
+  const land = project.land || project.parken.find(p => p.aandeel > 0 && p.land)?.land || 'NL';
+  return imbalanceZone(land, project.locatie?.lon ?? project.parken.find(p => p.aandeel > 0)?.lon ?? 0);
+}
+// `onbalans` alleen buiten Nederland, zodat bestaande profielen (Bolsward) dezelfde hash houden.
+export const supplyConfig = project => ({ ...(projectZone(project) !== 'NL' ? { onbalans: projectZone(project) } : {}), parken: project.parken.filter(p => p.aandeel > 0).map(p => ({ id: p.id, aandeel: p.aandeel, stations: p.stations, turbines: p.turbines, rated_kw: p.rated_kw, hub_height_m: p.hub_height_m, wake_pct: p.wake_pct, curve: p.curve, hoogte: p.hoogte, lat: p.lat, lon: p.lon })) });
 export const studioProfile = project => 'studio:' + inputHash(supplyConfig(project));
 export function studioWindText(project) {
   const loc = project.locatie ? `elektrolyser op ${nl(project.locatie.lat, 3)}° N ${nl(project.locatie.lon, 3)}° E` : 'elektrolyser zonder locatie';
@@ -44,7 +53,7 @@ export function validateProject(input) {
     if (!['fryslan', 'beabuorren', 'standaard'].includes(p.curve) || !['wins50', 'alpha'].includes(p.hoogte)) fail('curve of hoogte');
     if (!Array.isArray(p.stations) || p.stations.length > 6 || !p.stations.every(knownStation)) fail('stations van ' + p.naam);
     const herkomst = Object.fromEntries(Object.entries(p.herkomst || {}).filter(([k, v]) => text(k, 30) && text(v, 20)));
-    return { id: p.id, naam: p.naam, plaats: text(p.plaats, 120) ? p.plaats : '', gemeente: text(p.gemeente, 120) ? p.gemeente : '', ...(['NL', 'DE', 'BE', 'DK', 'LU', 'FR'].includes(p.land) ? { land: p.land } : {}), lat: p.lat, lon: p.lon, turbines: p.turbines, rated_kw: p.rated_kw, hub_height_m: p.hub_height_m, wake_pct: p.wake_pct, curve: p.curve, hoogte: p.hoogte, aandeel: p.aandeel, stations: [...p.stations], herkomst, ...(p.model && text(p.model, 120) ? { model: p.model } : {}) };
+    return { id: p.id, naam: p.naam, plaats: text(p.plaats, 120) ? p.plaats : '', gemeente: text(p.gemeente, 120) ? p.gemeente : '', ...(LANDEN.includes(p.land) ? { land: p.land } : {}), lat: p.lat, lon: p.lon, turbines: p.turbines, rated_kw: p.rated_kw, hub_height_m: p.hub_height_m, wake_pct: p.wake_pct, curve: p.curve, hoogte: p.hoogte, aandeel: p.aandeel, stations: [...p.stations], herkomst, ...(p.model && text(p.model, 120) ? { model: p.model } : {}) };
   });
   if (!Array.isArray(input.varianten) || input.varianten.length > MAX_VARIANTS) fail('varianten');
   const varianten = input.varianten.map(v => {
@@ -55,5 +64,7 @@ export function validateProject(input) {
   const algemeen = input.algemeen && typeof input.algemeen === 'object' && JSON.stringify(input.algemeen).length < 20000 ? input.algemeen : defaultGeneral();
   // `plaats`: woonplaats bij de locatie (PDOK Locatieserver, buiten Nederland Photon), alleen voor de weergave.
   const plaats = input.locatie && text(input.plaats, 120) ? input.plaats.trim() : '';
-  return { versie: PROJECT_VERSION, id: input.id, naam: input.naam.trim(), gemaakt: input.gemaakt ?? null, gewijzigd: input.gewijzigd ?? null, locatie: input.locatie, plaats, varianten, referentie: Number.isInteger(input.referentie) ? input.referentie : 0, parken, jaren: jaren.length ? jaren : [...YEARS], algemeen };
+  // `land`: land van de locatie (omgekeerd zoeken), voor de onbalansprijzen (projectZone).
+  const land = input.locatie && LANDEN.includes(input.land) ? { land: input.land } : {};
+  return { versie: PROJECT_VERSION, id: input.id, naam: input.naam.trim(), gemaakt: input.gemaakt ?? null, gewijzigd: input.gewijzigd ?? null, locatie: input.locatie, plaats, ...land, varianten, referentie: Number.isInteger(input.referentie) ? input.referentie : 0, parken, jaren: jaren.length ? jaren : [...YEARS], algemeen };
 }

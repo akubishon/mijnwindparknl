@@ -576,8 +576,21 @@ Openbare kaart op `atlas.mijnwindpark.nl` (buiten de sitepoort; de rest is 404).
 
 Data eenmalig vooraf: `node scripts/atlas-data.mjs wind --upload` (KNMI-uurwind 2025 naar R2 `atlas/v1/wind-2025/`), `node scripts/atlas-data.mjs windparken` (Overpass; andere server via `OVERPASS_URL`) en `node scripts/atlas-data.mjs plaatsen` (PDOK; ongeveer een minuut).
 
-## Onbalans (TenneT)
+## Onbalans (ENTSO-E Transparency Platform)
 
 Vergelijken toont voor de windjaren 2024 en 2025 wat extra afnemen bij een negatieve onbalansprijs oplevert: draait een module en is de prijs van het kwartier negatief, dan gaat hij naar vollast met netstroom. De kern legt dat vast als toevoeging (`result.onbalans`) die de simulatie zelf niet verandert; `src/electrolyser-imbalance.mjs` trekt de netkosten en belasting uit de algemene aannames eraf en geeft per jaar de opbrengst, de extra waterstof en de LCOH met en zonder onbalans. In de tabel staat elk jaar in zijn eigen kolom; de kolom Gemiddelde toont het gemiddelde van de jaren met prijzen (LCOH uit de opgetelde kosten en waterstof van die jaren), niet van alle windjaren. De inzichtkaart toont één jaar tegelijk, standaard het laatste, met een knop per jaar. Het is een bovengrens: de prijs is pas achteraf zeker.
 
-De prijzen staan in `src/opsplitsing/data/onbalans-2024.json` en `onbalans-2025.json` (TenneT Settlement Prices, prijs bij tekort, per kwartier). Bijwerken of een jaar toevoegen: `TENNET_API_KEY=… node scripts/update-onbalans.mjs <jaar>` (12 verzoeken; productie staat 25 per dag toe) en het jaar opnemen in `IMBALANCE_YEARS`. De sleutel is alleen voor dit script nodig, niet voor de site.
+De prijzen komen van het ENTSO-E Transparency Platform (Imbalance Prices [17.1.G], documentType A85), per biedzone en per kwartier: de prijs voor wie kort staat (categorie A05). Voor Nederland is dat kwartier voor kwartier dezelfde prijs als TenneT's Settlement Prices ‘Price Shortage’ (gecontroleerd voor 2024 en 2025, 0 verschillen). Bestanden in `src/opsplitsing/data/`: `onbalans-<jaar>.json` voor Nederland (zoals voorheen) en `onbalans-<zone>-<jaar>.json` voor BE, DE, FR, DK1 en DK2.
+
+| Zone | Netbeheerder | Opmerking |
+|---|---|---|
+| NL | TenneT | |
+| BE | Elia | |
+| DE | Duitse netbeheerders (reBAP) | |
+| FR | RTE | |
+| DK1, DK2 | Energinet | Grote Belt als grens (lengte 10,95° E); tot de overstap uurprijzen, per kwartier herhaald |
+| LU | (geen eigen prijs op ENTSO-E) | Duitse prijzen als benadering: zelfde biedzone DE-LU |
+
+Projectstudio: de zone volgt het land van de elektrolyserlocatie (`land`, uit het omgekeerd zoeken; anders het land van het eerste park met vermogen, anders NL), zie `projectZone` in `src/studio/project.mjs`. Buiten Nederland staat de zone in de parkkeuze (`supplyConfig().onbalans`), zodat de rekencache per zone apart is; Bolsward en andere Nederlandse projecten houden hun profiel. Op mijnwindpark.nl blijft het Nederland.
+
+Bijwerken of een jaar toevoegen: `ENTSOE_TOKEN=… node scripts/update-onbalans.mjs <jaar>` (Nederland), `--zone BE` voor één zone of `--alle` voor alle zones (12 verzoeken per zone; het platform is traag, reken op enkele minuten per zone). Daarna het jaar opnemen in `IMBALANCE_YEARS`. De sleutel (security token van transparency.entsoe.eu, ook als `transparency` in de omgeving) is alleen voor dit script nodig, niet voor de site. Tests: `tests/onbalans-entsoe.test.mjs`.

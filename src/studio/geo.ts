@@ -20,9 +20,10 @@ export async function photonSearch(q:string):Promise<Hit[]>{
   const naam=[p.name||[p.street,p.housenumber].filter(Boolean).join(' '),p.city&&p.city!==p.name?p.city:'',LANDEN[p.countrycode]||p.country].filter(Boolean).join(', ');
   return {naam,lat,lon,adres,soort:adres?'adres':p.type||p.osm_value||'plaats'};});
 }
-export async function photonPlace(lat:number,lon:number){
- const r=await fetch(`${PHOTON}/reverse?${new URLSearchParams({lat:String(lat),lon:String(lon)})}`);if(!r.ok)return '';
- const p=(await r.json()).features?.[0]?.properties;if(!p)return '';
- const plaats=p.city||p.town||p.village||p.county||p.name||'';
- return plaats&&p.countrycode&&p.countrycode!=='NL'?`${plaats} (${LANDEN[p.countrycode]||p.country})`:plaats;
+// Plaatsnaam en landcode (alleen de landen van de studio) bij een punt.
+export async function photonPlace(lat:number,lon:number):Promise<{plaats:string;land:string}>{
+ const r=await fetch(`${PHOTON}/reverse?${new URLSearchParams({lat:String(lat),lon:String(lon)})}`);if(!r.ok)return {plaats:'',land:''};
+ const p=(await r.json()).features?.[0]?.properties;if(!p)return {plaats:'',land:''};
+ const plaats=p.city||p.town||p.village||p.county||p.name||'',land=LANDEN[p.countrycode]?p.countrycode:'';
+ return {plaats:plaats&&p.countrycode&&p.countrycode!=='NL'?`${plaats} (${LANDEN[p.countrycode]||p.country})`:plaats,land};
 }

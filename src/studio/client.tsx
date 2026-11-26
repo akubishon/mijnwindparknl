@@ -45,7 +45,7 @@ function Editor({initial}:{initial:any}){
  const supply=useSupplies(project);
  const general=useMemo(()=>({...project.algemeen,years:YEARS,wind:supply.result?.profile||studioProfile(project)}),[project.algemeen,project.jaren,supply.result]);
  const resolved=useMemo(()=>project.varianten.map((s:any)=>resolveSetup(byId.get(s.modelId),s,general,{target,limit})),[project.varianten,byId,general,target,limit]);
- const calc=useCalculator(supply.result?{profile:supply.result.profile,supplies:supply.result.supplies}:null);
+ const calc=useCalculator(supply.result?{profile:supply.result.profile,supplies:supply.result.supplies,zone:supply.result.zone}:null);
 
  // Na Vergelijken: kerncijfers van de referentievariant voor het overzicht.
  const {rows,compared}=useMemo(()=>{
@@ -78,8 +78,9 @@ function Editor({initial}:{initial:any}){
   const loc=project.locatie;if(!loc)return;const key=`${loc.lat},${loc.lon}`;if(placed.current===key)return;
   // Plaatsnaam: PDOK in Nederland, Photon (OSM) daarbuiten of als PDOK niets vindt.
   const name=async()=>{const doc=inNL(loc.lat,loc.lon)?(await getJSON(`${REVERSE}?${new URLSearchParams({lat:String(loc.lat),lon:String(loc.lon),type:'woonplaats',rows:'1',fl:'woonplaatsnaam,gemeentenaam,afstand'})}`)).response?.docs?.[0]:null;
-   return doc&&!(doc.afstand>2000)?doc.woonplaatsnaam||doc.gemeentenaam||'':await photonPlace(loc.lat,loc.lon);};
-  const timer=setTimeout(()=>{placed.current=key;name().then(plaats=>setProject((p:any)=>p.locatie?.lat===loc.lat&&p.locatie?.lon===loc.lon?{...p,plaats}:p)).catch(()=>{});},450);
+   return doc&&!(doc.afstand>2000)?{plaats:doc.woonplaatsnaam||doc.gemeentenaam||'',land:'NL'}:await photonPlace(loc.lat,loc.lon);};
+  // Het land bepaalt de onbalansprijzen (projectZone); onbekend → het land van de parken.
+  const timer=setTimeout(()=>{placed.current=key;name().then(({plaats,land})=>setProject((p:any)=>{if(p.locatie?.lat!==loc.lat||p.locatie?.lon!==loc.lon)return p;const q={...p,plaats};if(land)q.land=land;else delete q.land;return q;})).catch(()=>{});},450);
   return()=>clearTimeout(timer);
  },[project.locatie?.lat,project.locatie?.lon]);
 

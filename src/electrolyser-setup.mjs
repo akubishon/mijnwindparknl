@@ -280,7 +280,7 @@ export const RESULT_ROWS = [
  ['Stroomkosten', 'stroom_meur_jaar', 'M€ per jaar', 'uitkomst', 'stroom_MEUR_per_jaar'], ['Stackvervanging', 'stack_meur_jaar', 'M€ per jaar', 'uitkomst', 'stackvervanging_MEUR_per_jaar'],
  ['Kosten per jaar', 'kosten_meur_jaar', 'M€ per jaar', 'uitkomst', 'kosten_MEUR_per_jaar'], ['LCOH', 'lcoh_eur_kg', '€/kg', 'uitkomst', 'LCOH_EUR_per_kg'],
  ['Maximale meerprijs t.o.v. referentie (boven +, onder − de aangenomen prijs)', 'meerprijs_eur_kw', '€/kW', 'uitkomst', 'max_meerprijs_EUR_per_kW'],
- // Onbalans (electrolyser-imbalance.mjs): de windjaren met TenneT-prijzen; per jaar in de eigen kolom, samen in Gemiddelde.
+ // Onbalans (electrolyser-imbalance.mjs): de windjaren met onbalansprijzen; per jaar in de eigen kolom, samen in Gemiddelde.
  [`Onbalans ${IMBALANCE_SPAN}: extra stroom bij negatieve prijs`, 'onbalans_mwh', 'MWh per jaar', 'energie', 'onbalans_extra_MWh'],
  [`Onbalans ${IMBALANCE_SPAN}: extra waterstof`, 'onbalans_kg', 'kg per jaar', 'waterstof', 'onbalans_extra_waterstof_kg'],
  [`Onbalans ${IMBALANCE_SPAN}: netto opbrengst (bovengrens)`, 'onbalans_meur_jaar', 'M€ per jaar', 'uitkomst', 'onbalans_netto_opbrengst_MEUR'],
